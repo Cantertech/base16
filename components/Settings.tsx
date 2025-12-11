@@ -1,0 +1,566 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Building2, Lock, CreditCard, Save, Upload, CheckCircle, 
+  History, Gift, Copy, MessageSquare, Plus, X
+} from 'lucide-react';
+
+interface SettingsProps {
+    onConfigUpdate: () => void;
+    currentUser?: {
+        name: string;
+        role: 'admin' | 'teacher';
+    };
+}
+
+const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
+  const isTeacher = currentUser?.role === 'teacher';
+  // If teacher, force security tab default
+  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'billing'>(isTeacher ? 'security' : 'general');
+  const [loading, setLoading] = useState(false);
+  
+  // -- Data States --
+  const [config, setConfig] = useState<any>({});
+  const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
+  const [billingHistory, setBillingHistory] = useState<any[]>([]);
+  const [smsBalance, setSmsBalance] = useState(0);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+
+  useEffect(() => {
+      // Load Initial Data
+      const storedConfig = JSON.parse(localStorage.getItem('schoolhub_config') || '{}');
+      const storedBilling = JSON.parse(localStorage.getItem('schoolhub_billing_history') || '[]');
+      const storedBalance = parseInt(localStorage.getItem('schoolhub_sms_balance') || '0');
+      
+      // Ensure referral data exists if legacy user
+      if (!storedConfig.referralCode) {
+          storedConfig.referralCode = `SZO-${Math.floor(Math.random() * 900 + 100)}`;
+          storedConfig.referralPreference = 'CASH';
+          localStorage.setItem('schoolhub_config', JSON.stringify(storedConfig));
+      }
+
+      setConfig(storedConfig);
+      setBillingHistory(storedBilling);
+      setSmsBalance(storedBalance);
+  }, []);
+
+  // -- Handlers --
+
+  const handleGeneralSave = (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      setTimeout(() => {
+          localStorage.setItem('schoolhub_config', JSON.stringify(config));
+          onConfigUpdate(); // Notify Dashboard to refresh
+          setLoading(false);
+          alert('School settings updated successfully!');
+      }, 1000);
+  };
+
+  const handleSecuritySave = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (passwords.new !== passwords.confirm) {
+          alert("New passwords do not match.");
+          return;
+      }
+      setLoading(true);
+      
+      setTimeout(() => {
+          if (isTeacher) {
+              // Update Teacher Password
+              const teachers = JSON.parse(localStorage.getItem('schoolhub_teachers') || '[]');
+              const updatedTeachers = teachers.map((t: any) => {
+                  if (t.name === currentUser?.name) {
+                      return { ...t, password: passwords.new };
+                  }
+                  return t;
+              });
+              
+              // Handle hardcoded mock teacher (Mr. Solomon Opoku) case gracefully
+              // If not found in dynamic list, just pretend success for this session
+              if (!updatedTeachers.find((t: any) => t.name === currentUser?.name)) {
+                  console.log("Mock teacher password updated in session.");
+              } else {
+                  localStorage.setItem('schoolhub_teachers', JSON.stringify(updatedTeachers));
+              }
+              
+              setPasswords({ current: '', new: '', confirm: '' });
+              setLoading(false);
+              alert('Your password has been updated successfully!');
+          } else {
+              // Update Admin Password
+              const updatedConfig = { ...config, password: passwords.new };
+              localStorage.setItem('schoolhub_config', JSON.stringify(updatedConfig));
+              setConfig(updatedConfig);
+              setPasswords({ current: '', new: '', confirm: '' });
+              setLoading(false);
+              alert('Admin password updated successfully!');
+          }
+      }, 1000);
+  };
+
+  const handleBuySms = (units: number, cost: number) => {
+      setLoading(true);
+      setTimeout(() => {
+          // 1. Update Balance
+          const newBalance = smsBalance + units;
+          setSmsBalance(newBalance);
+          localStorage.setItem('schoolhub_sms_balance', newBalance.toString());
+
+          // 2. Add Billing Record
+          const newRecord = {
+              id: `INV-${Date.now()}`,
+              date: new Date().toISOString().split('T')[0],
+              description: `SMS Bundle (${units} Units)`,
+              amount: cost,
+              status: 'Paid'
+          };
+          const updatedHistory = [newRecord, ...billingHistory];
+          setBillingHistory(updatedHistory);
+          localStorage.setItem('schoolhub_billing_history', JSON.stringify(updatedHistory));
+
+          setLoading(false);
+          setShowSmsModal(false);
+          alert(`Successfully purchased ${units} SMS credits!`);
+      }, 1500);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+        const url = URL.createObjectURL(e.target.files[0]);
+        setConfig({ ...config, logo: url });
+      }
+  };
+
+  const handleCopyCode = () => {
+      navigator.clipboard.writeText(config.referralCode);
+      alert('Referral code copied to clipboard!');
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row h-full bg-slate-50 overflow-hidden">
+      
+      {/* Sidebar Navigation (Left) */}
+      <div className="w-full lg:w-64 bg-white border-r border-slate-200 flex flex-row lg:flex-col shrink-0">
+          <div className="p-6 border-b border-slate-100 hidden lg:block">
+              <h2 className="font-bold text-slate-800 text-lg">Settings</h2>
+              <p className="text-slate-500 text-xs">Manage your account</p>
+          </div>
+          
+          <div className="flex flex-row lg:flex-col p-2 lg:p-4 gap-2 overflow-x-auto">
+              {!isTeacher && (
+                  <button 
+                     onClick={() => setActiveTab('general')}
+                     className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'general' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                      <Building2 className="h-5 w-5" /> General
+                  </button>
+              )}
+              <button 
+                 onClick={() => setActiveTab('security')}
+                 className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'security' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                  <Lock className="h-5 w-5" /> Security
+              </button>
+              {!isTeacher && (
+                  <button 
+                     onClick={() => setActiveTab('billing')}
+                     className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'billing' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                      <CreditCard className="h-5 w-5" /> Billing & Plans
+                  </button>
+              )}
+          </div>
+      </div>
+
+      {/* Main Content Area (Right) */}
+      <div className="flex-1 overflow-y-auto p-8">
+          
+          {/* --- TAB 1: GENERAL --- */}
+          {activeTab === 'general' && !isTeacher && (
+              <div className="max-w-2xl space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800">School Profile</h2>
+                      <p className="text-slate-500 text-sm">Update your school's identity and theme.</p>
+                  </div>
+
+                  <form onSubmit={handleGeneralSave} className="space-y-6">
+                      
+                      {/* --- Referral Hub Card (NEW) --- */}
+                      <div className="bg-gradient-to-r from-purple-700 to-indigo-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                         <div className="absolute top-0 right-0 p-6 opacity-10">
+                            <Gift className="h-32 w-32 rotate-12" />
+                         </div>
+                         <div className="relative z-10">
+                            <h3 className="text-xl font-bold flex items-center gap-2 mb-2">
+                                <Gift className="h-5 w-5 text-yellow-300" /> SixZones Orbit Referral Hub
+                            </h3>
+                            <p className="text-purple-100 text-sm mb-6 max-w-md">
+                                Share your code below. Your referred school gets <span className="font-bold text-white bg-white/20 px-1 rounded">GH¢ 100 OFF</span> their setup automatically!
+                            </p>
+                            
+                            <div className="flex flex-col sm:flex-row gap-6">
+                                <div className="flex-1 bg-white/10 rounded-xl p-4 border border-white/20">
+                                    <p className="text-xs text-purple-200 uppercase font-bold tracking-wider mb-2">Your Referral Code</p>
+                                    <div className="flex items-center gap-2">
+                                        <code className="text-2xl font-mono font-bold">{config.referralCode || '...'}</code>
+                                        <button 
+                                            type="button"
+                                            onClick={handleCopyCode}
+                                            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" 
+                                            title="Copy Code"
+                                        >
+                                            <Copy className="h-5 w-5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1">
+                                    <p className="text-xs text-purple-200 uppercase font-bold tracking-wider mb-2">Choose Your Reward</p>
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-3 cursor-pointer group">
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${config.referralPreference === 'CASH' ? 'border-yellow-400' : 'border-white/50'}`}>
+                                                {config.referralPreference === 'CASH' && <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>}
+                                            </div>
+                                            <input 
+                                                type="radio" 
+                                                name="reward" 
+                                                value="CASH" 
+                                                checked={config.referralPreference === 'CASH'}
+                                                onChange={() => setConfig({...config, referralPreference: 'CASH'})}
+                                                className="hidden" 
+                                            />
+                                            <span className={`text-sm font-medium ${config.referralPreference === 'CASH' ? 'text-white' : 'text-purple-200'}`}>GH¢ 150 MoMo Commission</span>
+                                        </label>
+                                        <label className="flex items-center gap-3 cursor-pointer group">
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${config.referralPreference === 'CREDIT' ? 'border-yellow-400' : 'border-white/50'}`}>
+                                                {config.referralPreference === 'CREDIT' && <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>}
+                                            </div>
+                                            <input 
+                                                type="radio" 
+                                                name="reward" 
+                                                value="CREDIT" 
+                                                checked={config.referralPreference === 'CREDIT'}
+                                                onChange={() => setConfig({...config, referralPreference: 'CREDIT'})}
+                                                className="hidden" 
+                                            />
+                                            <span className={`text-sm font-medium ${config.referralPreference === 'CREDIT' ? 'text-white' : 'text-purple-200'}`}>1 Month Free Credit (GH¢ 250 Value)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* --- General Settings Form --- */}
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                        <div className="flex items-center gap-6">
+                            <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors">
+                                {config.logo ? (
+                                    <img src={config.logo} alt="Logo" className="h-full w-full object-cover" />
+                                ) : (
+                                    <Upload className="h-8 w-8 text-slate-400" />
+                                )}
+                                <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <p className="text-white text-xs font-bold">Change</p>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-800">School Logo</h3>
+                                <p className="text-slate-500 text-xs">Click to upload a new logo (PNG, JPG)</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">School Name</label>
+                                <input 
+                                    required
+                                    type="text" 
+                                    value={config.name || ''} 
+                                    onChange={e => setConfig({...config, name: e.target.value})}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Motto</label>
+                                <input 
+                                    type="text" 
+                                    value={config.motto || ''} 
+                                    onChange={e => setConfig({...config, motto: e.target.value})}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Admin Phone</label>
+                                <input 
+                                    type="tel" 
+                                    value={config.phone || ''} // Assuming phone might be stored in future
+                                    onChange={e => setConfig({...config, phone: e.target.value})}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" 
+                                    placeholder="020..."
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-3">Theme Color</label>
+                            <div className="flex gap-4">
+                                {['blue', 'green', 'maroon', 'purple'].map(color => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        onClick={() => setConfig({...config, color})}
+                                        className={`h-10 w-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${
+                                            config.color === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: color === 'maroon' ? '#991b1b' : color === 'purple' ? '#7e22ce' : color === 'green' ? '#059669' : '#2563eb' 
+                                        }}
+                                    >
+                                        {config.color === color && <CheckCircle className="text-white h-5 w-5" />}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 flex justify-end">
+                          <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="bg-primary-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg flex items-center gap-2 disabled:opacity-70"
+                          >
+                              {loading ? 'Saving...' : 'Save Changes'}
+                              {!loading && <Save className="h-4 w-4" />}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          )}
+
+          {/* --- TAB 2: SECURITY --- */}
+          {activeTab === 'security' && (
+              <div className="max-w-xl space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800">Security & Access</h2>
+                      <p className="text-slate-500 text-sm">
+                          {isTeacher ? "Manage your teacher login credentials." : "Manage admin credentials and access control."}
+                      </p>
+                  </div>
+
+                  <form onSubmit={handleSecuritySave} className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                       {!isTeacher && (
+                           <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Administrator Name</label>
+                              <input 
+                                type="text" 
+                                value={config.admin || ''} 
+                                onChange={e => setConfig({...config, admin: e.target.value})}
+                                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-slate-50" 
+                              />
+                           </div>
+                       )}
+                       
+                       <div className={!isTeacher ? "pt-4 border-t border-slate-100" : ""}>
+                           <h3 className="font-bold text-slate-800 mb-4">Change Password</h3>
+                           <div className="space-y-4">
+                               <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+                                    <input 
+                                        required
+                                        type="password" 
+                                        value={passwords.new} 
+                                        onChange={e => setPasswords({...passwords, new: e.target.value})}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" 
+                                        placeholder="••••••••"
+                                    />
+                               </div>
+                               <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
+                                    <input 
+                                        required
+                                        type="password" 
+                                        value={passwords.confirm} 
+                                        onChange={e => setPasswords({...passwords, confirm: e.target.value})}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" 
+                                        placeholder="••••••••"
+                                    />
+                               </div>
+                           </div>
+                       </div>
+
+                       <div className="pt-4 flex justify-end">
+                          <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="bg-primary-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg flex items-center gap-2 disabled:opacity-70"
+                          >
+                              {loading ? 'Updating...' : 'Update Password'}
+                              {!loading && <Lock className="h-4 w-4" />}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          )}
+
+          {/* --- TAB 3: BILLING --- */}
+          {activeTab === 'billing' && !isTeacher && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800">Billing & Plans</h2>
+                      <p className="text-slate-500 text-sm">Manage your subscription and SMS credits.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      {/* Subscription Card */}
+                      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-4 opacity-10">
+                               <CreditCard className="h-32 w-32 transform rotate-12" />
+                           </div>
+                           <div className="relative z-10">
+                               <div className="flex justify-between items-start mb-6">
+                                   <div>
+                                       <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Current Plan</p>
+                                       <h3 className="text-2xl font-bold mt-1">Growth Partner</h3>
+                                   </div>
+                                   <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-bold border border-green-500/30">
+                                       Active
+                                   </span>
+                               </div>
+                               
+                               <div className="space-y-4 mb-8">
+                                   <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                       <span className="text-slate-300">Amount</span>
+                                       <span className="font-bold">GH¢ 250.00 / mo</span>
+                                   </div>
+                                   <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                       <span className="text-slate-300">Next Billing</span>
+                                       <span className="font-bold">Jan 1, 2026</span>
+                                   </div>
+                               </div>
+
+                               <button className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors">
+                                   Manage Subscription
+                               </button>
+                           </div>
+                      </div>
+
+                      {/* SMS Balance Card */}
+                      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+                           <div>
+                               <div className="flex items-center gap-3 mb-4">
+                                   <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                                       <MessageSquare className="h-6 w-6" />
+                                   </div>
+                                   <h3 className="font-bold text-slate-800 text-lg">SMS Credits</h3>
+                               </div>
+                               <p className="text-slate-500 text-sm mb-6">
+                                   Credits are required to send bulk messages to parents. They do not expire.
+                               </p>
+                               <div className="flex items-baseline gap-2 mb-6">
+                                   <span className="text-4xl font-extrabold text-slate-900">{smsBalance}</span>
+                                   <span className="text-slate-500 font-medium">Units Available</span>
+                               </div>
+                           </div>
+                           <button 
+                             onClick={() => setShowSmsModal(true)}
+                             className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                           >
+                               <Plus className="h-4 w-4" /> Buy Credits
+                           </button>
+                      </div>
+                  </div>
+
+                  {/* Payment History */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 flex items-center gap-2">
+                          <History className="h-5 w-5 text-slate-500" />
+                          <h3 className="font-bold text-slate-800">Payment History</h3>
+                      </div>
+                      <table className="w-full text-left border-collapse">
+                          <thead className="bg-slate-50 border-b border-slate-100">
+                              <tr>
+                                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
+                                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {billingHistory.map((item: any) => (
+                                  <tr key={item.id} className="hover:bg-slate-50">
+                                      <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                                      <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
+                                      <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
+                                      <td className="px-6 py-4 text-right">
+                                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                              <CheckCircle className="h-3 w-3" /> {item.status}
+                                          </span>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+
+              </div>
+          )}
+
+      </div>
+
+      {/* --- SMS PURCHASE MODAL --- */}
+      {showSmsModal && !isTeacher && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                      <h3 className="font-bold text-lg text-slate-800">Top Up SMS Credits</h3>
+                      <button onClick={() => setShowSmsModal(false)} className="text-slate-400 hover:text-slate-600">
+                          <X className="h-5 w-5" />
+                      </button>
+                  </div>
+                  
+                  <div className="p-6">
+                      <p className="text-slate-500 text-sm mb-6">Select a bundle package below. Payment is processed securely via Mobile Money.</p>
+                      
+                      <div className="grid grid-cols-1 gap-4">
+                          {[
+                              { units: 500, price: 20, tag: 'Starter' },
+                              { units: 1000, price: 35, tag: 'Popular', highlight: true },
+                              { units: 2000, price: 60, tag: 'Best Value' }
+                          ].map(pkg => (
+                              <button
+                                key={pkg.units}
+                                onClick={() => handleBuySms(pkg.units, pkg.price)}
+                                disabled={loading}
+                                className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${
+                                    pkg.highlight 
+                                    ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-200' 
+                                    : 'border-slate-200 hover:border-primary-300'
+                                }`}
+                              >
+                                  <div className="text-left">
+                                      <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-900 text-lg">{pkg.units} SMS</span>
+                                          {pkg.highlight && <span className="bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{pkg.tag}</span>}
+                                          {!pkg.highlight && <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{pkg.tag}</span>}
+                                      </div>
+                                      <p className="text-xs text-slate-500">Instant delivery</p>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="block font-bold text-xl text-slate-800">GH¢ {pkg.price}</span>
+                                  </div>
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+    </div>
+  );
+};
+
+export default Settings;
