@@ -186,7 +186,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             if (!profile?.school_id) throw new Error('No school associated with user');
 
             // 1. Prepare Results for Upsert
-            const updates = Object.entries(pendingChanges).map(([studentId, val]) => {
+            const updates = Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number }]) => {
                 return {
                     school_id: profile.school_id,
                     student_id: studentId,
@@ -427,9 +427,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 >
                                     <div className="flex justify-between items-start mb-3">
                                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${sub.status === 'Pending' ? 'bg-slate-100 text-slate-500' :
-                                                sub.status === 'Submitted' ? 'bg-orange-100 text-orange-700' :
-                                                    sub.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                                                        'bg-red-100 text-red-700'
+                                            sub.status === 'Submitted' ? 'bg-orange-100 text-orange-700' :
+                                                sub.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                                                    'bg-red-100 text-red-700'
                                             }`}>
                                             {sub.status}
                                         </span>

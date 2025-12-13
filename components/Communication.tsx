@@ -1,21 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    MessageSquare, Bell, History, Send, StickyNote,
-    Users, AlertCircle, CheckCircle, Plus, X, Trash2, Clock,
-    Sparkles, FileText, Link
+    MessageSquare,
+    Users,
+    Send,
+    History,
+    AlertCircle,
+    CheckCircle,
+    Search,
+    Filter,
+    Plus,
+    Trash2,
+    Clock,
+    StickyNote,
+    X,
+    Sparkles,
+    Megaphone
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { getCachedData, setCachedData } from '../utils/cache';
 
-// --- Types ---
 interface Notice {
     id: string;
     title: string;
     message: string;
-    audience: 'All Staff' | 'Teaching Staff' | 'Admins Only';
     priority: 'Normal' | 'Urgent';
+    audience: 'All Staff' | 'Teaching Staff' | 'Admins Only';
     date: string;
-    author: string;
-    school_id: string;
+    author_id: string;
 }
 
 interface MessageLog {
@@ -24,173 +35,96 @@ interface MessageLog {
     type: string;
     recipient: string;
     content: string;
-    status: 'Delivered' | 'Failed';
-    school_id: string;
+    status: 'Delivered' | 'Failed' | 'Pending';
 }
 
-interface CommunicationProps {
-    currentUser?: {
-        id: string;
-        school_id: string;
-        role: 'admin' | 'teacher';
-        name: string;
-    };
-}
-
-// --- Main Communication Component ---
-const Communication: React.FC<CommunicationProps> = ({ currentUser }) => {
-    const isTeacher = currentUser?.role === 'teacher';
-    // If teacher, default to Notices
-    const [activeTab, setActiveTab] = useState<'sms' | 'notices' | 'history'>(isTeacher ? 'notices' : 'sms');
+const Communication = ({ currentUser }: { currentUser: any }) => {
+    const [activeTab, setActiveTab] = useState('compose');
     const [smsBalance, setSmsBalance] = useState(0);
+    const isTeacher = currentUser.role === 'teacher';
 
-    // Load Balance
     useEffect(() => {
-        const fetchBalance = async () => {
-            if (currentUser?.school_id) {
-                const { data, error } = await supabase
-                    .from('schools')
-                    .select('sms_balance')
-                    .eq('id', currentUser.school_id)
-                    .single();
+        // Fetch SMS Balance (Mock or Real)
+        setSmsBalance(1250);
+    }, []);
 
-                if (data) {
-                    setSmsBalance(data.sms_balance || 0);
-                }
-            }
-        };
-        fetchBalance();
-    }, [currentUser?.school_id]);
-
-    const updateBalance = async (newBalance: number) => {
+    const updateBalance = (newBalance: number) => {
         setSmsBalance(newBalance);
-        if (currentUser?.school_id) {
-            await supabase
-                .from('schools')
-                .update({ sms_balance: newBalance })
-                .eq('id', currentUser.school_id);
-        }
+        // In a real app, update DB here
     };
 
     return (
-        <div className="h-full flex flex-col relative overflow-hidden bg-slate-50">
-
-            {/* Sticky Top Bar */}
-            <div className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-20 flex justify-between items-center shadow-sm">
+        <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Communication Center</h1>
-                    <p className="text-slate-500 text-sm">
-                        {isTeacher ? 'View school updates and staff notices.' : 'Manage internal notices and external parent messaging.'}
-                    </p>
+                    <h1 className="text-2xl font-bold text-slate-800">Communication Hub</h1>
+                    <p className="text-slate-500 text-sm">Manage notices, SMS blasts, and announcements.</p>
                 </div>
-
                 {!isTeacher && (
-                    <div className="flex items-center gap-4">
-                        <div className="bg-slate-100 rounded-full px-4 py-1.5 flex items-center gap-2 border border-slate-200">
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">SMS Balance</span>
-                            <span className={`text-sm font-bold ${smsBalance < 50 ? 'text-red-600' : 'text-blue-600'}`}>
-                                {smsBalance} Units
-                            </span>
+                    <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                            <MessageSquare className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">SMS Balance</p>
+                            <p className="text-xl font-bold text-slate-800">{smsBalance.toLocaleString()} <span className="text-xs font-normal text-slate-400">units</span></p>
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Tabs */}
-            <div className="px-8 pt-6">
-                <div className="flex border-b border-slate-200">
-                    {!isTeacher && (
-                        <button
-                            onClick={() => setActiveTab('sms')}
-                            className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'sms' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <MessageSquare className="h-4 w-4" /> SMS Blast
-                        </button>
-                    )}
+            <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl w-full md:w-fit">
+                {!isTeacher && (
                     <button
-                        onClick={() => setActiveTab('notices')}
-                        className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'notices' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setActiveTab('compose')}
+                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'compose' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <Bell className="h-4 w-4" /> Digital Notice Board
+                        <Send className="h-4 w-4" /> Compose SMS
                     </button>
-                    {!isTeacher && (
-                        <button
-                            onClick={() => setActiveTab('history')}
-                            className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'history' ? 'border-primary-600 text-primary-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <History className="h-4 w-4" /> History
-                        </button>
-                    )}
-                </div>
+                )}
+                <button
+                    onClick={() => setActiveTab('notices')}
+                    className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'notices' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <StickyNote className="h-4 w-4" /> Digital Notice Board
+                </button>
+                {!isTeacher && (
+                    <button
+                        onClick={() => setActiveTab('history')}
+                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <History className="h-4 w-4" /> History
+                    </button>
+                )}
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8">
-                {activeTab === 'sms' && !isTeacher && <ComposeSMS balance={smsBalance} onUpdateBalance={updateBalance} currentUser={currentUser} />}
+            <div className="min-h-[400px]">
+                {activeTab === 'compose' && !isTeacher && <ComposeSMS balance={smsBalance} onUpdateBalance={updateBalance} currentUser={currentUser} />}
                 {activeTab === 'notices' && <NoticeBoard isTeacher={isTeacher} currentUser={currentUser} />}
                 {activeTab === 'history' && !isTeacher && <HistoryTable currentUser={currentUser} />}
             </div>
-
         </div>
     );
 };
 
-// --- Sub-Component: ComposeSMS ---
+// --- SUB-COMPONENTS ---
+
 const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number, onUpdateBalance: (n: number) => void, currentUser: any }) => {
-    const [recipient, setRecipient] = useState('All Parents');
+    const [recipient, setRecipient] = useState('Debtors');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Stats for Dropdown
-    const [stats, setStats] = useState({ debtors: 0, parents: 0, teachers: 0 });
+    // Mock Stats
+    const stats = { debtors: 45, parents: 320, teachers: 28 };
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            if (!currentUser?.school_id) return;
-
-            // Fetch students count
-            const { count: studentCount } = await supabase
-                .from('students')
-                .select('*', { count: 'exact', head: true })
-                .eq('school_id', currentUser.school_id);
-
-            // Fetch teachers count (using profiles for now, assuming role='teacher')
-            const { count: teacherCount } = await supabase
-                .from('profiles')
-                .select('*', { count: 'exact', head: true })
-                .eq('school_id', currentUser.school_id)
-                .eq('role', 'teacher');
-
-            // Fetch debtors count
-            const { count: debtorsCount } = await supabase
-                .from('students')
-                .select('*', { count: 'exact', head: true })
-                .eq('school_id', currentUser.school_id)
-                .gt('balance', 0);
-
-            setStats({
-                debtors: debtorsCount || 0,
-                parents: studentCount || 0,
-                teachers: teacherCount || 0
-            });
-        };
-
-        fetchStats();
-    }, [currentUser?.school_id]);
-
-    // Variable Definitions based on Recipient
     const getVariables = () => {
-        switch (recipient) {
-            case 'Debtors':
-                return ['{Student Name}', '{Parent Name}', '{Balance}', '{Class}'];
-            case 'Results':
-                return ['{Student Name}', '{Parent Name}', '{Class}', '{Position}', '{Total Score}', '{Link}'];
-            case 'Teachers':
-                return ['{Teacher Name}', '{Subject}'];
-            default: // All Parents
-                return ['{Student Name}', '{Parent Name}', '{Class}'];
-        }
+        if (recipient === 'Debtors') return ['{Parent Name}', '{Student Name}', '{Balance}', '{Due Date}'];
+        if (recipient === 'Results') return ['{Parent Name}', '{Student Name}', '{Total Score}', '{Position}', '{Link}'];
+        return ['{Parent Name}', '{Student Name}'];
     };
 
     const insertVariable = (variable: string) => {
@@ -200,8 +134,6 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             const text = message;
             const newText = text.substring(0, start) + variable + text.substring(end);
             setMessage(newText);
-
-            // Restore focus and move cursor
             setTimeout(() => {
                 if (textAreaRef.current) {
                     textAreaRef.current.focus();
@@ -230,8 +162,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
         // Deduct Balance
         const count = recipient === 'Debtors' ? stats.debtors : recipient === 'Teachers' ? stats.teachers : stats.parents;
-        // Simplified cost logic: 1 unit per recipient.
-        const actualCost = Math.max(1, Math.floor(count * 1)); // 1 unit per person
+        const actualCost = Math.max(1, Math.floor(count * 1));
 
         if (balance < actualCost) {
             alert(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
@@ -239,10 +170,8 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             return;
         }
 
-        // Update balance locally and in DB
         await onUpdateBalance(balance - actualCost);
 
-        // Add to History in DB
         if (currentUser?.school_id) {
             await supabase.from('message_logs').insert({
                 school_id: currentUser.school_id,
@@ -261,57 +190,24 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-
-            {/* Recipient Selector Grid */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Users className="h-5 w-5 text-slate-500" /> Select Target Audience
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <button
-                        onClick={() => setRecipient('Debtors')}
-                        className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === 'Debtors' ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
-                    >
-                        <span className="block font-bold text-slate-700">Debtors</span>
-                        <span className="text-xs text-slate-500">Fees &gt; 0</span>
-                        <span className="absolute top-3 right-3 bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                            {stats.debtors}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setRecipient('All Parents')}
-                        className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === 'All Parents' ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
-                    >
-                        <span className="block font-bold text-slate-700">All Parents</span>
-                        <span className="text-xs text-slate-500">General Info</span>
-                        <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                            {stats.parents}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setRecipient('Results')}
-                        className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === 'Results' ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
-                    >
-                        <span className="block font-bold text-slate-700">Exam Results</span>
-                        <span className="text-xs text-slate-500">Links & Scores</span>
-                        <span className="absolute top-3 right-3 bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                            {stats.parents}
-                        </span>
-                    </button>
-                    <button
-                        onClick={() => setRecipient('Teachers')}
-                        className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === 'Teachers' ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
-                    >
-                        <span className="block font-bold text-slate-700">Teachers</span>
-                        <span className="text-xs text-slate-500">Staff Only</span>
-                        <span className="absolute top-3 right-3 bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                            {stats.teachers}
-                        </span>
-                    </button>
+                    {['Debtors', 'All Parents', 'Results', 'Teachers'].map((r) => (
+                        <button
+                            key={r}
+                            onClick={() => setRecipient(r)}
+                            className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === r ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
+                        >
+                            <span className="block font-bold text-slate-700">{r === 'Results' ? 'Exam Results' : r}</span>
+                            <span className="text-xs text-slate-500">{r === 'Debtors' ? 'Fees > 0' : r === 'Teachers' ? 'Staff Only' : r === 'Results' ? 'Links & Scores' : 'General Info'}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* Composer */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -325,7 +221,6 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 </div>
 
                 <div className="space-y-2">
-                    {/* Variable Bar */}
                     <div className="flex items-center gap-2 overflow-x-auto py-2 scrollbar-thin">
                         <div className="flex items-center gap-1 text-xs font-bold text-primary-700 bg-primary-50 px-2 py-1 rounded-md whitespace-nowrap">
                             <Sparkles className="h-3 w-3" /> Personalize:
@@ -366,103 +261,17 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     </button>
                 </div>
             </div>
-
         </div>
     );
 };
 
-// --- Sub-Component: Notice Board ---
-const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUser: any }) => {
-    const [notices, setNotices] = useState<Notice[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    const fetchNotices = async () => {
-        if (!currentUser?.school_id) return;
-        const { data, error } = await supabase
-            .from('notices')
-            .select('*')
-            .eq('school_id', currentUser.school_id)
-            .order('date', { ascending: false });
-
-        if (data) setNotices(data);
-    };
-
-    useEffect(() => {
-        fetchNotices();
-    }, [currentUser?.school_id]);
-
-    const handlePost = async (notice: Partial<Notice>) => {
-        if (!currentUser?.school_id) return;
-
-        const { data, error } = await supabase
-            .from('notices')
-            .insert({
-                ...notice,
-                school_id: currentUser.school_id,
-                author_id: currentUser.id // Assuming currentUser has id
-            })
-            .select();
-
-        if (data) {
-            fetchNotices();
-            setIsModalOpen(false);
-        }
-    };
-
-    const handleDelete = async (id: string) => {
-        if (confirm('Delete this notice?')) {
-            await supabase.from('notices').delete().eq('id', id);
-            fetchNotices();
-        }
-    };
-
-    return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-800">Latest Updates</h3>
-                {!isTeacher && (
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 shadow-md transition-colors"
-                    >
-                        <Plus className="h-4 w-4" /> Post New Notice
-                    </button>
-                )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {notices.length > 0 ? notices.map(notice => (
-                    <NoticeCard key={notice.id} notice={notice} onDelete={handleDelete} isTeacher={isTeacher} />
-                )) : (
-                    <div className="col-span-full text-center py-12 text-slate-400">
-                        <StickyNote className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No active notices.</p>
-                    </div>
-                )}
-            </div>
-
-            {isModalOpen && !isTeacher && <PostNoticeModal onClose={() => setIsModalOpen(false)} onPost={handlePost} />}
-        </div>
-    );
-};
-
-interface NoticeCardProps {
-    notice: Notice;
-    onDelete: (id: string) => void;
-    isTeacher: boolean;
-}
-
-const NoticeCard: React.FC<NoticeCardProps> = ({ notice, onDelete, isTeacher }) => {
+const NoticeCard: React.FC<{ notice: Notice, onDelete: (id: string) => void, isTeacher: boolean }> = ({ notice, onDelete, isTeacher }) => {
     const isUrgent = notice.priority === 'Urgent';
     return (
-        <div className={`relative p-6 rounded-xl shadow-sm border transition-all hover:shadow-md hover:-translate-y-1 ${isUrgent ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
-            }`}>
-            {/* Pin Effect */}
+        <div className={`relative p-6 rounded-xl shadow-sm border transition-all hover:shadow-md hover:-translate-y-1 ${isUrgent ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-slate-300 shadow-sm border-2 border-white z-10"></div>
-
             <div className="flex justify-between items-start mb-3">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${isUrgent ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
-                    }`}>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${isUrgent ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
                     {notice.priority}
                 </span>
                 {!isTeacher && (
@@ -471,10 +280,8 @@ const NoticeCard: React.FC<NoticeCardProps> = ({ notice, onDelete, isTeacher }) 
                     </button>
                 )}
             </div>
-
             <h3 className="font-bold text-slate-900 text-lg mb-2 leading-tight">{notice.title}</h3>
             <p className="text-slate-700 text-sm leading-relaxed mb-4 min-h-[60px]">{notice.message}</p>
-
             <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center text-xs font-medium text-slate-500">
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {notice.date}</span>
                 <span className="bg-white/50 px-2 py-1 rounded">{notice.audience}</span>
@@ -491,14 +298,7 @@ const PostNoticeModal = ({ onClose, onPost }: any) => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onPost({
-            title,
-            message,
-            priority,
-            audience,
-            date: new Date().toISOString().split('T')[0],
-            author: 'Admin'
-        });
+        onPost({ title, message, priority, audience, date: new Date().toISOString().split('T')[0] });
     };
 
     return (
@@ -506,9 +306,7 @@ const PostNoticeModal = ({ onClose, onPost }: any) => {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-lg text-slate-800">Post New Notice</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <X className="h-5 w-5" />
-                    </button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
@@ -546,20 +344,86 @@ const PostNoticeModal = ({ onClose, onPost }: any) => {
     );
 };
 
-// --- Sub-Component: History Table ---
+const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUser: any }) => {
+    const [notices, setNotices] = useState<Notice[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const CACHE_KEY = `notices_${currentUser?.school_id}`;
+
+    const fetchNotices = async (force = false) => {
+        if (!currentUser?.school_id) return;
+        if (!force) {
+            const cached = getCachedData<Notice[]>(CACHE_KEY);
+            if (cached) {
+                setNotices(cached);
+                return;
+            }
+        }
+        const { data } = await supabase.from('notices').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false });
+        if (data) {
+            const mapped = data.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' }));
+            setNotices(mapped);
+            setCachedData(CACHE_KEY, mapped);
+        }
+    };
+
+    useEffect(() => { fetchNotices(); }, [currentUser?.school_id]);
+
+    const handlePost = async (noticeData: any) => {
+        if (!currentUser?.school_id) return;
+        const { error } = await supabase.from('notices').insert({
+            school_id: currentUser.school_id,
+            title: noticeData.title,
+            message: noticeData.message,
+            priority: noticeData.priority,
+            audience: noticeData.audience,
+            date: noticeData.date,
+            author_id: currentUser.id
+        });
+        if (error) { console.error(error); alert('Failed to post'); }
+        else { setIsModalOpen(false); fetchNotices(true); }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Delete notice?')) return;
+        const { error } = await supabase.from('notices').delete().eq('id', id);
+        if (!error) fetchNotices(true);
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><StickyNote className="h-5 w-5 text-slate-500" /> School Notices</h2>
+                {!isTeacher && (
+                    <button onClick={() => setIsModalOpen(true)} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all hover:shadow-md">
+                        <Plus className="h-4 w-4" /> Post Notice
+                    </button>
+                )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {notices.length > 0 ? notices.map(n => <NoticeCard key={n.id} notice={n} onDelete={handleDelete} isTeacher={isTeacher} />) : (
+                    <div className="col-span-2 text-center py-12 bg-white rounded-xl border border-dashed border-slate-300"><p className="text-slate-400">No notices found.</p></div>
+                )}
+            </div>
+            {isModalOpen && !isTeacher && <PostNoticeModal onClose={() => setIsModalOpen(false)} onPost={handlePost} />}
+        </div>
+    );
+};
+
 const HistoryTable = ({ currentUser }: { currentUser: any }) => {
     const [history, setHistory] = useState<MessageLog[]>([]);
+    const CACHE_KEY = `msg_history_${currentUser?.school_id}`;
 
     useEffect(() => {
         const fetchHistory = async () => {
             if (!currentUser?.school_id) return;
-            const { data } = await supabase
-                .from('message_logs')
-                .select('*')
-                .eq('school_id', currentUser.school_id)
-                .order('created_at', { ascending: false });
+            const cached = getCachedData<MessageLog[]>(CACHE_KEY);
+            if (cached) { setHistory(cached); return; }
 
-            if (data) setHistory(data);
+            const { data } = await supabase.from('message_logs').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false });
+            if (data) {
+                setHistory(data);
+                setCachedData(CACHE_KEY, data);
+            }
         };
         fetchHistory();
     }, [currentUser?.school_id]);
@@ -581,21 +445,16 @@ const HistoryTable = ({ currentUser }: { currentUser: any }) => {
                         <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4 text-sm text-slate-600">{log.date}</td>
                             <td className="px-6 py-4 text-sm font-medium text-slate-800">{log.type}</td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                                <span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{log.recipient}</span>
-                            </td>
+                            <td className="px-6 py-4 text-sm text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{log.recipient}</span></td>
                             <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">{log.content}</td>
                             <td className="px-6 py-4 text-right">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${log.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                    }`}>
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${log.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                     {log.status === 'Delivered' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
                                     {log.status}
                                 </span>
                             </td>
                         </tr>
-                    )) : (
-                        <tr><td colSpan={5} className="p-8 text-center text-slate-400">No message history found.</td></tr>
-                    )}
+                    )) : <tr><td colSpan={5} className="p-8 text-center text-slate-400">No message history found.</td></tr>}
                 </tbody>
             </table>
         </div>
