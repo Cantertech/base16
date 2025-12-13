@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, ShieldCheck, ArrowLeft, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Lock, User, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { generateMockData } from '../utils/mockDataGenerator';
 import { supabase } from '../utils/supabaseClient';
 
@@ -183,19 +183,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           >
             {loading ? 'Authenticating...' : `Login as ${role === 'admin' ? 'Admin' : 'Teacher'}`}
           </button>
-
-          {/* Demo Hint */}
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100 text-sm">
-            <div className="flex items-center gap-2 text-blue-800 font-bold mb-1">
-              <Sparkles className="h-4 w-4" />
-              <span>Demo Access</span>
-            </div>
-            {role === 'admin' ? (
-              <p className="text-blue-700">User: <b>admin</b> | Pass: <b>admin123</b></p>
-            ) : (
-              <p className="text-blue-700">User: <b>teacher</b> | Pass: <b>teacher123</b></p>
-            )}
-          </div>
         </form>
       </div>
     </div>
