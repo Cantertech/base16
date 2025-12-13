@@ -6,10 +6,10 @@ const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8">
           <div className="flex items-center gap-2 mb-4 md:mb-0">
-            <img src="/orbit_logo.png" alt="Orbit Logo" className="h-8 w-auto" />
+            <img src="/orbit_logo.png" alt="Brainwave Logo" className="h-8 w-auto" />
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mb-0.5">SixZones</span>
-              <span className="font-bold text-lg tracking-tight leading-none text-white">Orbit</span>
+              <span className="font-bold text-lg tracking-tight leading-none text-white">Brainwave</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mt-0.5">School Management System</span>
             </div>
           </div>
           <div className="flex space-x-6">
@@ -21,7 +21,7 @@ const Footer: React.FC = () => {
 
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-slate-500 text-sm">
-            &copy; 2025 SixZones Technologies. All rights reserved.
+            &copy; 2025 Brainwave Systems. All rights reserved.
           </p>
           <p className="text-slate-600 text-xs mt-2 md:mt-0">
             Made with ❤️ in Accra, Ghana.

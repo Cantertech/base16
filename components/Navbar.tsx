@@ -33,10 +33,10 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigateHome, onNavigateLogin, onBook
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={onNavigateHome}>
-            <img src="/orbit_logo.png" alt="Orbit Logo" className="h-10 w-auto" />
+            <img src="/orbit_logo.png" alt="Brainwave Logo" className="h-10 w-auto" />
             <div className="flex flex-col justify-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mb-0.5">SixZones</span>
-              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Orbit</span>
+              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Brainwave</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">School Management System</span>
             </div>
           </div>
 
@@ -44,7 +44,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigateHome, onNavigateLogin, onBook
           {showLinks && (
             <div className="hidden md:flex space-x-8 items-center">
               <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-primary-900 font-medium transition-colors">Features</button>
-              <button onClick={() => scrollToSection('why-us')} className="text-gray-600 hover:text-primary-900 font-medium transition-colors">Why Orbit</button>
+              <button onClick={() => scrollToSection('why-us')} className="text-gray-600 hover:text-primary-900 font-medium transition-colors">Why Brainwave</button>
               <button onClick={() => scrollToSection('pricing')} className="text-gray-600 hover:text-primary-900 font-medium transition-colors">Pricing</button>
 
               <div className="h-6 w-px bg-slate-200 mx-2"></div>
@@ -96,7 +96,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigateHome, onNavigateLogin, onBook
               onClick={() => scrollToSection('why-us')}
               className="block w-full text-left px-3 py-3 text-base font-medium text-gray-700 hover:bg-gray-50 rounded-md"
             >
-              Why Orbit
+              Why Brainwave
             </button>
             <button
               onClick={() => scrollToSection('pricing')}

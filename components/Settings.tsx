@@ -65,7 +65,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                     email: school.email,
                     logo: school.logo_url,
                     color: school.theme_color || 'blue',
-                    referralCode: school.referral_code || `SZO-${Math.floor(Math.random() * 900 + 100)}`, // Generate if missing
+                    referralCode: school.referral_code || `BW-${Math.floor(Math.random() * 900 + 100)}`, // Generate if missing
                     referralPreference: school.referral_preference || 'CASH',
                     plan: school.subscription_plan || 'Small School' // Default to Small School
                 });
@@ -74,7 +74,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                 // If referral code was generated on fly, save it back (lazy init)
                 if (!school.referral_code) {
                     await supabase.from('schools').update({
-                        referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`
+                        referral_code: `BW-${Math.floor(Math.random() * 900 + 100)}`
                     }).eq('id', currentUser.school_id);
                 }
             }
@@ -199,7 +199,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
             }
         }
     };
-
     const handleCopyCode = () => {
         navigator.clipboard.writeText(config.referralCode);
         alert('Referral code copied to clipboard!');
@@ -210,7 +209,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
 
     return (
         <div className="flex flex-col lg:flex-row h-full bg-slate-50 overflow-hidden">
-
             {/* Sidebar Navigation (Left) */}
             <div className="w-full lg:w-64 bg-white border-r border-slate-200 flex flex-row lg:flex-col shrink-0">
                 <div className="p-6 border-b border-slate-100 hidden lg:block">
@@ -250,149 +248,79 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                 {/* --- TAB 1: GENERAL --- */}
                 {activeTab === 'general' && !isTeacher && (
                     <div className="max-w-2xl space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">School Profile</h2>
-                            <p className="text-slate-500 text-sm">Update your school's identity and theme.</p>
-                        </div>
+                        <form onSubmit={handleGeneralSave} className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-800">School Profile</h2>
+                                <p className="text-slate-500 text-sm">Update your school's general information.</p>
+                            </div>
 
-                        <form onSubmit={handleGeneralSave} className="space-y-6">
-
-                            {/* --- Referral Hub Card (NEW) --- */}
-                            <div className="bg-gradient-to-r from-purple-700 to-indigo-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-6 opacity-10">
-                                    <Gift className="h-32 w-32 rotate-12" />
-                                </div>
-                                <div className="relative z-10">
-                                    <h3 className="text-xl font-bold flex items-center gap-2 mb-2">
-                                        <Gift className="h-5 w-5 text-yellow-300" /> SixZones Orbit Referral Hub
-                                    </h3>
-                                    <p className="text-purple-100 text-sm mb-6 max-w-md">
-                                        Share your code below. Your referred school gets <span className="font-bold text-white bg-white/20 px-1 rounded">GH¢ 100 OFF</span> their setup automatically!
-                                    </p>
-
-                                    <div className="flex flex-col sm:flex-row gap-6">
-                                        <div className="flex-1 bg-white/10 rounded-xl p-4 border border-white/20">
-                                            <p className="text-xs text-purple-200 uppercase font-bold tracking-wider mb-2">Your Referral Code</p>
-                                            <div className="flex items-center gap-2">
-                                                <code className="text-2xl font-mono font-bold">{config.referralCode || '...'}</code>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleCopyCode}
-                                                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                                                    title="Copy Code"
-                                                >
-                                                    <Copy className="h-5 w-5" />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex-1">
-                                            <p className="text-xs text-purple-200 uppercase font-bold tracking-wider mb-2">Choose Your Reward</p>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-3 cursor-pointer group">
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${config.referralPreference === 'CASH' ? 'border-yellow-400' : 'border-white/50'}`}>
-                                                        {config.referralPreference === 'CASH' && <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>}
-                                                    </div>
-                                                    <input
-                                                        type="radio"
-                                                        name="reward"
-                                                        value="CASH"
-                                                        checked={config.referralPreference === 'CASH'}
-                                                        onChange={() => setConfig({ ...config, referralPreference: 'CASH' })}
-                                                        className="hidden"
-                                                    />
-                                                    <span className={`text-sm font-medium ${config.referralPreference === 'CASH' ? 'text-white' : 'text-purple-200'}`}>GH¢ 150 MoMo Commission</span>
-                                                </label>
-                                                <label className="flex items-center gap-3 cursor-pointer group">
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${config.referralPreference === 'CREDIT' ? 'border-yellow-400' : 'border-white/50'}`}>
-                                                        {config.referralPreference === 'CREDIT' && <div className="w-2.5 h-2.5 rounded-full bg-yellow-400"></div>}
-                                                    </div>
-                                                    <input
-                                                        type="radio"
-                                                        name="reward"
-                                                        value="CREDIT"
-                                                        checked={config.referralPreference === 'CREDIT'}
-                                                        onChange={() => setConfig({ ...config, referralPreference: 'CREDIT' })}
-                                                        className="hidden"
-                                                    />
-                                                    <span className={`text-sm font-medium ${config.referralPreference === 'CREDIT' ? 'text-white' : 'text-purple-200'}`}>1 Month Free Credit (GH¢ 250 Value)</span>
-                                                </label>
-                                            </div>
-                                        </div>
+                            <div className="flex items-center gap-4">
+                                <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors">
+                                    {config.logo ? (
+                                        <img src={config.logo} alt="Logo" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <Upload className="h-8 w-8 text-slate-400" />
+                                    )}
+                                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <p className="text-white text-xs font-bold">Change</p>
                                     </div>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">School Logo</h3>
+                                    <p className="text-slate-500 text-xs">Click to upload a new logo (PNG, JPG)</p>
                                 </div>
                             </div>
 
-                            {/* --- General Settings Form --- */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                <div className="flex items-center gap-6">
-                                    <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors">
-                                        {config.logo ? (
-                                            <img src={config.logo} alt="Logo" className="h-full w-full object-cover" />
-                                        ) : (
-                                            <Upload className="h-8 w-8 text-slate-400" />
-                                        )}
-                                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <p className="text-white text-xs font-bold">Change</p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-800">School Logo</h3>
-                                        <p className="text-slate-500 text-xs">Click to upload a new logo (PNG, JPG)</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">School Name</label>
-                                        <input
-                                            required
-                                            type="text"
-                                            value={config.name || ''}
-                                            onChange={e => setConfig({ ...config, name: e.target.value })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Motto</label>
-                                        <input
-                                            type="text"
-                                            value={config.motto || ''}
-                                            onChange={e => setConfig({ ...config, motto: e.target.value })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Admin Phone</label>
-                                        <input
-                                            type="tel"
-                                            value={config.phone || ''} // Assuming phone might be stored in future
-                                            onChange={e => setConfig({ ...config, phone: e.target.value })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                            placeholder="020..."
-                                        />
-                                    </div>
-                                </div>
-
+                            <div className="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-3">Theme Color</label>
-                                    <div className="flex gap-4">
-                                        {['blue', 'green', 'maroon', 'purple'].map(color => (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                onClick={() => setConfig({ ...config, color })}
-                                                className={`h-10 w-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${config.color === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
-                                                    }`}
-                                                style={{
-                                                    backgroundColor: color === 'maroon' ? '#991b1b' : color === 'purple' ? '#7e22ce' : color === 'green' ? '#059669' : '#2563eb'
-                                                }}
-                                            >
-                                                {config.color === color && <CheckCircle className="text-white h-5 w-5" />}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">School Name</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={config.name || ''}
+                                        onChange={e => setConfig({ ...config, name: e.target.value })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Motto</label>
+                                    <input
+                                        type="text"
+                                        value={config.motto || ''}
+                                        onChange={e => setConfig({ ...config, motto: e.target.value })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Admin Phone</label>
+                                    <input
+                                        type="tel"
+                                        value={config.phone || ''}
+                                        onChange={e => setConfig({ ...config, phone: e.target.value })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        placeholder="020..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-3">Theme Color</label>
+                                <div className="flex gap-4">
+                                    {['blue', 'green', 'maroon', 'purple'].map(color => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            onClick={() => setConfig({ ...config, color })}
+                                            className={`h-10 w-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${config.color === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
+                                                }`}
+                                            style={{
+                                                backgroundColor: color === 'maroon' ? '#991b1b' : color === 'purple' ? '#7e22ce' : color === 'green' ? '#059669' : '#2563eb'
+                                            }}
+                                        >
+                                            {config.color === color && <CheckCircle className="text-white h-5 w-5" />}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
@@ -407,6 +335,39 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                 </button>
                             </div>
                         </form>
+
+                        {/* Referral Hub */}
+                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden mt-8">
+                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <Gift className="h-32 w-32 transform rotate-12" />
+                            </div>
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="bg-white/20 p-2 rounded-lg">
+                                        <Gift className="h-6 w-6 text-white" />
+                                    </div>
+                                    <h3 className="font-bold text-lg">Brainwave Referral Hub</h3>
+                                </div>
+                                <p className="text-purple-100 text-sm mb-6 max-w-lg">
+                                    Refer other schools to Brainwave and earn rewards! Share your unique referral code below.
+                                </p>
+
+                                <div className="bg-white/10 rounded-xl p-4 border border-white/20 backdrop-blur-sm">
+                                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                                        <div>
+                                            <p className="text-purple-200 text-xs uppercase font-bold tracking-wider mb-1">Your Referral Code</p>
+                                            <p className="text-2xl font-mono font-bold tracking-widest">{config.referralCode || 'LOADING...'}</p>
+                                        </div>
+                                        <button
+                                            onClick={handleCopyCode}
+                                            className="bg-white text-purple-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-50 transition-colors flex items-center gap-2 shadow-sm"
+                                        >
+                                            <Copy className="h-4 w-4" /> Copy Code
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -484,7 +445,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                             {/* Subscription Card */}
                             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -576,7 +536,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                 </tbody>
                             </table>
                         </div>
-
                     </div>
                 )}
 

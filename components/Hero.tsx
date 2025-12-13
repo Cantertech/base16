@@ -17,7 +17,7 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
               Manage Your School with <span className="text-primary-800">Confidence & Ease</span>.
             </h1>
             <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              The all-in-one platform to streamline admissions, automate fee collection, and generate reports. Orbit simplifies administration so you can focus on education.
+              The all-in-one platform to streamline admissions, automate fee collection, and generate reports. Brainwave simplifies administration so you can focus on education.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -42,7 +42,7 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
               {/* Using the placeholder as requested */}
               <img
                 src="/orbit_dashboard.png"
-                alt="Orbit Dashboard"
+                alt="Brainwave Dashboard"
                 className="w-full h-auto object-cover"
               />
             </div>

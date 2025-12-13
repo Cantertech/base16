@@ -6,7 +6,7 @@ const WhyUs: React.FC = () => {
     {
       icon: WifiOff,
       title: "Works Offline / Slow Net",
-      description: "Bad network? No problem. Orbit is built as a Progressive Web App. Keep working and the system syncs automatically when the connection returns."
+      description: "Bad network? No problem. Brainwave is built as a Progressive Web App. Keep working and the system syncs automatically when the connection returns."
     },
     {
       icon: Send,
@@ -16,7 +16,7 @@ const WhyUs: React.FC = () => {
     {
       icon: UserCheck,
       title: "Simple for Everyone",
-      description: "Designed specifically for busy headmasters, not computer wizards. Large buttons, clear text, and no confusing menus. If you can use WhatsApp, you can use Orbit."
+      description: "Designed specifically for busy headmasters, not computer wizards. Large buttons, clear text, and no confusing menus. If you can use WhatsApp, you can use Brainwave."
     }
   ];
 
@@ -24,7 +24,7 @@ const WhyUs: React.FC = () => {
     <section id="why-us" className="py-20 bg-white scroll-mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why Headmasters Choose Orbit</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why Headmasters Choose Brainwave</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">We understand the unique challenges of running a modern school.</p>
         </div>
 

@@ -89,7 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     const fetchDashboardData = async () => {
         if (!currentUser.school_id) return;
 
-        const CACHE_KEY = `dashboard_data_${currentUser.school_id}`;
+        const CACHE_KEY = `dashboard_data_v2_${currentUser.school_id}`;
         const cached = getCachedData<any>(CACHE_KEY);
 
         if (cached) {
@@ -110,7 +110,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             const { count: girlsCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Female');
 
             // 3. Financials (Revenue)
-            const { data: transactions } = await supabase.from('transactions').select('amount, date, type').eq('school_id', currentUser.school_id);
+            const { data: transactions, error: transError } = await supabase.from('transactions').select('amount, date, type').eq('school_id', currentUser.school_id);
+
+            if (transError) console.error('Error fetching transactions:', transError);
+            console.log('Dashboard Transactions:', transactions);
+
             const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
             // 4. Financial History
@@ -231,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                 <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Dashboard Overview</h1>
-                        <p className="text-slate-500 text-sm">Welcome to {schoolConfig?.name || 'Orbit'}</p>
+                        <p className="text-slate-500 text-sm">Welcome to {schoolConfig?.name || 'Brainwave'}</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
@@ -292,7 +296,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                     <div className={`h-10 w-10 rounded-xl ${theme.bg} flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200`}>
                         {schoolConfig?.logo ? <img src={schoolConfig.logo} alt="Logo" className="h-full w-full object-cover rounded-xl" /> : (schoolConfig?.name?.[0] || 'O')}
                     </div>
-                    <div><h1 className="font-bold text-lg text-slate-800 tracking-tight">{schoolConfig?.name || 'Orbit'}</h1><p className="text-xs text-slate-400 font-medium">School Management</p></div>
+                    <div><h1 className="font-bold text-lg text-slate-800 tracking-tight">{schoolConfig?.name || 'Brainwave'}</h1><p className="text-xs text-slate-400 font-medium">School Management</p></div>
                 </div>
                 <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
                     {currentMenuItems.map((item) => (
@@ -316,18 +320,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <button className="p-2 rounded-full hover:bg-slate-100 text-slate-500 relative transition-colors"><Bell className="h-5 w-5" />{recentNotices.length > 0 && <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 border-2 border-white"></span>}</button>
-                        </div>
+                        <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">
+                            <Bell className="h-5 w-5" />
+                            {recentNotices.length > 0 && <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                        </button>
                         <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-                            <div className="text-right hidden md:block"><p className="text-sm font-bold text-slate-800">{currentUser.name}</p><p className="text-xs text-slate-500 capitalize">{currentUser.role}</p></div>
-                            <div className={`h-10 w-10 rounded-full ${theme.bgLight} border-2 ${theme.border} flex items-center justify-center overflow-hidden`}>
-                                {currentUser.photo ? <img src={currentUser.photo} alt="Profile" className="h-full w-full object-cover" /> : <Users className={`h-5 w-5 ${theme.text}`} />}
+                            <div className="text-right hidden sm:block">
+                                <p className="text-sm font-bold text-slate-800">{currentUser.name}</p>
+                                <p className="text-xs text-slate-500 font-medium capitalize">{currentUser.role}</p>
+                            </div>
+                            <div className={`h-10 w-10 rounded-full ${theme.bgLight} flex items-center justify-center border-2 ${theme.border} shadow-sm`}>
+                                <span className={`${theme.text} font-bold text-lg`}>{currentUser?.name?.charAt(0) || 'U'}</span>
                             </div>
                         </div>
                     </div>
                 </header>
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">{renderContent()}</div>
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                    {renderContent()}
+                </div>
             </main>
         </div>
     );
@@ -336,34 +346,64 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
 const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any) => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div><h1 className="text-2xl font-bold text-slate-800">Welcome back, {currentUser.name}</h1><p className="text-slate-500">Here's what's happening in your classes today.</p></div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div onClick={() => setActiveMenu('My Students')} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Users className="h-6 w-6" /></div>
-                    <h3 className="font-bold text-slate-800 text-lg">My Students</h3>
-                    <p className="text-slate-500 text-sm mt-1">View and manage your assigned students</p>
-                </div>
-                <div onClick={() => setActiveMenu('Mark Entry & Reports')} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><FileText className="h-6 w-6" /></div>
-                    <h3 className="font-bold text-slate-800 text-lg">Mark Entry</h3>
-                    <p className="text-slate-500 text-sm mt-1">Record exam scores and assessment marks</p>
-                </div>
-                <div onClick={() => setActiveMenu('Notice Board')} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="h-12 w-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Bell className="h-6 w-6" /></div>
-                    <h3 className="font-bold text-slate-800 text-lg">Notices</h3>
-                    <p className="text-slate-500 text-sm mt-1">{recentNotices.length} recent announcements</p>
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-bold mb-2">Welcome back, {currentUser.name}!</h1>
+                    <p className="text-blue-100 mb-6 max-w-xl">Ready to inspire your students today? You have upcoming classes and pending reports to review.</p>
+                    <div className="flex gap-4">
+                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="bg-white text-blue-600 px-6 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-sm">Enter Marks</button>
+                        <button onClick={() => setActiveMenu('My Students')} className="bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-800 transition-colors shadow-sm">View Students</button>
+                    </div>
                 </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Megaphone className="h-5 w-5 text-slate-500" /> Recent School Notices</h3><button onClick={() => setActiveMenu('Notice Board')} className="text-sm text-blue-600 font-bold hover:underline">View All</button></div>
-                <div className="divide-y divide-slate-100">
-                    {recentNotices.length > 0 ? recentNotices.map((notice: any) => (
-                        <div key={notice.id} className="p-4 hover:bg-slate-50 transition-colors">
-                            <div className="flex justify-between items-start mb-1"><span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${notice.priority === 'Urgent' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{notice.priority}</span><span className="text-xs text-slate-400">{notice.date}</span></div>
-                            <h4 className="font-bold text-slate-800 text-sm mb-1">{notice.title}</h4>
-                            <p className="text-slate-600 text-sm line-clamp-2">{notice.message}</p>
-                        </div>
-                    )) : <div className="p-8 text-center text-slate-400">No recent notices.</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveMenu('Notice Board')}>
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Bell className="h-6 w-6" /></div>
+                        <h3 className="font-bold text-slate-800">Recent Notices</h3>
+                    </div>
+                    <div className="space-y-3">
+                        {recentNotices.length > 0 ? recentNotices.slice(0, 3).map((n: any) => (
+                            <div key={n.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${n.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{n.priority}</span>
+                                    <span className="text-[10px] text-slate-400">{new Date(n.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm font-medium text-slate-700 line-clamp-2">{n.title}</p>
+                            </div>
+                        )) : <p className="text-sm text-slate-400 italic">No recent notices.</p>}
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle className="h-6 w-6" /></div>
+                        <h3 className="font-bold text-slate-800">Quick Actions</h3>
+                    </div>
+                    <div className="space-y-3">
+                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
+                            <FileText className="h-4 w-4 text-slate-400" /> Record Exam Scores
+                        </button>
+                        <button onClick={() => setActiveMenu('My Students')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
+                            <Users className="h-4 w-4 text-slate-400" /> View Class List
+                        </button>
+                        <button onClick={() => setActiveMenu('Settings & Profile')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
+                            <SettingsIcon className="h-4 w-4 text-slate-400" /> Update Profile
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Clock className="h-6 w-6" /></div>
+                        <h3 className="font-bold text-slate-800">Today's Schedule</h3>
+                    </div>
+                    <div className="flex flex-col items-center justify-center h-40 text-center">
+                        <div className="bg-slate-50 p-4 rounded-full mb-3"><Clock className="h-6 w-6 text-slate-300" /></div>
+                        <p className="text-sm text-slate-500">No classes scheduled for today.</p>
+                    </div>
                 </div>
             </div>
         </div>
