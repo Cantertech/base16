@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowRight, ArrowLeft, Building2, Palette, Lock, Upload, CheckCircle, Tag, CreditCard } from 'lucide-react';
 import { generateMockData } from '../utils/mockDataGenerator';
+import { supabase } from '../utils/supabaseClient';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 interface SetupWizardProps {
   onComplete: (user: any) => void;
@@ -9,7 +11,7 @@ interface SetupWizardProps {
 const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  
+
   // Form State
   const [formData, setFormData] = useState({
     schoolName: '',
@@ -18,8 +20,11 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     referralCode: '',
     color: 'blue', // blue, green, maroon, purple
     logo: null as string | null,
+    logoFile: null as File | null,
     adminName: '',
-    password: ''
+    email: '',
+    password: '',
+    confirmPassword: ''
   });
 
   // Validation State for Referral
@@ -31,55 +36,124 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     if (e.target.name === 'referralCode') setReferralStatus('none');
   };
 
-  const validateReferral = () => {
+  const validateReferral = async () => {
     if (!formData.referralCode) return;
-    // Mock Validation: Code must be > 3 chars
-    if (formData.referralCode.length > 3) {
+
+    try {
+      const { data, error } = await supabase.rpc('check_referral_code', { p_code: formData.referralCode });
+      if (data) {
         setReferralStatus('valid');
-    } else {
+      } else {
         setReferralStatus('invalid');
+      }
+    } catch (error) {
+      console.error("Referral check failed", error);
+      setReferralStatus('invalid');
     }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const url = URL.createObjectURL(e.target.files[0]);
-      setFormData({ ...formData, logo: url });
+      const file = e.target.files[0];
+      const url = URL.createObjectURL(file);
+      setFormData({ ...formData, logo: url, logoFile: file });
     }
   };
 
-  const finishSetup = () => {
+  const createAccount = async () => {
     setLoading(true);
-    // Simulate processing delay for effect
-    setTimeout(() => {
-      // 1. Run Mock Engine & Get Generated Referral Data
-      // This generates the code THIS school will own
-      const mockData = generateMockData(formData.schoolName);
 
-      // 2. Save Config
-      localStorage.setItem('schoolhub_config', JSON.stringify({
-        name: formData.schoolName,
-        motto: formData.motto,
-        color: formData.color,
-        logo: formData.logo,
-        admin: formData.adminName,
+    try {
+      // 1. Upload Logo if exists
+      let logoUrl = null;
+      if (formData.logoFile) {
+        try {
+          logoUrl = await uploadToCloudinary(formData.logoFile);
+        } catch (uploadError) {
+          console.error("Logo upload failed, proceeding without logo", uploadError);
+        }
+      }
+
+      // 2. Sign up user with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
         password: formData.password,
-        // Save the code this school USED to sign up (for internal analytics)
-        usedReferralCode: referralStatus === 'valid' ? formData.referralCode : null,
-        // Save the code this school OWNS (to refer others)
-        referralCode: mockData.referralCode, 
-        referralPreference: mockData.referralPreference
-      }));
-
-      setLoading(false);
-      
-      // 3. Auto Login as Admin
-      onComplete({
-        name: formData.adminName,
-        role: 'admin',
-        photo: formData.logo
+        options: {
+          data: {
+            full_name: formData.adminName,
+            role: 'admin',
+          },
+        },
       });
-    }, 2000);
+
+      console.log('Auth Data:', authData);
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Check if session exists (if not, email confirmation might be required)
+        if (!authData.session) {
+          console.warn('User created but no session. Email confirmation likely required.');
+          alert('Account created! Please check your email to confirm your account before we can set up your school.');
+          setLoading(false);
+          return;
+        }
+
+        // 3. Create School Record with 'pending' status
+        const { data: schoolData, error: schoolError } = await supabase
+          .from('schools')
+          .insert([
+            {
+              name: formData.schoolName,
+              motto: formData.motto,
+              phone: formData.phone,
+              brand_color: formData.color,
+              logo_url: logoUrl,
+              admin_id: authData.user.id,
+              referral_code_used: referralStatus === 'valid' ? formData.referralCode : null,
+              referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
+              status: 'pending', // Initial status
+              subscription_plan: 'Small School' // Default plan
+            },
+          ])
+          .select()
+          .single();
+
+        if (schoolError) throw schoolError;
+
+        // 4. Create User Profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: authData.user.id,
+              full_name: formData.adminName,
+              role: 'admin',
+              school_id: schoolData.id,
+              email: formData.email
+            }
+          ]);
+
+        if (profileError) throw profileError;
+
+        // 5. Process Referral Reward (if applicable)
+        if (referralStatus === 'valid' && formData.referralCode) {
+          await supabase.rpc('process_referral', {
+            p_referral_code: formData.referralCode,
+            p_new_school_id: schoolData.id,
+            p_new_school_name: formData.schoolName
+          });
+        }
+
+        setLoading(false);
+        // Move to Step 4 (Billing/Pending)
+        setStep(4);
+      }
+    } catch (error: any) {
+      console.error('Signup Error:', error);
+      alert(`Signup failed: ${error.message}`);
+      setLoading(false);
+    }
   };
 
   // Color Mapping for Tailwind
@@ -93,12 +167,12 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
   // Calculations for Step 4
   const setupFee = 400;
   const discount = referralStatus === 'valid' ? 100 : 0;
-  const subscriptionFee = 250;
+  const subscriptionFee = 200;
   const totalDue = setupFee - discount + subscriptionFee;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
-      
+
       {/* LEFT SIDE: FORM */}
       <div className="w-full md:w-1/2 p-8 md:p-12 lg:p-16 overflow-y-auto">
         <div className="max-w-md mx-auto">
@@ -107,7 +181,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
           {/* Progress Bar */}
           <div className="w-full bg-slate-200 h-2 rounded-full mb-10">
-            <div 
+            <div
               className="bg-primary-900 h-2 rounded-full transition-all duration-300"
               style={{ width: `${(step / 4) * 100}%` }}
             ></div>
@@ -152,31 +226,30 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Referral Code (Optional)</label>
                 <div className="flex gap-2">
-                    <div className="relative flex-1">
-                        <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
-                        name="referralCode"
-                        value={formData.referralCode}
-                        onChange={handleInputChange}
-                        onBlur={validateReferral}
-                        type="text"
-                        placeholder="Enter code"
-                        className={`w-full pl-9 pr-3 py-3 border rounded-lg focus:ring-2 outline-none ${
-                            referralStatus === 'valid' ? 'border-green-500 focus:ring-green-200' :
-                            referralStatus === 'invalid' ? 'border-red-500 focus:ring-red-200' :
-                            'border-slate-300 focus:ring-primary-600'
+                  <div className="relative flex-1">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      name="referralCode"
+                      value={formData.referralCode}
+                      onChange={handleInputChange}
+                      onBlur={validateReferral}
+                      type="text"
+                      placeholder="Enter code"
+                      className={`w-full pl-9 pr-3 py-3 border rounded-lg focus:ring-2 outline-none ${referralStatus === 'valid' ? 'border-green-500 focus:ring-green-200' :
+                        referralStatus === 'invalid' ? 'border-red-500 focus:ring-red-200' :
+                          'border-slate-300 focus:ring-primary-600'
                         }`}
-                        />
-                    </div>
-                    {/* Validation Message */}
+                    />
+                  </div>
+                  {/* Validation Message */}
                 </div>
                 {referralStatus === 'valid' && (
-                    <p className="text-green-600 text-xs mt-1 flex items-center gap-1 font-bold">
-                        <CheckCircle className="h-3 w-3" /> Code accepted! You qualify for a GH¢ 100 Setup Discount.
-                    </p>
+                  <p className="text-green-600 text-xs mt-1 flex items-center gap-1 font-bold">
+                    <CheckCircle className="h-3 w-3" /> Code accepted! You qualify for a GH¢ 100 Setup Discount.
+                  </p>
                 )}
                 {referralStatus === 'invalid' && (
-                    <p className="text-red-600 text-xs mt-1">Invalid referral code.</p>
+                  <p className="text-red-600 text-xs mt-1">Invalid referral code.</p>
                 )}
               </div>
             </div>
@@ -188,8 +261,8 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-3">School Logo</label>
                 <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50 hover:bg-white hover:border-primary-400 transition-colors cursor-pointer relative">
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     accept="image/*"
                     onChange={handleLogoUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -207,14 +280,13 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                 <label className="block text-sm font-medium text-slate-700 mb-3">Brand Color</label>
                 <div className="grid grid-cols-4 gap-4">
                   {['blue', 'green', 'maroon', 'purple'].map((c) => (
-                    <div 
+                    <div
                       key={c}
                       onClick={() => setFormData({ ...formData, color: c })}
-                      className={`h-12 rounded-full cursor-pointer flex items-center justify-center transition-transform hover:scale-105 ${
-                        formData.color === c ? 'ring-4 ring-offset-2 ring-slate-300' : ''
-                      }`}
-                      style={{ 
-                        backgroundColor: c === 'maroon' ? '#991b1b' : c === 'purple' ? '#7e22ce' : c === 'green' ? '#059669' : '#2563eb' 
+                      className={`h-12 rounded-full cursor-pointer flex items-center justify-center transition-transform hover:scale-105 ${formData.color === c ? 'ring-4 ring-offset-2 ring-slate-300' : ''
+                        }`}
+                      style={{
+                        backgroundColor: c === 'maroon' ? '#991b1b' : c === 'purple' ? '#7e22ce' : c === 'green' ? '#059669' : '#2563eb'
                       }}
                     >
                       {formData.color === c && <CheckCircle className="text-white h-6 w-6" />}
@@ -229,13 +301,24 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Headmaster / Admin Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
                 <input
                   name="adminName"
                   value={formData.adminName}
                   onChange={handleInputChange}
                   type="text"
-                  placeholder="Mr. John Doe"
+                  placeholder="e.g. admin"
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                <input
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  type="email"
+                  placeholder="admin@school.com"
                   className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
                 />
               </div>
@@ -250,56 +333,88 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                   className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                <input
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  type="password"
+                  placeholder="••••••••"
+                  className={`w-full p-3 border rounded-lg focus:ring-2 focus:outline-none ${formData.confirmPassword && formData.password !== formData.confirmPassword
+                    ? 'border-red-300 focus:ring-red-200'
+                    : 'border-slate-300 focus:ring-primary-600'
+                    }`}
+                />
+                {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                  <p className="text-red-500 text-xs mt-1">Passwords do not match</p>
+                )}
+              </div>
             </div>
           )}
 
-          {/* STEP 4: SUMMARY & PAYMENT (NEW) */}
+          {/* STEP 4: BILLING & PENDING STATUS (NEW) */}
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-slate-500" />
-                        <h3 className="font-bold text-slate-800">Billing Summary</h3>
-                    </div>
-                    <div className="p-6 space-y-4">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-slate-600">One-time Setup Fee</span>
-                            <div className="text-right">
-                                {referralStatus === 'valid' && (
-                                    <span className="block text-xs text-red-400 line-through">GH¢ {setupFee.toFixed(2)}</span>
-                                )}
-                                <span className="font-bold text-slate-800">GH¢ {(setupFee - discount).toFixed(2)}</span>
-                            </div>
-                        </div>
-                        {referralStatus === 'valid' && (
-                             <div className="flex justify-between items-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
-                                <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Referral Discount</span>
-                                <span className="font-bold">- GH¢ {discount.toFixed(2)}</span>
-                             </div>
-                        )}
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-slate-600">First Month Subscription</span>
-                            <span className="font-bold text-slate-800">GH¢ {subscriptionFee.toFixed(2)}</span>
-                        </div>
-                        <div className="h-px bg-slate-100 my-2"></div>
-                        <div className="flex justify-between items-center">
-                            <span className="font-bold text-slate-800">Total Due Today</span>
-                            <span className="font-bold text-2xl text-primary-700">GH¢ {totalDue.toFixed(2)}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <p className="text-xs text-center text-slate-400">
-                    By clicking Complete Setup, you verify that the school details provided are accurate. 
-                    <br/>(Mock Payment Process)
+              <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+                <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-green-800 mb-2">Account Created Successfully!</h3>
+                <p className="text-green-700">
+                  Your school account has been created and is currently <b>Pending Approval</b>.
                 </p>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-slate-500" />
+                  <h3 className="font-bold text-slate-800">Complete Payment to Activate</h3>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">One-time Setup Fee</span>
+                    <div className="text-right">
+                      {referralStatus === 'valid' && (
+                        <span className="block text-xs text-red-400 line-through">GH¢ {setupFee.toFixed(2)}</span>
+                      )}
+                      <span className="font-bold text-slate-800">GH¢ {(setupFee - discount).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  {referralStatus === 'valid' && (
+                    <div className="flex justify-between items-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                      <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Referral Discount</span>
+                      <span className="font-bold">- GH¢ {discount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">First Month Subscription (Small School)</span>
+                    <span className="font-bold text-slate-800">GH¢ {subscriptionFee.toFixed(2)}</span>
+                  </div>
+                  <div className="h-px bg-slate-100 my-2"></div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-800">Total Due Today</span>
+                    <span className="font-bold text-2xl text-primary-700">GH¢ {totalDue.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-6 border-t border-slate-100">
+                  <h4 className="font-bold text-slate-800 mb-2">Payment Instructions:</h4>
+                  <p className="text-sm text-slate-600 mb-4">
+                    Please send the total amount to the following Mobile Money number:
+                  </p>
+                  <div className="bg-white border border-slate-200 p-3 rounded-lg font-mono text-center font-bold text-lg mb-4">
+                    0502560760
+                  </div>
+                  <p className="text-xs text-slate-500 text-center">
+                    Use your School Name as the Reference. Your account will be activated within 24 hours of payment confirmation.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Navigation Buttons */}
           <div className="mt-10 flex justify-between items-center">
             {step > 1 ? (
-              <button 
+              <button
                 onClick={() => setStep(step - 1)}
                 className="flex items-center text-slate-500 hover:text-slate-800 font-medium px-4 py-2"
               >
@@ -310,21 +425,30 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
             )}
 
             {step < 4 ? (
-              <button 
-                onClick={() => setStep(step + 1)}
-                disabled={step === 1 && !formData.schoolName}
+              <button
+                onClick={() => {
+                  if (step === 3) {
+                    createAccount();
+                  } else {
+                    setStep(step + 1);
+                  }
+                }}
+                disabled={
+                  (step === 1 && !formData.schoolName) ||
+                  (step === 3 && (!formData.adminName || !formData.email || !formData.password || formData.password !== formData.confirmPassword)) ||
+                  loading
+                }
                 className="bg-primary-900 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-lg hover:bg-primary-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {step === 3 ? 'Review & Pay' : 'Next Step'} <ArrowRight className="h-5 w-5 ml-2" />
+                {loading ? 'Creating Account...' : step === 3 ? 'Create Account' : 'Next Step'}
+                {!loading && <ArrowRight className="h-5 w-5 ml-2" />}
               </button>
             ) : (
-              <button 
-                onClick={finishSetup}
-                disabled={loading}
-                className="bg-green-600 text-white px-8 py-3 rounded-xl font-bold flex items-center shadow-lg hover:bg-green-700 transition-all disabled:opacity-50"
+              <button
+                onClick={() => window.location.reload()} // Simple reload to go back to login for now
+                className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold flex items-center shadow-lg hover:bg-slate-700 transition-all"
               >
-                {loading ? 'Processing...' : 'Complete Setup'} 
-                {!loading && <CheckCircle className="h-5 w-5 ml-2" />}
+                Go to Login
               </button>
             )}
           </div>
@@ -335,7 +459,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       <div className="hidden md:flex w-1/2 bg-slate-100 items-center justify-center p-12 relative overflow-hidden">
         {/* Background Decorative Pattern */}
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
-        
+
         <div className="relative w-full max-w-lg">
           <div className="mb-6 text-center">
             <h3 className="text-slate-400 font-semibold uppercase tracking-widest text-sm">Live Preview</h3>
@@ -364,21 +488,21 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
             <div className="p-6 bg-slate-50 min-h-[200px] flex flex-col gap-4">
               <div className="flex gap-4">
                 <div className="h-24 w-1/2 bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                    <div className="h-2 w-8 bg-slate-200 rounded mb-2"></div>
-                    <div className="h-8 w-16 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-24 bg-green-100 rounded"></div>
+                  <div className="h-2 w-8 bg-slate-200 rounded mb-2"></div>
+                  <div className="h-8 w-16 bg-slate-100 rounded mb-1"></div>
+                  <div className="h-2 w-24 bg-green-100 rounded"></div>
                 </div>
                 <div className="h-24 w-1/2 bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                    <div className="h-2 w-8 bg-slate-200 rounded mb-2"></div>
-                    <div className="h-8 w-16 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-24 bg-red-100 rounded"></div>
+                  <div className="h-2 w-8 bg-slate-200 rounded mb-2"></div>
+                  <div className="h-8 w-16 bg-slate-100 rounded mb-1"></div>
+                  <div className="h-2 w-24 bg-red-100 rounded"></div>
                 </div>
               </div>
               <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col gap-2">
-                 <div className="h-2 w-1/3 bg-slate-200 rounded"></div>
-                 <div className="h-2 w-full bg-slate-100 rounded"></div>
-                 <div className="h-2 w-full bg-slate-100 rounded"></div>
-                 <div className="h-2 w-2/3 bg-slate-100 rounded"></div>
+                <div className="h-2 w-1/3 bg-slate-200 rounded"></div>
+                <div className="h-2 w-full bg-slate-100 rounded"></div>
+                <div className="h-2 w-full bg-slate-100 rounded"></div>
+                <div className="h-2 w-2/3 bg-slate-100 rounded"></div>
               </div>
             </div>
           </div>

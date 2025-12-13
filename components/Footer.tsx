@@ -1,5 +1,4 @@
 import React from 'react';
-import { GraduationCap } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
@@ -7,13 +6,11 @@ const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8">
           <div className="flex items-center gap-2 mb-4 md:mb-0">
-             <div className="bg-blue-600 p-1 rounded-lg">
-                <GraduationCap className="h-5 w-5 text-white" />
-             </div>
-             <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mb-0.5">SixZones</span>
-                 <span className="font-bold text-lg tracking-tight leading-none text-white">Orbit</span>
-             </div>
+            <img src="/orbit_logo.png" alt="Orbit Logo" className="h-8 w-auto" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mb-0.5">SixZones</span>
+              <span className="font-bold text-lg tracking-tight leading-none text-white">Orbit</span>
+            </div>
           </div>
           <div className="flex space-x-6">
             <a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Privacy Policy</a>
@@ -21,7 +18,7 @@ const Footer: React.FC = () => {
             <a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Contact Support</a>
           </div>
         </div>
-        
+
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-slate-500 text-sm">
             &copy; 2025 SixZones Technologies. All rights reserved.
