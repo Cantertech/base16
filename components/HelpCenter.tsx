@@ -176,7 +176,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                         </div>
                         <div>
                            <p className="text-xs font-bold text-slate-500 uppercase">WhatsApp Hotline</p>
-                           <p className="font-bold text-slate-800">+233 24 123 4567</p>
+                           <p className="font-bold text-slate-800">+233 50 256 0760</p>
                            <p className="text-xs text-slate-500 mt-1">Available 8am - 5pm (Mon-Fri)</p>
                         </div>
                      </div>

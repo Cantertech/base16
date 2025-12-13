@@ -110,7 +110,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             const { count: girlsCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Female');
 
             // 3. Financials (Revenue)
-            const { data: transactions } = await supabase.from('transactions').select('amount, date, type').eq('school_id', currentUser.school_id).eq('type', 'tuition_payment');
+            const { data: transactions } = await supabase.from('transactions').select('amount, date, type').eq('school_id', currentUser.school_id);
             const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
             // 4. Financial History
