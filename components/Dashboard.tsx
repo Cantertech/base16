@@ -312,7 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                 <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Dashboard Overview</h1>
-                        <p className="text-slate-500 text-sm">Welcome to {schoolConfig?.name || 'Brainwave'}</p>
+                        <p className="text-slate-500 text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
@@ -373,7 +373,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                     <div className={`h-10 w-10 rounded-xl ${theme.bg} flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200`}>
                         {schoolConfig?.logo ? <img src={schoolConfig.logo} alt="Logo" className="h-full w-full object-cover rounded-xl" /> : (schoolConfig?.name?.[0] || 'O')}
                     </div>
-                    <div><h1 className="font-bold text-lg text-slate-800 tracking-tight">{schoolConfig?.name || 'Brainwave'}</h1><p className="text-xs text-slate-400 font-medium">School Management</p></div>
+                    <div><h1 className="font-bold text-lg text-slate-800 tracking-tight">{schoolConfig?.name || 'Base16'}</h1><p className="text-xs text-slate-400 font-medium">School Management</p></div>
                 </div>
                 <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
                     {currentMenuItems.map((item) => (
