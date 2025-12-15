@@ -160,32 +160,100 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
         setLoading(true);
 
-        // Deduct Balance
-        const count = recipient === 'Debtors' ? stats.debtors : recipient === 'Teachers' ? stats.teachers : stats.parents;
-        const actualCost = Math.max(1, Math.floor(count * 1));
+        try {
+            // 1. Fetch Recipients
+            let phoneNumbers: string[] = [];
 
-        if (balance < actualCost) {
-            alert(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
-            setLoading(false);
-            return;
-        }
+            if (recipient === 'Debtors') {
+                const { data, error } = await supabase
+                    .from('students')
+                    .select('parent_phone')
+                    .gt('balance', 0)
+                    .eq('school_id', currentUser.school_id)
+                    .neq('parent_phone', null)
+                    .neq('parent_phone', '');
 
-        await onUpdateBalance(balance - actualCost);
+                if (error) { console.error('Error fetching debtors:', error); alert('Database error fetching debtors.'); return; }
+                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
 
-        if (currentUser?.school_id) {
-            await supabase.from('message_logs').insert({
-                school_id: currentUser.school_id,
-                date: new Date().toISOString().split('T')[0],
-                type: 'SMS Blast',
-                recipient: recipient,
-                content: message,
-                status: 'Delivered'
+            } else if (recipient === 'All Parents' || recipient === 'Results') {
+                const { data, error } = await supabase
+                    .from('students')
+                    .select('parent_phone')
+                    .eq('school_id', currentUser.school_id)
+                    .neq('parent_phone', null)
+                    .neq('parent_phone', '');
+
+                if (error) { console.error('Error fetching parents:', error); alert('Database error fetching parents.'); return; }
+                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
+
+            } else if (recipient === 'Teachers') {
+                // Query 'teachers' table which definitely has 'phone'
+                const { data, error } = await supabase
+                    .from('teachers')
+                    .select('phone')
+                    .eq('school_id', currentUser.school_id)
+                    .neq('phone', null)
+                    .neq('phone', '');
+
+                if (error) { console.error('Error fetching teachers:', error); alert('Database error fetching teachers.'); return; }
+                phoneNumbers = data?.map((d: any) => d.phone) || [];
+            }
+
+            console.log(`Raw numbers found: ${phoneNumbers.length}`, phoneNumbers);
+
+            // Filter unique and valid numbers (clean up +233, 024, etc if needed, but for now just length check)
+            const uniqueNumbers = [...new Set(phoneNumbers.filter(p => p && p.length >= 9))];
+
+            console.log(`Unique valid numbers: ${uniqueNumbers.length}`, uniqueNumbers);
+
+            if (uniqueNumbers.length === 0) {
+                alert(`No valid phone numbers found for group '${recipient}'. Detected ${phoneNumbers.length} raw entries, but 0 were valid (>9 chars).`);
+                setLoading(false);
+                return;
+            }
+
+            // 2. Cost Calculation
+            const actualCost = uniqueNumbers.length;
+
+            if (balance < actualCost) {
+                alert(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
+                setLoading(false);
+                return;
+            }
+
+            // 3. Send SMS via Edge Function
+            const { data, error } = await supabase.functions.invoke('send-sms', {
+                body: { phoneNumbers: uniqueNumbers, message: message }
             });
-        }
 
-        setLoading(false);
-        setMessage('');
-        alert(`Success! System personalized and sent messages to ${count} recipients. ${actualCost} units deducted.`);
+            if (error) throw error;
+
+            console.log('SMS Sent:', data);
+
+            // 4. Update Balance & Log
+            await onUpdateBalance(balance - actualCost);
+
+            if (currentUser?.school_id) {
+                await supabase.from('message_logs').insert({
+                    school_id: currentUser.school_id,
+                    date: new Date().toISOString().split('T')[0],
+                    type: 'SMS Blast',
+                    recipient: recipient,
+                    content: message,
+                    status: 'Delivered' // Optimistic status, ideally use data from AT response
+                });
+            }
+
+            setMessage('');
+            alert(`Success! Messages sent to ${uniqueNumbers.length} recipients. ${actualCost} units deducted.`);
+
+        } catch (err: any) {
+            console.error(err);
+            alert("Error sending SMS: " + (err.message || "Unknown error"));
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

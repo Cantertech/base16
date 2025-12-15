@@ -44,6 +44,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
     const [classPopData, setClassPopData] = useState<any[]>([]);
     const [academicData, setAcademicData] = useState<any[]>([]);
     const [referralHistory, setReferralHistory] = useState<Referral[]>([]);
+    const [attendanceData, setAttendanceData] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchAnalyticsData = async () => {
@@ -178,6 +179,35 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     setReferralHistory(mappedReferrals);
                 }
 
+                // 5. Attendance Overview (NEW)
+                const { data: attendance } = await supabase
+                    .from('attendance')
+                    .select('status')
+                    .eq('school_id', currentUser.school_id)
+                    .eq('date', new Date().toISOString().split('T')[0]); // Today's attendance
+
+                if (attendance) {
+                    let present = 0, absent = 0, late = 0;
+                    attendance.forEach((r: any) => {
+                        if (r.status === 'Present') present++;
+                        else if (r.status === 'Absent') absent++;
+                        else if (r.status === 'Late') late++;
+                    });
+
+                    const total = present + absent + late;
+                    if (total > 0) {
+                        setAttendanceData([
+                            { name: 'Present', value: present, color: '#22c55e' },
+                            { name: 'Absent', value: absent, color: '#ef4444' },
+                            { name: 'Late', value: late, color: '#eab308' }
+                        ]);
+                    } else {
+                        setAttendanceData([
+                            { name: 'No Data', value: 1, color: '#cbd5e1' }
+                        ]);
+                    }
+                }
+
             } catch (error) {
                 console.error('Error fetching analytics:', error);
             }
@@ -271,7 +301,48 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {/* 2. Debtor Analysis (Donut Chart) */}
+                {/* 2. ATTENDANCE OVERVIEW (NEW) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="bg-green-50 p-2 rounded-lg text-green-600">
+                            <Clock className="h-5 w-5" />
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-lg">Today's Attendance</h3>
+                    </div>
+
+                    <div className="h-64 w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={attendanceData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {attendanceData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="bottom" iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        {/* Center Text */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none mb-6">
+                            <div className="text-center">
+                                <p className="text-xs text-slate-400 font-bold uppercase">Present</p>
+                                <p className="text-2xl font-bold text-emerald-600">
+                                    {attendanceData.find(d => d.name === 'Present')?.value || 0}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. Debtor Analysis (Donut Chart) */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-2 mb-6">
                         <div className="bg-red-50 p-2 rounded-lg text-red-600">
@@ -300,7 +371,6 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                                 <Legend verticalAlign="bottom" iconType="circle" />
                             </PieChart>
                         </ResponsiveContainer>
-                        {/* Center Text */}
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none mb-6">
                             <div className="text-center">
                                 <p className="text-xs text-slate-400 font-bold uppercase">Paid</p>
@@ -312,8 +382,8 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {/* 3. Class Population (Bar Chart) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                {/* 4. Class Population (Bar Chart) */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-2 mb-6">
                         <div className="bg-purple-50 p-2 rounded-lg text-purple-600">
                             <Users className="h-5 w-5" />
@@ -347,13 +417,13 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {/* 4. Academic Performance (Bar Chart - Vertical) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                {/* 5. Academic Performance (Bar Chart - Vertical) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-2 mb-6">
                         <div className="bg-orange-50 p-2 rounded-lg text-orange-600">
                             <BookOpen className="h-5 w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Average Subject Performance</h3>
+                        <h3 className="font-bold text-slate-800 text-lg">Avg Performance</h3>
                     </div>
 
                     <div className="h-72 w-full">
@@ -390,7 +460,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {/* 5. REFERRAL PAYOUTS (NEW) */}
+                {/* 6. REFERRAL PAYOUTS */}
                 <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-2 mb-6">
                         <div className="bg-purple-50 p-2 rounded-lg text-purple-600">

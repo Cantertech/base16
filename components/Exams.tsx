@@ -38,6 +38,8 @@ interface Submission {
 
 interface ExamsProps {
     currentUser?: {
+        id: string;
+        school_id: string;
         role: 'admin' | 'teacher';
         name: string;
     };
@@ -59,9 +61,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
 
+    // Teacher Assignments State
+    const [myAssignments, setMyAssignments] = useState<any[]>([]);
+    const [allSubjects, setAllSubjects] = useState<any[]>([]);
+    const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+    const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+
     // Mark Entry / Filter State
-    const [selectedClass, setSelectedClass] = useState('JHS 1');
-    const [selectedSubject, setSelectedSubject] = useState('Mathematics');
+    const [selectedClass, setSelectedClass] = useState('');
+    const [selectedSubject, setSelectedSubject] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Editing State
@@ -71,15 +79,51 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [reviewSubmission, setReviewSubmission] = useState<Submission | null>(null);
 
+    // --- Config Logic ---
+    const defaultExamConfig = {
+        current_term: "First Term",
+        academic_year: new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
+        weights: { class: 30, exam: 70 },
+        grading: [
+            { grade: "A", min: 80, max: 100, remark: "Excellent" },
+            { grade: "B", min: 70, max: 79, remark: "Very Good" },
+            { grade: "C", min: 60, max: 69, remark: "Good" },
+            { grade: "D", min: 50, max: 59, remark: "Credit" },
+            { grade: "E", min: 40, max: 49, remark: "Pass" },
+            { grade: "F", min: 0, max: 39, remark: "Fail" }
+        ]
+    };
+
+    const [examConfig, setExamConfig] = useState<any>(defaultExamConfig);
+
     // Load Data
     useEffect(() => {
         fetchData();
     }, []);
 
+    // Effect to update options based on selection
+    useEffect(() => {
+        if (currentUser?.role === 'teacher' && myAssignments.length > 0) {
+            // Update available subjects based on selected class
+            if (selectedClass) {
+                const classAssignment = myAssignments.filter(a => a.className === selectedClass);
+                const isClassTeacher = classAssignment.some(a => a.isClassTeacher);
+
+                if (isClassTeacher) {
+                    setAvailableSubjects(allSubjects.map(s => s.name));
+                } else {
+                    const assignedSubjects = classAssignment.map(a => a.subjectName).filter(Boolean);
+                    setAvailableSubjects(assignedSubjects);
+                }
+            }
+        }
+    }, [selectedClass, myAssignments, allSubjects]);
+
     const fetchData = async () => {
+        // 1. Fetch Students
         try {
-            // Fetch Students
-            const { data: studentsData } = await supabase.from('students').select('*');
+            const { data: studentsData, error: stError } = await supabase.from('students').select('*');
+            if (stError) throw stError;
             if (studentsData) {
                 setStudents(studentsData.map((s: any) => ({
                     id: s.id,
@@ -88,9 +132,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     attendance: 100 // Mock for now
                 })));
             }
+        } catch (e: any) {
+            console.error('Error fetching students:', e.message);
+        }
 
-            // Fetch Results
-            const { data: resultsData } = await supabase.from('exam_results').select('*, students(name)');
+        // 2. Fetch Results
+        try {
+            const { data: resultsData, error: resError } = await supabase
+                .from('exam_results')
+                .select('*, students(name)');
+
+            if (resError) throw resError;
             if (resultsData) {
                 setResults(resultsData.map((r: any) => ({
                     id: r.id,
@@ -103,8 +155,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     total: r.total
                 })));
             }
+        } catch (e: any) {
+            console.error('Error fetching results:', e.message);
+        }
 
-            // Fetch Submissions
+        // 3. Fetch Submissions
+        try {
             const { data: submissionsData, error: subError } = await supabase
                 .from('exam_submissions')
                 .select('*');
@@ -113,19 +169,34 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
             if (submissionsData) {
                 // Fetch teacher profiles manually to avoid join issues
-                const teacherIds = [...new Set(submissionsData.map((s: any) => s.teacher_id).filter(Boolean))];
+                // Filter for valid UUIDs only to prevent 400 errors if bad data exists
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+                const rawTeacherIds = [...new Set(submissionsData.map((s: any) => s.teacher_id).filter(Boolean))];
+                const validTeacherIds = rawTeacherIds.filter(id => uuidRegex.test(id));
+
+                if (rawTeacherIds.length !== validTeacherIds.length) {
+                    console.warn('Found invalid teacher IDs in submissions:', rawTeacherIds.filter(id => !uuidRegex.test(id)));
+                }
+
                 let teacherMap: Record<string, string> = {};
 
-                if (teacherIds.length > 0) {
-                    const { data: teachers } = await supabase
-                        .from('profiles')
-                        .select('id, name')
-                        .in('id', teacherIds);
+                if (validTeacherIds.length > 0) {
+                    try {
+                        const { data: teachers, error: teacherError } = await supabase
+                            .from('profiles')
+                            .select('id, full_name')
+                            .in('id', validTeacherIds);
 
-                    if (teachers) {
-                        teachers.forEach((t: any) => {
-                            teacherMap[t.id] = t.name;
-                        });
+                        if (teacherError) {
+                            console.error('Error fetching teacher profiles:', teacherError);
+                        } else if (teachers) {
+                            teachers.forEach((t: any) => {
+                                teacherMap[t.id] = t.full_name;
+                            });
+                        }
+                    } catch (err: any) {
+                        console.error('Exception fetching teacher profiles:', err);
                     }
                 }
 
@@ -138,17 +209,165 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     submittedDate: s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : undefined
                 })));
             }
+        } catch (e: any) {
+            console.error('Error fetching submissions:', e.message);
+        }
 
-        } catch (error) {
-            console.error('Error fetching exam data:', error);
+        // 4. Fetch Teacher Assignments (Teacher only)
+        if (currentUser?.role === 'teacher') {
+            try {
+                // Fetch All Subjects first (robustness)
+                const { data: subjects } = await supabase.from('subjects').select('name');
+                if (subjects) setAllSubjects(subjects);
+
+                // Try fetching assignments
+                const { data: assignments, error: assignError } = await supabase
+                    .from('teacher_assignments')
+                    .select('is_class_teacher, classes(name), subjects(name)')
+                    .eq('teacher_id', currentUser.id);
+
+                if (assignError) throw assignError;
+
+                if (assignments) {
+                    const normalized = assignments.map((a: any) => ({
+                        className: a.classes?.name,
+                        subjectName: a.subjects?.name,
+                        isClassTeacher: a.is_class_teacher
+                    }));
+                    setMyAssignments(normalized);
+
+                    // Set Classes
+                    const distinctClasses = [...new Set(normalized.map(a => a.className).filter(Boolean))];
+                    if (distinctClasses.length > 0) {
+                        setAvailableClasses(distinctClasses);
+                        if (!selectedClass) setSelectedClass(distinctClasses[0]);
+                    } else {
+                        // Fallback if no classes assigned/found
+                        setAvailableClasses([]);
+                    }
+                }
+            } catch (e: any) {
+                console.error('Error fetching teacher assignments:', e.message);
+                // Fallback to basic list if error (e.g., table missing)
+                setAvailableClasses(['JHS 1', 'JHS 2']);
+            }
+        } else {
+            // Admin: Fetch Real Classes & Subjects
+            const fetchAdminData = async () => {
+                try {
+                    // Classes
+                    const { data: classesData, error: classError } = await supabase
+                        .from('classes')
+                        .select('name')
+                        .order('name');
+
+                    if (classError) throw classError;
+
+                    if (classesData && classesData.length > 0) {
+                        const classNames = classesData.map(c => c.name);
+                        setAvailableClasses(classNames);
+                        if (!selectedClass || !classNames.includes(selectedClass)) {
+                            setSelectedClass(classNames[0]);
+                        }
+                    } else {
+                        setAvailableClasses(['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4']);
+                    }
+
+                    // Subjects
+                    const { data: subjectsData, error: subjError } = await supabase
+                        .from('subjects')
+                        .select('name')
+                        .order('name');
+
+                    if (subjError) throw subjError;
+
+                    if (subjectsData && subjectsData.length > 0) {
+                        const subjectNames = [...new Set(subjectsData.map(s => s.name))];
+                        setAvailableSubjects(subjectNames);
+                        if (!selectedSubject || !subjectNames.includes(selectedSubject)) {
+                            setSelectedSubject(subjectNames[0]);
+                        }
+                    } else {
+                        setAvailableSubjects(['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT', 'RME']);
+                    }
+                } catch (err: any) {
+                    console.error("Error fetching admin data:", err.message);
+                    // Fallbck
+                    setAvailableClasses(['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4']);
+                    setAvailableSubjects(['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT', 'RME']);
+                }
+            };
+            fetchAdminData();
+        }
+
+        // 5. Fetch School Config (Admin only)
+        if (currentUser?.role === 'admin') {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+                    if (profile?.school_id) {
+                        const { data: schoolData, error: scError } = await supabase
+                            .from('schools')
+                            .select('*')
+                            .eq('id', profile.school_id)
+                            .single();
+
+                        if (scError) throw scError;
+
+                        if (schoolData) {
+                            if (schoolData.exam_config) {
+                                setExamConfig(schoolData.exam_config);
+                            }
+                            setSchoolConfig({
+                                name: schoolData.name,
+                                logo_url: schoolData.logo_url,
+                                address: schoolData.address,
+                                phone: schoolData.phone,
+                                email: schoolData.email,
+                                motto: schoolData.motto,
+                                ...schoolData.exam_config
+                            });
+                        }
+                    }
+                }
+            } catch (e: any) {
+                console.error('Error fetching school config:', e.message);
+            }
+        }
+    };
+
+    const handleSaveConfig = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Get school_id from profile if not passed in props (fallback)
+            const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+            if (!profile?.school_id) return;
+
+            const { error } = await supabase
+                .from('schools')
+                .update({ exam_config: examConfig })
+                .eq('id', profile.school_id);
+
+            if (error) throw error;
+            alert('Exam configuration saved successfully!');
+        } catch (error: any) {
+            console.error('Error saving config:', error);
+            alert('Failed to save configuration.');
         }
     };
 
     // --- Mark Entry Logic (Teacher) ---
     const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore', value: string) => {
         let numValue = Number(value);
-        if (field === 'classScore' && numValue > 30) numValue = 30;
-        if (field === 'examScore' && numValue > 70) numValue = 70;
+        // Use dynamic weights if available, else defaults
+        const maxClass = examConfig.weights?.class || 30;
+        const maxExam = examConfig.weights?.exam || 70;
+
+        if (field === 'classScore' && numValue > maxClass) numValue = maxClass;
+        if (field === 'examScore' && numValue > maxExam) numValue = maxExam;
         if (numValue < 0) numValue = 0;
 
         setPendingChanges(prev => {
@@ -233,6 +452,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     };
 
     const getGrade = (total: number) => {
+        // Use dynamic grading if available
+        if (examConfig.grading) {
+            const grade = examConfig.grading.find((g: any) => total >= g.min && total <= g.max);
+            return grade ? grade.grade : 'F';
+        }
+        // Fallback
         if (total >= 80) return 'A';
         if (total >= 70) return 'B';
         if (total >= 60) return 'C';
@@ -315,13 +540,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
                                 <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-32">
-                                    {['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => <option key={c} value={c}>{c}</option>)}
+                                    {availableClasses.length > 0 ? (
+                                        availableClasses.map(c => <option key={c} value={c}>{c}</option>)
+                                    ) : (
+                                        <option value="">No Classes Assigned</option>
+                                    )}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
                                 <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48">
-                                    {['Mathematics', 'English Language', 'Integrated Science', 'Social Studies', 'ICT', 'RME'].map(s => <option key={s} value={s}>{s}</option>)}
+                                    <option value="">Select Subject</option>
+                                    {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -335,8 +565,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             <thead className="bg-white border-b border-slate-200">
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class (30)</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam (70)</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
                                 </tr>
@@ -383,7 +613,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
                 {/* Admin Tabs */}
                 <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                    <button onClick={() => setActiveTab('config')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex gap-2 ${activeTab === 'config' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('config')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex gap-2 ${activeTab === 'config' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Settings className="h-4 w-4" /> Config
                     </button>
                     <button onClick={() => setActiveTab('questions')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex gap-2 ${activeTab === 'questions' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -394,6 +624,136 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     </button>
                 </div>
             </div>
+
+            {/* Tab 1: Config */}
+            {activeTab === 'config' && (
+                <div className="max-w-4xl space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-bold text-slate-800">Academic Session</h3>
+                            <button onClick={handleSaveConfig} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-primary-700 transition-colors flex items-center gap-2">
+                                <Save className="h-4 w-4" /> Save Configuration
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Current Academic Year</label>
+                                <input
+                                    type="text"
+                                    value={examConfig.academic_year}
+                                    onChange={e => setExamConfig({ ...examConfig, academic_year: e.target.value })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    placeholder="e.g. 2024/2025"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Current Term</label>
+                                <select
+                                    value={examConfig.current_term}
+                                    onChange={e => setExamConfig({ ...examConfig, current_term: e.target.value })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
+                                >
+                                    <option>First Term</option>
+                                    <option>Second Term</option>
+                                    <option>Third Term</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">Assessment Weights</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Class Score (%)</label>
+                                <input
+                                    type="number"
+                                    value={examConfig.weights.class}
+                                    onChange={e => setExamConfig({ ...examConfig, weights: { ...examConfig.weights, class: Number(e.target.value) } })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Exam Score (%)</label>
+                                <input
+                                    type="number"
+                                    value={examConfig.weights.exam}
+                                    onChange={e => setExamConfig({ ...examConfig, weights: { ...examConfig.weights, exam: Number(e.target.value) } })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">Total must equal 100%.</p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">Grading System</h3>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Grade</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Min Score</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Max Score</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Remark</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {examConfig.grading.map((g: any, idx: number) => (
+                                        <tr key={idx}>
+                                            <td className="px-4 py-2 font-bold">{g.grade}</td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="number"
+                                                    value={g.min}
+                                                    onChange={e => {
+                                                        const newGrading = [...examConfig.grading];
+                                                        newGrading[idx].min = Number(e.target.value);
+                                                        setExamConfig({ ...examConfig, grading: newGrading });
+                                                    }}
+                                                    className="w-16 p-1 border border-slate-300 rounded text-center"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="number"
+                                                    value={g.max}
+                                                    onChange={e => {
+                                                        const newGrading = [...examConfig.grading];
+                                                        newGrading[idx].max = Number(e.target.value);
+                                                        setExamConfig({ ...examConfig, grading: newGrading });
+                                                    }}
+                                                    className="w-16 p-1 border border-slate-300 rounded text-center"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="text"
+                                                    value={g.remark}
+                                                    onChange={e => {
+                                                        const newGrading = [...examConfig.grading];
+                                                        newGrading[idx].remark = e.target.value;
+                                                        setExamConfig({ ...examConfig, grading: newGrading });
+                                                    }}
+                                                    className="w-full p-1 border border-slate-300 rounded"
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'questions' && (
+                <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                    <BookOpen className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+                    <h3 className="text-lg font-bold text-slate-600">Question Bank</h3>
+                    <p>Upload questions for CBT (Computer Based Tests) here.</p>
+                </div>
+            )}
 
             {/* Tab 3: Results & Approval (The Core Workflow) */}
             {activeTab === 'approval' && (
@@ -460,7 +820,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                     />
                                 </div>
                                 <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-full sm:w-40">
-                                    {['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => <option key={c} value={c}>{c}</option>)}
+                                    {availableClasses.length > 0 ? (
+                                        availableClasses.map(c => <option key={c} value={c}>{c}</option>)
+                                    ) : (
+                                        <option value="">No Classes</option>
+                                    )}
                                 </select>
                             </div>
 
@@ -469,90 +833,78 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-xl flex items-center gap-3">
                                     <AlertCircle className="h-5 w-5 flex-shrink-0" />
                                     <div className="text-sm">
-                                        <span className="font-bold">Pending Approvals:</span> Report cards for {selectedClass} cannot be generated yet.
-                                        Only {approvalStatus.approved} out of {approvalStatus.total} subjects have been approved by the Admin.
+                                        <span className="font-bold">Note:</span> Not all subjects for {selectedClass} have been approved. Report cards generated now may be incomplete.
                                     </div>
                                 </div>
                             )}
-
                             {/* Student List */}
-                            <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${!approvalStatus.isFullyApproved ? 'opacity-50 pointer-events-none grayscale-[0.5]' : ''}`}>
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 border-b border-slate-100">
-                                        <tr>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Student</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Attendance</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {filteredStudents.length > 0 ? filteredStudents.map(student => (
-                                            <tr key={student.id} className="hover:bg-slate-50">
-                                                <td className="px-6 py-4">
-                                                    <p className="font-bold text-slate-800">{student.name}</p>
-                                                    <p className="text-xs text-slate-500">{student.id}</p>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-slate-600">{student.attendance}%</td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button
-                                                        onClick={() => setReportStudent(student)}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-primary-600 transition-colors"
-                                                    >
-                                                        <FileText className="h-3 w-3" /> View Report
-                                                    </button>
-                                                </td>
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-50 border-b border-slate-100">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Student Name</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Attendance</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Action</th>
                                             </tr>
-                                        )) : (
-                                            <tr><td colSpan={3} className="p-8 text-center text-slate-500">No students found.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {filteredStudents.length > 0 ? filteredStudents.map(student => (
+                                                <tr key={student.id} className="hover:bg-slate-50">
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-bold text-slate-800">{student.name}</p>
+                                                        <p className="text-xs text-slate-500">{student.id}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-slate-600">{student.attendance}%</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button
+                                                            onClick={() => setReportStudent(student)}
+                                                            className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-primary-600 transition-colors"
+                                                        >
+                                                            <FileText className="h-3 w-3" /> View Report
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )) : (
+                                                <tr><td colSpan={3} className="p-8 text-center text-slate-500">No students found.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Placeholders for Tab 1 & 2 */}
-            {activeTab === 'config' && (
-                <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                    <Settings className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                    <h3 className="text-lg font-bold text-slate-600">Exam Configuration</h3>
-                    <p>Create new exams, set date ranges, and manage term weights here.</p>
-                </div>
-            )}
-            {activeTab === 'questions' && (
-                <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                    <BookOpen className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                    <h3 className="text-lg font-bold text-slate-600">Question Bank</h3>
-                    <p>Upload questions for CBT (Computer Based Tests) here.</p>
-                </div>
-            )}
-
             {/* --- MODALS --- */}
 
             {/* Review Modal (View 2) */}
-            {reviewSubmission && (
-                <ReviewModal
-                    submission={reviewSubmission}
-                    results={results.filter(r => r.class === reviewSubmission.class && r.subject === reviewSubmission.subject)}
-                    onClose={() => setReviewSubmission(null)}
-                    onApprove={handleApproveSubmission}
-                    onReject={handleRejectSubmission}
-                />
-            )}
+            {
+                reviewSubmission && (
+                    <ReviewModal
+                        submission={reviewSubmission}
+                        results={results.filter(r => r.class === reviewSubmission.class && r.subject === reviewSubmission.subject)}
+                        onClose={() => setReviewSubmission(null)}
+                        onApprove={handleApproveSubmission}
+                        onReject={handleRejectSubmission}
+                    />
+                )
+            }
 
             {/* Report Card Modal */}
-            {reportStudent && (
-                <ReportCard
-                    student={reportStudent}
-                    results={results.filter(r => r.studentId === reportStudent.id)}
-                    schoolConfig={schoolConfig}
-                    onClose={() => setReportStudent(null)}
-                />
-            )}
+            {
+                reportStudent && (
+                    <ReportCard
+                        student={reportStudent}
+                        results={results.filter(r => r.studentId === reportStudent.id)}
+                        schoolConfig={schoolConfig}
+                        onClose={() => setReportStudent(null)}
+                    />
+                )
+            }
 
-        </div>
+        </div >
     );
 };
 

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '../utils/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
 // --- Types ---
 interface Teacher {
@@ -18,12 +19,14 @@ interface Teacher {
   role: 'teacher';
   password?: string;
   salary: number;
+  assignments?: any[];
 }
 
 // --- Main Component ---
 const Teachers: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal & Drawer States
@@ -35,6 +38,7 @@ const Teachers: React.FC = () => {
   useEffect(() => {
     fetchTeachers();
     fetchClasses();
+    fetchSubjects();
   }, []);
 
   const fetchClasses = async () => {
@@ -43,20 +47,36 @@ const Teachers: React.FC = () => {
         .from('classes')
         .select('*')
         .order('name', { ascending: true });
-
-      if (data) {
-        setClasses(data);
-      }
+      if (data) setClasses(data);
     } catch (error) {
       console.error('Error fetching classes:', error);
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const { data } = await supabase.from('subjects').select('*').order('name');
+      if (data) setSubjects(data);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+    }
+  };
+
   const fetchTeachers = async () => {
     try {
+      // Fetch teachers with their assignments
       const { data, error } = await supabase
         .from('teachers')
-        .select('*')
+        .select(`
+            *,
+            teacher_assignments (
+                class_id,
+                subject_id,
+                is_class_teacher,
+                classes (name),
+                subjects (name)
+            )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -72,15 +92,17 @@ const Teachers: React.FC = () => {
           status: t.status,
           role: 'teacher',
           password: t.password,
-          salary: t.salary || 0
+          salary: t.salary || 0,
+          assignments: t.teacher_assignments || []
         })));
       }
-    } catch (error) {
+      setEditingTeacher(null);
+    } catch (error: any) {
       console.error('Error fetching teachers:', error);
+      // alert(`Failed to fetch teachers: ${error.message}`); // Suppress for now during dev
     }
   };
 
-  // --- Actions ---
   const handleSaveTeacher = async (teacherData: any) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -94,34 +116,116 @@ const Teachers: React.FC = () => {
 
       if (!profile?.school_id) throw new Error('No school associated with user');
 
+      // Determine Primary Assigned Class (first one or manual override if we kept the field)
+      // For now, let's just take the first class from assignments if available, or stay with the old field if passed
+      // Ideally, the "assigned_class" column becomes a "Primary Class" for display purposes.
+      const primaryAssignment = teacherData.assignments && teacherData.assignments.length > 0
+        ? teacherData.assignments[0]
+        : null;
+
+      const derivedAssignedClass = primaryAssignment
+        ? (classes.find(c => c.id === primaryAssignment.classId)?.name || teacherData.assignedClass)
+        : teacherData.assignedClass;
+
       const payload = {
         school_id: profile.school_id,
         name: teacherData.name,
         email: teacherData.email,
         phone: teacherData.phone,
         subject: teacherData.subject,
-        assigned_class: teacherData.assignedClass || null,
+        assigned_class: derivedAssignedClass || null,
         status: 'Active',
         salary: Number(teacherData.salary) || 0
       };
 
+      let teacherId = editingTeacher?.id;
+
       if (editingTeacher) {
-        // Update
+        // Update (Existing User)
+        teacherId = editingTeacher.id;
         const { error } = await supabase
           .from('teachers')
           .update(payload)
-          .eq('id', editingTeacher.id);
+          .eq('id', teacherId);
 
         if (error) throw error;
-        alert('Teacher updated successfully!');
+
+        await supabase.from('profiles').update({
+          full_name: teacherData.name,
+          email: teacherData.email,
+          phone_number: teacherData.phone
+        }).eq('id', teacherId);
+
       } else {
-        // Insert
-        const { error } = await supabase
-          .from('teachers')
-          .insert([{ ...payload, password: 'password123' }]);
+        // Insert (New User)
+        const tempSupabase = createClient(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_ANON_KEY,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
 
-        if (error) throw error;
-        alert('Teacher added successfully!');
+        const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+          email: teacherData.email,
+          password: 'password123',
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Failed to create user account');
+
+        teacherId = authData.user.id;
+
+        await supabase.rpc('confirm_user_by_email', { target_email: teacherData.email });
+
+        const { error: profileError } = await supabase.from('profiles').insert([{
+          id: teacherId,
+          school_id: profile.school_id,
+          role: 'teacher',
+          full_name: teacherData.name,
+          email: teacherData.email,
+          phone_number: teacherData.phone
+        }]);
+
+        if (profileError && profileError.code !== '23505') throw profileError;
+        else if (profileError?.code === '23505') {
+          await supabase.from('profiles').update({
+            school_id: profile.school_id,
+            role: 'teacher',
+            full_name: teacherData.name,
+            phone_number: teacherData.phone
+          }).eq('id', teacherId);
+        }
+
+        const { error: teacherError } = await supabase.from('teachers').insert([{
+          id: teacherId,
+          ...payload,
+          password: 'password123'
+        }]);
+        if (teacherError) throw teacherError;
+
+        alert('Teacher created! Password: password123');
+      }
+
+      // --- Handle Assignments (For both Create and Update) ---
+      if (teacherId && teacherData.assignments) {
+        // 1. Delete existing
+        await supabase.from('teacher_assignments').delete().eq('teacher_id', teacherId);
+
+        // 2. Insert new
+        if (teacherData.assignments.length > 0) {
+          const assignmentInserts = teacherData.assignments.map((a: any) => ({
+            teacher_id: teacherId,
+            school_id: profile.school_id,
+            class_id: a.classId,
+            subject_id: a.isClassTeacher ? null : a.subjectId,
+            is_class_teacher: a.isClassTeacher
+          }));
+
+          const { error: assignError } = await supabase.from('teacher_assignments').insert(assignmentInserts);
+          if (assignError) {
+            console.error("Assignment Error:", assignError);
+            alert("Teacher saved, but there was an error saving assignments: " + assignError.message);
+          }
+        }
       }
 
       fetchTeachers();
@@ -134,12 +238,10 @@ const Teachers: React.FC = () => {
   };
 
   const handleDeleteTeacher = async (id: string) => {
-    if (window.confirm('Are you sure you want to remove this teacher? This cannot be undone.')) {
+    if (window.confirm('Are you sure you want to remove this teacher? This will delete their login access too.')) {
       try {
-        const { error } = await supabase
-          .from('teachers')
-          .delete()
-          .eq('id', id);
+        // Use RPC to delete Auth User + Data
+        const { error } = await supabase.rpc('delete_teacher_user', { teacher_id: id });
 
         if (error) throw error;
 
@@ -305,6 +407,7 @@ const Teachers: React.FC = () => {
           onClose={() => setIsModalOpen(false)}
           onSubmit={handleSaveTeacher}
           availableClasses={classes}
+          availableSubjects={subjects}
           initialData={editingTeacher}
         />
       )}
@@ -325,44 +428,84 @@ const Teachers: React.FC = () => {
 };
 
 // --- Sub-component: Add/Edit Teacher Modal ---
-const TeacherModal = ({ onClose, onSubmit, availableClasses = [], initialData = null }: any) => {
+const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubjects = [], initialData = null }: any) => {
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', assignedClass: '', subject: '', salary: 0
+    name: '', email: '', phone: '', subject: '', salary: 0,
+    assignments: [] as any[]
   });
 
   useEffect(() => {
     if (initialData) {
+      // Map existing assignments from DB format to UI format
+      const existingAssignments = initialData.assignments?.map((a: any) => ({
+        id: Math.random().toString(36).substr(2, 9), // Temp ID for UI key
+        classId: a.class_id,
+        subjectId: a.subject_id,
+        isClassTeacher: a.is_class_teacher
+      })) || [];
+
+      // If no assignments legacy check (backward compatibility)
+      if (existingAssignments.length === 0 && initialData.assignedClass) {
+        const classObj = availableClasses.find((c: any) => c.name === initialData.assignedClass);
+        if (classObj) {
+          existingAssignments.push({
+            id: 'legacy',
+            classId: classObj.id,
+            subjectId: null,
+            isClassTeacher: true // Assume legacy single assignment was class teacher
+          });
+        }
+      }
+
       setFormData({
         name: initialData.name,
         email: initialData.email,
         phone: initialData.phone,
-        assignedClass: initialData.assignedClass || '',
-        subject: initialData.subject,
-        salary: initialData.salary || 0
+        subject: initialData.subject, // Keep for display/legacy
+        salary: initialData.salary || 0,
+        assignments: existingAssignments
       });
     }
   }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Treat empty assigned class as null
-    const submitData = {
-      ...formData,
-      assignedClass: formData.assignedClass || null
-    };
-    onSubmit(submitData);
+    onSubmit(formData);
+  };
+
+  const addAssignment = () => {
+    setFormData(prev => ({
+      ...prev,
+      assignments: [...prev.assignments, { id: Math.random().toString(), classId: '', subjectId: '', isClassTeacher: false }]
+    }));
+  };
+
+  const removeAssignment = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assignments: prev.assignments.filter(a => a.id !== id)
+    }));
+  };
+
+  const updateAssignment = (id: string, field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      assignments: prev.assignments.map(a => a.id === id ? { ...a, [field]: value } : a)
+    }));
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
           <h3 className="font-bold text-lg text-slate-800">{initialData ? 'Edit Teacher' : 'Add New Teacher'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Personal Info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
@@ -379,38 +522,85 @@ const TeacherModal = ({ onClose, onSubmit, availableClasses = [], initialData = 
               <input required type="email" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@school.com" />
             </div>
-
-            <div className="col-span-2 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Role & Compensation</h4>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Class Teacher For</label>
-              <select className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
-                value={formData.assignedClass} onChange={e => setFormData({ ...formData, assignedClass: e.target.value })}>
-                <option value="">-- No Class Assigned --</option>
-                {availableClasses.length > 0 ? availableClasses.map((c: any) => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                )) : (
-                  ['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))
-                )}
-              </select>
-            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Salary (GH¢)</label>
               <input type="number" min="0" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 value={formData.salary} onChange={e => setFormData({ ...formData, salary: Number(e.target.value) })} placeholder="0.00" />
             </div>
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Subjects</label>
-              <input required type="text" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Display Subjects (Text)</label>
+              <input type="text" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                 value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })} placeholder="e.g. Math, Science" />
-              <p className="text-xs text-slate-500 mt-1">Comma separated for multiple.</p>
             </div>
           </div>
-          <div className="pt-4 flex justify-end gap-3">
+
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-sm font-bold text-slate-800">Class & Subject Assignments</h4>
+              <button type="button" onClick={addAssignment} className="text-sm text-primary-600 font-medium hover:bg-primary-50 px-3 py-1 rounded-lg flex items-center gap-1">
+                <Plus className="h-4 w-4" /> Add Assignment
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {formData.assignments.map((assignment, index) => (
+                <div key={assignment.id} className="flex gap-3 items-start bg-slate-50 p-3 rounded-lg border border-slate-200 relative group">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Class</label>
+                    <select
+                      required
+                      className="w-full p-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-primary-500"
+                      value={assignment.classId}
+                      onChange={e => updateAssignment(assignment.id, 'classId', e.target.value)}
+                    >
+                      <option value="">Select Class</option>
+                      {availableClasses.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Subject</label>
+                    <select
+                      disabled={assignment.isClassTeacher}
+                      className={`w-full p-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-primary-500 ${assignment.isClassTeacher ? 'bg-slate-100 text-slate-400' : 'bg-white'}`}
+                      value={assignment.subjectId || ''}
+                      onChange={e => updateAssignment(assignment.id, 'subjectId', e.target.value)}
+                    >
+                      <option value="">{assignment.isClassTeacher ? '(All Subjects)' : 'Select Subject'}</option>
+                      {availableSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col justify-center pt-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={assignment.isClassTeacher}
+                        onChange={e => updateAssignment(assignment.id, 'isClassTeacher', e.target.checked)}
+                        className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                      />
+                      <span className="text-xs font-medium text-slate-700">Class Teacher</span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeAssignment(assignment.id)}
+                    className="self-center mt-4 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {formData.assignments.length === 0 && (
+                <p className="text-center text-sm text-slate-500 py-4 italic bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                  No assignments yet. Click "Add Assignment" to start.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 shrink-0">
             <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
               {initialData ? 'Update Teacher' : 'Save Teacher'}

@@ -62,6 +62,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           throw new Error(`Invalid credentials for ${role} login.`);
         }
 
+        let assignedClass = null;
+        if (role === 'teacher') {
+          const { data: teacherData } = await supabase
+            .from('teachers')
+            .select('assigned_class')
+            .eq('id', authData.user.id)
+            .single();
+          if (teacherData) {
+            assignedClass = teacherData.assigned_class;
+          }
+        }
+
         // 4. Check School Status (for Admins)
         if (role === 'admin' && profileData.schools?.status !== 'active') {
           throw new Error("Your school account is pending approval. Please complete payment.");
@@ -74,8 +86,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           role: profileData.role,
           email: authData.user.email,
           photo: null, // Admin photo is null for now, will use initials
+          school_id: profileData.school_id,
           schoolLogo: profileData.schools?.logo_url, // Use school logo for the sidebar
-          schoolName: profileData.schools?.name
+          schoolName: profileData.schools?.name,
+          assignedClass: assignedClass
         });
       }
     } catch (err: any) {
@@ -135,7 +149,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              {role === 'admin' ? 'Email Address' : 'School Email'}
+              {role === 'admin' ? 'Email Address' : 'Teacher Email'}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

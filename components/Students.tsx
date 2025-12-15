@@ -30,6 +30,7 @@ interface Transaction {
 
 interface StudentsProps {
   currentUser?: {
+    id: string; // Add ID
     role: 'admin' | 'teacher';
     assignedClass?: string | null;
   };
@@ -44,6 +45,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const [feeStructure, setFeeStructure] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -93,8 +95,33 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (isTeacher && currentUser?.assignedClass) {
-        query = query.eq('class', currentUser.assignedClass);
+      if (isTeacher && currentUser?.id) {
+        // Fetch assignments first
+        const { data: assignments } = await supabase
+          .from('teacher_assignments')
+          .select('classes(name)')
+          .eq('teacher_id', currentUser.id);
+
+        let assignedClassNames: string[] = [];
+
+        if (assignments && assignments.length > 0) {
+          assignedClassNames = assignments.map((a: any) => a.classes?.name).filter(Boolean);
+        }
+
+        // Fallback to legacy assignedClass if no assignments found
+        if (assignedClassNames.length === 0 && currentUser.assignedClass) {
+          assignedClassNames = [currentUser.assignedClass];
+        }
+
+        if (assignedClassNames.length > 0) {
+          query = query.in('class', assignedClassNames);
+          setTeacherClasses(assignedClassNames);
+          // Set filter to first class by default if not set
+          if (classFilter === 'All') setClassFilter(assignedClassNames[0]);
+        } else {
+          // No classes assigned -> show none?
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Return nothing
+        }
       }
 
       const { data, error } = await query;
@@ -115,9 +142,6 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           attendance: 100 // Mock for now
         }));
         setStudents(mappedStudents);
-        if (isTeacher && currentUser?.assignedClass) {
-          setClassFilter(currentUser.assignedClass);
-        }
       }
     } catch (error) {
       console.error('Error fetching students:', error);

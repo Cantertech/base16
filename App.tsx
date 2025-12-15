@@ -22,6 +22,7 @@ interface User {
   photo?: string | null;
   schoolLogo?: string | null;
   subject?: string;
+  assignedClass?: string | null;
 }
 
 const App: React.FC = () => {
@@ -59,8 +60,20 @@ const App: React.FC = () => {
             role: profile.role as 'admin' | 'teacher' | 'super_admin',
             photo: null,
             schoolLogo: schoolLogo,
-            subject: profile.subject
+            subject: profile.subject,
+            assignedClass: null // Default
           };
+
+          if (user.role === 'teacher') {
+            const { data: teacherData } = await supabase
+              .from('teachers')
+              .select('assigned_class')
+              .eq('id', user.id)
+              .single();
+            if (teacherData) {
+              user.assignedClass = teacherData.assigned_class;
+            }
+          }
 
           setCurrentUser(user);
           setView('dashboard');
@@ -73,7 +86,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session) {
         setCurrentUser(null);
-        setView('landing');
+        setView('login');
       }
     });
 
@@ -106,7 +119,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
-    setView('landing');
+    setView('login');
     window.scrollTo(0, 0);
   };
 

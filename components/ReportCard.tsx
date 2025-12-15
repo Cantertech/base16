@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Printer, Building2 } from 'lucide-react';
+import { useReactToPrint } from 'react-to-print';
 
 interface Result {
     subject: string;
     classScore: number;
     examScore: number;
     total: number;
+    grade?: string;
+    remarks?: string;
 }
 
 interface Student {
@@ -13,149 +16,250 @@ interface Student {
     name: string;
     class: string;
     attendance: number;
+    photo?: string;
+}
+
+interface SchoolConfig {
+    name: string;
+    logo_url?: string;
+    motto?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    academic_year?: string;
+    term?: string;
+    grading?: { min: number; max: number; grade: string; remark: string }[];
 }
 
 interface ReportCardProps {
     student: Student;
     results: Result[];
-    schoolConfig: any;
     onClose: () => void;
+    schoolConfig?: SchoolConfig;
 }
 
-const ReportCard: React.FC<ReportCardProps> = ({ student, results, schoolConfig, onClose }) => {
+const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, schoolConfig }) => {
+    const componentRef = useRef<HTMLDivElement>(null);
 
-    const getGrade = (score: number) => {
-        if (score >= 80) return { grade: 'A', remark: 'Excellent' };
-        if (score >= 70) return { grade: 'B', remark: 'Very Good' };
-        if (score >= 60) return { grade: 'C', remark: 'Good' };
-        if (score >= 50) return { grade: 'D', remark: 'Pass' };
-        return { grade: 'F', remark: 'Fail' };
+    // Editable State
+    const [teacherRemark, setTeacherRemark] = useState("A disciplined and hardworking student. Keep it up!");
+    const [principalRemark, setPrincipalRemark] = useState("Promoted to the next class.");
+
+    const handlePrint = useReactToPrint({
+        content: () => {
+            const element = componentRef.current || document.getElementById('report-card-content');
+            if (!element) {
+                console.error("Print content not found!");
+            }
+            return element;
+        },
+        documentTitle: `${student.name}_Report_Card`,
+        onAfterPrint: () => console.log("Print finished"),
+        onPrintError: (errorLocation, error) => console.error("Print Error:", errorLocation, error),
+    });
+
+    // Helper to calculate grade if not provided
+    const calculateGrade = (score: number) => {
+        if (schoolConfig?.grading) {
+            const grade = schoolConfig.grading.find(g => score >= g.min && score <= g.max);
+            return grade ? grade.grade : 'F';
+        }
+        // Default grading
+        if (score >= 80) return 'A';
+        if (score >= 70) return 'B';
+        if (score >= 60) return 'C';
+        if (score >= 50) return 'D';
+        return 'F';
     };
 
-    const getPosition = (score: number) => {
-        // Randomized position for demo purposes
-        const pos = Math.floor(Math.random() * 10) + 1;
-        const suffix = pos === 1 ? 'st' : pos === 2 ? 'nd' : pos === 3 ? 'rd' : 'th';
-        return `${pos}${suffix}`;
+    const calculateRemark = (score: number) => {
+        if (schoolConfig?.grading) {
+            const grade = schoolConfig.grading.find(g => score >= g.min && score <= g.max);
+            return grade ? grade.remark : 'Fail';
+        }
+        if (score >= 80) return 'Excellent';
+        if (score >= 70) return 'Very Good';
+        if (score >= 60) return 'Good';
+        if (score >= 50) return 'Pass';
+        return 'Fail';
     };
 
-    const handlePrint = () => {
-        window.print();
-    };
+    const overallTotal = results.reduce((sum, r) => sum + r.total, 0);
+    const overallAverage = results.length > 0 ? (overallTotal / results.length).toFixed(1) : '0.0';
 
     return (
-        <div className="fixed inset-0 bg-black/70 z-[70] flex items-center justify-center p-4 overflow-y-auto print:p-0 print:bg-white print:fixed print:inset-0">
-            <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden print:shadow-none print:w-full print:max-w-none">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            {/* Modal Container - constrained height */}
+            <div className="bg-white w-full max-w-5xl rounded-xl shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
 
-                {/* Modal Controls (Hidden when printing) */}
-                <div className="bg-slate-900 text-white p-4 flex justify-between items-center print:hidden">
-                    <h3 className="font-bold">Report Card Preview</h3>
-                    <div className="flex gap-2">
+                {/* Fixed Header */}
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0 rounded-t-xl print:hidden">
+                    <h2 className="font-bold text-lg flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-blue-400" /> Student Report Card
+                    </h2>
+                    <div className="flex items-center gap-3">
+                        <p className="text-xs text-slate-400 mr-4 hidden sm:block">
+                            <span className="font-bold text-yellow-400">Tip:</span> You can edit the remarks below before printing.
+                        </p>
                         <button
-                            onClick={handlePrint}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                            onClick={() => handlePrint()}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
                         >
-                            <Printer className="h-4 w-4" /> Print PDF
+                            <Printer className="h-4 w-4" /> Print Report
                         </button>
-                        <button
-                            onClick={onClose}
-                            className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg"
-                        >
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors bg-white/5">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
                 </div>
 
-                {/* Report Card Content */}
-                <div className="p-8 md:p-12 print:p-8 space-y-8">
+                {/* Scrollable Content Area */}
+                <div className="overflow-y-auto flex-1 bg-slate-100 p-4 md:p-8">
+                    {/* Printable Paper */}
+                    <div ref={componentRef} id="report-card-content" className="bg-white max-w-3xl mx-auto p-8 md:p-12 shadow-sm min-h-[1123px] flex flex-col print:shadow-none print:p-0">
 
-                    {/* School Header */}
-                    <div className="flex flex-col items-center text-center border-b-2 border-slate-900 pb-6">
-                        <div className="h-20 w-20 mb-4 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden">
-                            {schoolConfig?.logo ? (
-                                <img src={schoolConfig.logo} alt="Logo" className="h-full w-full object-cover" />
-                            ) : (
-                                <Building2 className="h-10 w-10 text-slate-400" />
-                            )}
+                        {/* Header Section */}
+                        <div className="flex justify-between items-start border-b-4 border-blue-900 pb-6 mb-8">
+                            <div className="flex items-center gap-6">
+                                <div className="h-24 w-24 bg-slate-50 rounded-full border-2 border-slate-200 flex items-center justify-center overflow-hidden print-color-adjust-exact">
+                                    {schoolConfig?.logo_url ? (
+                                        <img src={schoolConfig.logo_url} alt="School Logo" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <Building2 className="h-12 w-12 text-slate-300" />
+                                    )}
+                                </div>
+                                <div>
+                                    <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight mb-1">
+                                        {schoolConfig?.name || 'Brainwave Academy'}
+                                    </h1>
+                                    <p className="text-slate-500 font-serif italic text-lg mb-2">
+                                        "{schoolConfig?.motto || 'Excellence in Education'}"
+                                    </p>
+                                    <div className="text-sm text-slate-600 space-y-0.5">
+                                        <p>{schoolConfig?.address || '123 Education Lane, Accra, Ghana'}</p>
+                                        <p>{schoolConfig?.email || 'info@brainwave.edu.gh'} | {schoolConfig?.phone || '+233 20 000 0000'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 mb-2 print-color-adjust-exact">
+                                    <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Academic Year</p>
+                                    <p className="text-lg font-bold text-blue-900">{schoolConfig?.academic_year || '2024/2025'}</p>
+                                </div>
+                                <div className="bg-orange-50 px-4 py-2 rounded-lg border border-orange-100 print-color-adjust-exact">
+                                    <p className="text-xs text-orange-600 font-bold uppercase tracking-wider">Term</p>
+                                    <p className="text-lg font-bold text-orange-900">{schoolConfig?.term || 'First Term'}</p>
+                                </div>
+                            </div>
                         </div>
-                        <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-wide">{schoolConfig?.name || 'School Name'}</h1>
-                        <p className="text-slate-500 italic font-serif mt-1">{schoolConfig?.motto || 'Motto goes here'}</p>
-                        <p className="text-sm font-bold text-slate-800 mt-2">TERMINAL ASSESSMENT REPORT - 2025</p>
-                    </div>
 
-                    {/* Student Details */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 print:bg-transparent print:border-none print:p-0">
-                        <div>
-                            <span className="block text-xs text-slate-500 uppercase font-bold">Name of Student</span>
-                            <span className="font-bold text-slate-900 text-lg">{student.name}</span>
+                        {/* Student Details */}
+                        <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 mb-8 flex justify-between items-center print-color-adjust-exact">
+                            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Student Name</p>
+                                    <p className="text-xl font-bold text-slate-900">{student.name}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Student ID</p>
+                                    <p className="text-lg font-medium text-slate-700 font-mono">{student.id.substring(0, 8).toUpperCase()}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Class</p>
+                                    <p className="text-lg font-medium text-slate-700">{student.class}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Attendance</p>
+                                    <p className="text-lg font-medium text-slate-700">{student.attendance}%</p>
+                                </div>
+                            </div>
+                            <div className="h-32 w-32 bg-white rounded-lg border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden">
+                                {student.photo ? (
+                                    <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
+                                ) : (
+                                    <div className="text-center p-2">
+                                        <div className="h-16 w-16 bg-slate-100 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                            <span className="text-2xl font-bold text-slate-400">{student.name.charAt(0)}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold">Student Photo</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div>
-                            <span className="block text-xs text-slate-500 uppercase font-bold">Student ID</span>
-                            <span className="font-mono text-slate-900">{student.id}</span>
-                        </div>
-                        <div>
-                            <span className="block text-xs text-slate-500 uppercase font-bold">Class</span>
-                            <span className="font-bold text-slate-900">{student.class}</span>
-                        </div>
-                        <div>
-                            <span className="block text-xs text-slate-500 uppercase font-bold">Attendance</span>
-                            <span className="font-bold text-slate-900">{student.attendance}/100</span>
-                        </div>
-                    </div>
 
-                    {/* Results Table */}
-                    <div>
-                        <table className="w-full border-collapse border border-slate-900">
-                            <thead className="bg-slate-100 text-slate-900 print:bg-slate-100">
-                                <tr>
-                                    <th className="border border-slate-900 px-3 py-2 text-left uppercase text-xs font-bold w-1/3">Subject</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-center uppercase text-xs font-bold">Class (30)</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-center uppercase text-xs font-bold">Exam (70)</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-center uppercase text-xs font-bold">Total (100)</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-center uppercase text-xs font-bold">Grade</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-left uppercase text-xs font-bold">Remark</th>
-                                    <th className="border border-slate-900 px-3 py-2 text-center uppercase text-xs font-bold">Pos.</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {results.map((res, i) => {
-                                    const { grade, remark } = getGrade(res.total);
-                                    return (
-                                        <tr key={i} className="text-sm">
-                                            <td className="border border-slate-900 px-3 py-3 font-semibold">{res.subject}</td>
-                                            <td className="border border-slate-900 px-3 py-3 text-center">{res.classScore}</td>
-                                            <td className="border border-slate-900 px-3 py-3 text-center">{res.examScore}</td>
-                                            <td className="border border-slate-900 px-3 py-3 text-center font-bold bg-slate-50 print:bg-transparent">{res.total}</td>
-                                            <td className={`border border-slate-900 px-3 py-3 text-center font-bold ${grade === 'F' ? 'text-red-600' : ''}`}>{grade}</td>
-                                            <td className="border border-slate-900 px-3 py-3 text-left italic">{remark}</td>
-                                            <td className="border border-slate-900 px-3 py-3 text-center">{getPosition(res.total)}</td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Remarks & Signature */}
-                    <div className="grid grid-cols-2 gap-12 pt-8">
-                        <div>
-                            <p className="font-bold text-sm uppercase text-slate-500 mb-2">Class Teacher's Remarks:</p>
-                            <p className="font-serif italic border-b border-slate-300 pb-1 mb-6">A disciplined and hardworking student. Keep it up!</p>
-
-                            <p className="font-bold text-sm uppercase text-slate-500 mb-2">Principal's Remarks:</p>
-                            <p className="font-serif italic border-b border-slate-300 pb-1">Promoted to the next class.</p>
+                        {/* Results Table */}
+                        <div className="flex-1">
+                            <table className="w-full border-collapse mb-8">
+                                <thead>
+                                    <tr className="bg-slate-900 text-white print-color-adjust-exact">
+                                        <th className="px-4 py-3 text-left text-sm font-bold uppercase tracking-wider rounded-tl-lg">Subject</th>
+                                        <th className="px-4 py-3 text-center text-sm font-bold uppercase tracking-wider w-24">Class (30%)</th>
+                                        <th className="px-4 py-3 text-center text-sm font-bold uppercase tracking-wider w-24">Exam (70%)</th>
+                                        <th className="px-4 py-3 text-center text-sm font-bold uppercase tracking-wider w-24 bg-blue-800">Total (100%)</th>
+                                        <th className="px-4 py-3 text-center text-sm font-bold uppercase tracking-wider w-20">Grade</th>
+                                        <th className="px-4 py-3 text-left text-sm font-bold uppercase tracking-wider w-48 rounded-tr-lg">Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 border border-slate-200">
+                                    {results.map((result, index) => {
+                                        const grade = calculateGrade(result.total);
+                                        const remark = calculateRemark(result.total);
+                                        return (
+                                            <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50 print:bg-slate-50'}>
+                                                <td className="px-4 py-3 text-sm font-bold text-slate-800 border-r border-slate-200">{result.subject}</td>
+                                                <td className="px-4 py-3 text-sm text-center text-slate-600 border-r border-slate-200">{result.classScore}</td>
+                                                <td className="px-4 py-3 text-sm text-center text-slate-600 border-r border-slate-200">{result.examScore}</td>
+                                                <td className="px-4 py-3 text-sm text-center font-bold text-blue-700 bg-blue-50 border-r border-slate-200 print-color-adjust-exact">{result.total}</td>
+                                                <td className={`px - 4 py - 3 text - sm text - center font - bold border - r border - slate - 200 ${grade === 'A' || grade === 'B' ? 'text-green-600' :
+                                                    grade === 'F' ? 'text-red-600' : 'text-slate-700'
+                                                    } `}>{grade}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-600 italic">{remark}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-slate-100 border-t-2 border-slate-300 print-color-adjust-exact">
+                                        <td className="px-4 py-3 text-sm font-bold text-slate-900 text-right uppercase" colSpan={3}>Overall Average</td>
+                                        <td className="px-4 py-3 text-sm font-black text-center text-slate-900 bg-slate-200 print-color-adjust-exact">{overallAverage}</td>
+                                        <td colSpan={2}></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
-                        <div className="flex flex-col justify-end items-center">
-                            <div className="w-48 border-b-2 border-slate-900 mb-2"></div>
-                            <p className="font-bold uppercase text-xs">Principal's Signature & Stamp</p>
-                        </div>
-                    </div>
 
-                    <div className="text-center text-xs text-slate-400 mt-8 pt-4 border-t border-slate-100">
-                        Generated by Brainwave School Management System on {new Date().toLocaleDateString()}
+                        {/* Editable Remarks & Signatures */}
+                        <div className="grid grid-cols-2 gap-12 mt-auto">
+                            <div>
+                                <p className="font-bold text-sm uppercase text-slate-500 mb-2">Class Teacher's Remarks:</p>
+                                <textarea
+                                    className="w-full font-serif italic border-b border-slate-300 pb-1 mb-6 text-slate-800 resize-none overflow-hidden bg-transparent outline-none focus:border-blue-500 transition-colors"
+                                    value={teacherRemark}
+                                    onChange={(e) => setTeacherRemark(e.target.value)}
+                                    rows={2}
+                                />
+
+                                <p className="font-bold text-sm uppercase text-slate-500 mb-2">Principal's Remarks:</p>
+                                <textarea
+                                    className="w-full font-serif italic border-b border-slate-300 pb-1 text-slate-800 resize-none overflow-hidden bg-transparent outline-none focus:border-blue-500 transition-colors"
+                                    value={principalRemark}
+                                    onChange={(e) => setPrincipalRemark(e.target.value)}
+                                    rows={2}
+                                />
+                            </div>
+                            <div className="flex flex-col justify-end items-center">
+                                <div className="w-48 border-b-2 border-slate-900 mb-2"></div>
+                                <p className="font-bold uppercase text-xs text-slate-900">Principal's Signature & Stamp</p>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="text-center text-[10px] text-slate-400 mt-8 pt-4 border-t border-slate-100">
+                            Generated by Brainwave School Management System on {new Date().toLocaleDateString()}
+                        </div>
+
                     </div>
                 </div>
-
             </div>
         </div>
     );
