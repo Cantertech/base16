@@ -5,6 +5,7 @@ import {
   ChevronRight, Download, DollarSign, Calendar, TrendingUp
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import Loading from './Loading';
 
 // --- Types ---
 interface Student {
@@ -46,6 +47,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -60,8 +63,12 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
   // Load Data
   useEffect(() => {
-    fetchStudents();
-    fetchClasses();
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([fetchStudents(), fetchClasses()]);
+      setLoading(false);
+    };
+    loadAll();
   }, [currentUser, isTeacher]);
 
   const fetchClasses = async () => {
@@ -150,6 +157,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
   // --- Actions ---
   const handleAddStudent = async (studentData: any) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
@@ -187,10 +196,14 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     } catch (error: any) {
       console.error('Error adding student:', error);
       alert(`Failed to add student: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditStudent = async (id: string, updatedData: any) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { error } = await supabase
         .from('students')
@@ -214,10 +227,14 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     } catch (error: any) {
       console.error('Error updating student:', error);
       alert(`Failed to update student: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleImportCSV = async (file: File) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
@@ -336,6 +353,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     } catch (error: any) {
       console.error('Import error:', error);
       alert(`Import failed: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -430,7 +449,13 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedStudents.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={isTeacher ? 5 : 6} className="px-6 py-12 text-center text-slate-500">
+                    <Loading type="skeleton" fullScreen={false} />
+                  </td>
+                </tr>
+              ) : paginatedStudents.length > 0 ? (
                 paginatedStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -540,6 +565,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           availableClasses={classes}
           feeStructure={feeStructure}
           title="Add New Student"
+          isLoading={isSubmitting}
         />
       )}
 
@@ -551,6 +577,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           feeStructure={feeStructure}
           initialData={studentToEdit}
           title="Edit Student"
+          isLoading={isSubmitting}
         />
       )}
 
@@ -558,6 +585,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         <ImportStudentModal
           onClose={() => setIsImportModalOpen(false)}
           onImport={handleImportCSV}
+          isLoading={isSubmitting}
         />
       )}
 
@@ -574,7 +602,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 };
 
 // --- Sub-component: Student Modal (Add/Edit) ---
-const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initialData, title }: any) => {
+const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initialData, title, isLoading = false }: any) => {
   const [formData, setFormData] = useState({
     name: '', class: '', gender: 'Male', parentName: '', parentPhone: '', dob: '', balance: 0
   });
@@ -673,8 +701,11 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
             </div>
           </div>
           <div className="pt-4 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-            <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">Save Student</button>
+            <button type="button" onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isLoading} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 flex items-center gap-2">
+              {isLoading && <Loading type="spinner" fullScreen={false} message="" />}
+              Save Student
+            </button>
           </div>
         </form>
       </div>
@@ -683,7 +714,7 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
 };
 
 // --- Sub-component: Import Modal ---
-const ImportStudentModal = ({ onClose, onImport }: any) => {
+const ImportStudentModal = ({ onClose, onImport, isLoading = false }: any) => {
   const [file, setFile] = useState<File | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -744,12 +775,13 @@ const ImportStudentModal = ({ onClose, onImport }: any) => {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+            <button type="button" onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
             <button
               type="submit"
-              disabled={!file}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!file || isLoading}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
+              {isLoading && <Loading type="spinner" fullScreen={false} message="" />}
               Import Students
             </button>
           </div>

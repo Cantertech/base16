@@ -4,6 +4,7 @@ import {
     ChevronLeft, ChevronRight, School, Filter
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import Loading from './Loading';
 
 interface TimetableProps {
     currentUser: any;
@@ -283,7 +284,11 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             </div>
 
             {/* Timetable Grid */}
-            {!selectedClassId && viewMode === 'class' ? (
+            {loading ? (
+                <div className="py-20">
+                    <Loading type="skeleton" fullScreen={false} />
+                </div>
+            ) : !selectedClassId && viewMode === 'class' ? (
                 <div className="text-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
                     <School className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                     <h3 className="text-lg font-medium text-slate-600">No Class Selected</h3>

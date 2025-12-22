@@ -33,7 +33,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigateHome, onNavigateLogin, onBook
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={onNavigateHome}>
-            <img src="/orbit_logo.png" alt="Base16 Logo" className="h-10 w-auto" />
+            <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-auto" />
             <div className="flex flex-col justify-center">
               <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Base16</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">by SixZones</span>

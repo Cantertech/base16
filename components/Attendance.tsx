@@ -5,6 +5,7 @@ import {
     BarChart2, PieChart as PieIcon, TrendingUp
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import Loading from './Loading';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell
@@ -220,7 +221,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                 </div>
 
                 {loadingStats ? (
-                    <div className="text-center py-20 text-slate-400">Loading statistics...</div>
+                    <Loading type="skeleton" fullScreen={false} />
                 ) : (
                     <>
                         {/* Summary Cards */}
@@ -398,7 +399,11 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loadingMarking ? (
-                                <tr><td colSpan={2} className="p-8 text-center text-slate-500">Loading...</td></tr>
+                                <tr>
+                                    <td colSpan={2} className="px-6 py-12">
+                                        <Loading type="skeleton" fullScreen={false} />
+                                    </td>
+                                </tr>
                             ) : filteredStudents.length > 0 ? (
                                 filteredStudents.map(student => {
                                     const status = attendanceMap[student.id];

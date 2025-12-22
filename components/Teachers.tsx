@@ -6,6 +6,7 @@ import {
 
 import { supabase } from '../utils/supabaseClient';
 import { createClient } from '@supabase/supabase-js';
+import Loading from './Loading';
 
 // --- Types ---
 interface Teacher {
@@ -28,6 +29,8 @@ const Teachers: React.FC = () => {
   const [classes, setClasses] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal & Drawer States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,9 +39,12 @@ const Teachers: React.FC = () => {
 
   // Load Data
   useEffect(() => {
-    fetchTeachers();
-    fetchClasses();
-    fetchSubjects();
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([fetchTeachers(), fetchClasses(), fetchSubjects()]);
+      setLoading(false);
+    };
+    loadAll();
   }, []);
 
   const fetchClasses = async () => {
@@ -104,6 +110,8 @@ const Teachers: React.FC = () => {
   };
 
   const handleSaveTeacher = async (teacherData: any) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
@@ -234,6 +242,8 @@ const Teachers: React.FC = () => {
     } catch (error: any) {
       console.error('Error saving teacher:', error);
       alert(`Failed to save teacher: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -315,7 +325,13 @@ const Teachers: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTeachers.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <Loading type="skeleton" fullScreen={false} />
+                  </td>
+                </tr>
+              ) : filteredTeachers.length > 0 ? (
                 filteredTeachers.map((teacher) => (
                   <tr key={teacher.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -409,6 +425,7 @@ const Teachers: React.FC = () => {
           availableClasses={classes}
           availableSubjects={subjects}
           initialData={editingTeacher}
+          isLoading={isSubmitting}
         />
       )}
 
@@ -428,7 +445,7 @@ const Teachers: React.FC = () => {
 };
 
 // --- Sub-component: Add/Edit Teacher Modal ---
-const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubjects = [], initialData = null }: any) => {
+const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubjects = [], initialData = null, isLoading = false }: any) => {
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', subject: '', salary: 0,
     assignments: [] as any[]
@@ -601,8 +618,9 @@ const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubje
           </div>
 
           <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 shrink-0">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-            <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+            <button type="button" onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isLoading} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 flex items-center gap-2">
+              {isLoading && <Loading type="spinner" fullScreen={false} message="" />}
               {initialData ? 'Update Teacher' : 'Save Teacher'}
             </button>
           </div>

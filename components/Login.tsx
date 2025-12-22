@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, User, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { generateMockData } from '../utils/mockDataGenerator';
 import { supabase } from '../utils/supabaseClient';
+import Loading from './Loading';
 
 interface LoginProps {
   onLogin: (user: any) => void;
@@ -113,7 +114,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
             <ArrowLeft className="h-6 w-6" />
           </button>
           <div className="bg-white/10 w-20 h-20 rounded-xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/20 p-2">
-            <img src="/orbit_logo.png" alt="Brainwave Logo" className="w-full h-full object-contain" />
+            <img src="/orbit_logo.jpg" alt="Brainwave Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
           <p className="text-blue-200 text-sm mt-1">Sign in to access your dashboard</p>
@@ -199,6 +200,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           </button>
         </form>
       </div>
+      {loading && <Loading fullScreen message="Authenticating..." />}
     </div>
   );
 };

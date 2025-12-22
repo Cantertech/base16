@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import BookDemo from './components/BookDemo';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import Loading from './components/Loading';
 import { supabase } from './utils/supabaseClient';
 
 type ViewState = 'landing' | 'wizard' | 'dashboard' | 'login' | 'demo';
@@ -28,56 +29,63 @@ interface User {
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('landing');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Check if user is already setup on load
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        // Fetch profile to get role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        if (session?.user) {
+          // Fetch profile to get role
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        if (profile) {
-          let schoolLogo = null;
-          if (profile.school_id) {
-            const { data: school } = await supabase
-              .from('schools')
-              .select('logo_url')
-              .eq('id', profile.school_id)
-              .single();
-            schoolLogo = school?.logo_url;
-          }
-
-          const user: User = {
-            id: profile.id,
-            school_id: profile.school_id,
-            name: profile.name,
-            role: profile.role as 'admin' | 'teacher' | 'super_admin',
-            photo: null,
-            schoolLogo: schoolLogo,
-            subject: profile.subject,
-            assignedClass: null // Default
-          };
-
-          if (user.role === 'teacher') {
-            const { data: teacherData } = await supabase
-              .from('teachers')
-              .select('assigned_class')
-              .eq('id', user.id)
-              .single();
-            if (teacherData) {
-              user.assignedClass = teacherData.assigned_class;
+          if (profile) {
+            let schoolLogo = null;
+            if (profile.school_id) {
+              const { data: school } = await supabase
+                .from('schools')
+                .select('logo_url')
+                .eq('id', profile.school_id)
+                .single();
+              schoolLogo = school?.logo_url;
             }
-          }
 
-          setCurrentUser(user);
-          setView('dashboard');
+            const user: User = {
+              id: profile.id,
+              school_id: profile.school_id,
+              name: profile.name,
+              role: profile.role as 'admin' | 'teacher' | 'super_admin',
+              photo: null,
+              schoolLogo: schoolLogo,
+              subject: profile.subject,
+              assignedClass: null // Default
+            };
+
+            if (user.role === 'teacher') {
+              const { data: teacherData } = await supabase
+                .from('teachers')
+                .select('assigned_class')
+                .eq('id', user.id)
+                .single();
+              if (teacherData) {
+                user.assignedClass = teacherData.assigned_class;
+              }
+            }
+
+            setCurrentUser(user);
+            setView('dashboard');
+          }
         }
+      } catch (error) {
+        console.error("Session check error:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -92,6 +100,10 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  if (loading) {
+    return <Loading fullScreen message="Initializing Orbit System..." />;
+  }
 
   const handleStartWizard = () => {
     setView('wizard');

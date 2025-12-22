@@ -42,6 +42,7 @@ import HelpCenter from './HelpCenter';
 import Settings from './Settings';
 import Attendance from './Attendance';
 import Timetable from './Timetable';
+import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { getCachedData, setCachedData } from '../utils/cache';
 
@@ -130,6 +131,7 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     const [schoolConfig, setSchoolConfig] = useState<any>(null);
     const [activeMenu, setActiveMenu] = useState('Dashboard');
+    const [loading, setLoading] = useState(true);
 
     // Real Data State
     const [stats, setStats] = useState({
@@ -166,6 +168,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             setStats(cached.stats);
             setFinancialHistory(cached.financialHistory);
             setRecentNotices(cached.recentNotices);
+            setLoading(false);
             // Stale-while-revalidate: We use cached data but continue to fetch fresh data
         }
 
@@ -225,6 +228,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -413,7 +418,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                     </div>
                 </header>
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-                    {renderContent()}
+                    {loading && !stats.students ? (
+                        <Loading type="skeleton" fullScreen={false} />
+                    ) : (
+                        renderContent()
+                    )}
                 </div>
             </main>
         </div>
