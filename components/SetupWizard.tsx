@@ -25,8 +25,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     adminName: '',
     email: '',
     password: '',
-    email: '',
-    password: '',
     confirmPassword: '',
     currency: 'GHS' as CurrencyCode
   });
@@ -115,8 +113,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               logo_url: logoUrl,
               admin_id: authData.user.id,
               referral_code_used: referralStatus === 'valid' ? formData.referralCode : null,
-              referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
-              status: 'pending', // Initial status
               referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
               status: 'pending', // Initial status
               subscription_plan: 'Small School', // Default plan
