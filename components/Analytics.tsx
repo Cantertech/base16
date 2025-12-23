@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { TrendingUp, Users, AlertCircle, BookOpen, Gift, CheckCircle, Clock } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 // --- Types ---
 interface FinancialMonth {
@@ -39,6 +40,7 @@ interface AnalyticsProps {
 }
 
 const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
+    const { formatAmount, currency } = useCurrency();
     const [financialData, setFinancialData] = useState<FinancialMonth[]>([]);
     const [debtorData, setDebtorData] = useState<any[]>([]);
     const [classPopData, setClassPopData] = useState<any[]>([]);
@@ -173,7 +175,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                         id: r.id,
                         schoolName: r.referee_school_name,
                         date: r.date,
-                        reward: r.reward_amount > 0 ? `GH¢ ${r.reward_amount}` : 'Credit',
+                        reward: r.reward_amount > 0 ? `${currency.symbol} ${r.reward_amount}` : 'Credit',
                         status: r.status
                     }));
                     setReferralHistory(mappedReferrals);
@@ -224,7 +226,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     <p className="font-bold text-slate-800 mb-1">{label}</p>
                     {payload.map((entry: any, index: number) => (
                         <p key={index} style={{ color: entry.color }}>
-                            {entry.name}: {entry.value.toLocaleString()}
+                            {entry.name}: {entry.name.includes('Rate') || entry.name.includes('Paid') ? entry.value.toLocaleString() : currency && (entry.name.includes('Revenue') || entry.name.includes('Collected')) ? formatAmount(entry.value) : entry.value.toLocaleString()}
                         </p>
                     ))}
                 </div>
@@ -274,7 +276,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                                     axisLine={false}
                                     tickLine={false}
                                     tick={{ fill: '#64748b', fontSize: 12 }}
-                                    tickFormatter={(value) => `₵${value / 1000}k`}
+                                    tickFormatter={(value) => `${currency.symbol}${value / 1000}k`}
                                 />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Legend verticalAlign="top" height={36} iconType="circle" />

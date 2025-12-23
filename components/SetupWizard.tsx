@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowRight, ArrowLeft, Building2, Palette, Lock, Upload, CheckCircle, Tag, CreditCard } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Building2, Palette, Lock, Upload, CheckCircle, Tag, CreditCard, Globe } from 'lucide-react';
 import { generateMockData } from '../utils/mockDataGenerator';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { CURRENCIES, CurrencyCode } from '../contexts/CurrencyContext';
 
 interface SetupWizardProps {
   onComplete: (user: any) => void;
@@ -24,7 +25,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     adminName: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    email: '',
+    password: '',
+    confirmPassword: '',
+    currency: 'GHS' as CurrencyCode
   });
 
   // Validation State for Referral
@@ -113,7 +117,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               referral_code_used: referralStatus === 'valid' ? formData.referralCode : null,
               referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
               status: 'pending', // Initial status
-              subscription_plan: 'Small School' // Default plan
+              referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
+              status: 'pending', // Initial status
+              subscription_plan: 'Small School', // Default plan
+              currency: formData.currency
             },
           ])
           .select()
@@ -273,6 +280,26 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                     <Upload className="h-10 w-10 text-slate-400 mb-2" />
                   )}
                   <span className="text-sm text-slate-500">{formData.logo ? 'Click to change' : 'Upload Logo'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-3">School Currency</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {CURRENCIES.map((curr) => (
+                    <div
+                      key={curr.code}
+                      onClick={() => setFormData({ ...formData, currency: curr.code })}
+                      className={`border rounded-lg p-3 cursor-pointer transition-all flex flex-col items-center justify-center text-center ${formData.currency === curr.code
+                        ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-200'
+                        : 'bg-white border-slate-200 hover:border-primary-300'
+                        }`}
+                    >
+                      <span className="text-xl font-bold text-slate-800 mb-1">{curr.symbol}</span>
+                      <span className="text-xs font-medium text-slate-600">{curr.code}</span>
+                      <span className="text-[10px] text-slate-400">{curr.name}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -508,7 +535,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

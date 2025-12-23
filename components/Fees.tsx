@@ -4,6 +4,10 @@ import {
     ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { getCachedData, setCachedData, clearCache } from '../utils/cache';
+
+const CACHE_KEY_FEES_DATA = 'orbit_fees_full_data';
 
 // --- Types ---
 interface Student {
@@ -27,6 +31,7 @@ interface Transaction {
 
 // --- Main Component ---
 const Fees: React.FC = () => {
+    const { formatAmount, currency } = useCurrency();
     const [activeTab, setActiveTab] = useState<'overview' | 'structure'>('overview');
     const [students, setStudents] = useState<Student[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -44,7 +49,22 @@ const Fees: React.FC = () => {
         fetchData();
     }, []);
 
-    const fetchData = async () => {
+    const fetchData = async (background = false) => {
+        // Cache Check
+        if (!background) {
+            const cached = getCachedData<any>(CACHE_KEY_FEES_DATA);
+            if (cached) {
+                setStudents(cached.students);
+                setTransactions(cached.transactions);
+                setFeeStructure(cached.feeStructure);
+                setClasses(cached.classes);
+                // If we have cache, we could stop here or do a background refresh.
+                // For 'Fees', accuracy is key, so maybe background refresh is safer?
+                // But the user complained about "dataload", so let's trust cache for 2 mins.
+                // We'll proceed to fetch ONLY if no cache.
+                return;
+            }
+        }
         try {
             // Fetch Students
             const { data: studentsData, error: studentsError } = await supabase
@@ -54,13 +74,7 @@ const Fees: React.FC = () => {
             if (studentsError) throw studentsError;
 
             if (studentsData) {
-                setStudents(studentsData.map((s: any) => ({
-                    id: s.id,
-                    name: s.name,
-                    class: s.class,
-                    balance: s.balance,
-                    parentPhone: s.parent_phone
-                })));
+                // Logic moved to end for unified cache setting
             }
 
             // Fetch Transactions
@@ -72,16 +86,7 @@ const Fees: React.FC = () => {
             if (transactionsError) throw transactionsError;
 
             if (transactionsData) {
-                setTransactions(transactionsData.map((t: any) => ({
-                    id: t.id,
-                    studentId: t.student_id,
-                    studentName: t.students?.name || 'Unknown',
-                    amount: t.amount,
-                    date: t.date,
-                    type: t.type,
-                    method: t.method,
-                    reference: t.reference
-                })));
+                // Logic moved to end for unified cache setting
             }
 
             // Fetch Fee Structure
@@ -91,14 +96,49 @@ const Fees: React.FC = () => {
                 .order('created_at', { ascending: true });
 
             if (feesError) throw feesError;
-            if (feesData) setFeeStructure(feesData);
+            // setFeeStructure handled below
 
             // Fetch Classes (for dropdowns)
             const { data: classesData } = await supabase
                 .from('classes')
                 .select('*')
                 .order('name');
+            // setClasses handled below
+
+
+            // Transform Students
+            const mappedStudents = (studentsData || []).map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                class: s.class,
+                balance: s.balance,
+                parentPhone: s.parent_phone
+            }));
+
+            // Transform Transactions
+            const mappedTransactions = (transactionsData || []).map((t: any) => ({
+                id: t.id,
+                studentId: t.student_id,
+                studentName: t.students?.name || 'Unknown',
+                amount: t.amount,
+                date: t.date,
+                type: t.type,
+                method: t.method,
+                reference: t.reference
+            }));
+
+            setStudents(mappedStudents);
+            setTransactions(mappedTransactions);
+            if (feesData) setFeeStructure(feesData);
             if (classesData) setClasses(classesData);
+
+            // Save to Cache
+            setCachedData(CACHE_KEY_FEES_DATA, {
+                students: mappedStudents,
+                transactions: mappedTransactions,
+                feeStructure: feesData || [],
+                classes: classesData || []
+            });
 
         } catch (error) {
             console.error('Error fetching fee data:', error);
@@ -159,12 +199,13 @@ const Fees: React.FC = () => {
             if (updateError) throw updateError;
 
             // 3. Refresh Data
-            fetchData();
+            clearCache(CACHE_KEY_FEES_DATA);
+            fetchData(true); // Force background refresh
 
             // 4. Close & Notify
             setIsPaymentModalOpen(false);
             setSelectedStudent(null);
-            alert(`Success! Payment recorded. SMS sent to parent (${selectedStudent.parentPhone}): "Thank you for your payment of GHS ${paymentData.amount}."`);
+            alert(`Success! Payment recorded. SMS sent to parent (${selectedStudent.parentPhone}): "Thank you for your payment of ${currency.code} ${paymentData.amount}."`);
 
         } catch (error: any) {
             console.error('Payment error:', error);
@@ -198,7 +239,8 @@ const Fees: React.FC = () => {
 
             if (error) throw error;
 
-            fetchData();
+            clearCache(CACHE_KEY_FEES_DATA);
+            fetchData(true);
             setIsAddFeeModalOpen(false);
             alert('Fee item added successfully!');
         } catch (error: any) {
@@ -216,7 +258,8 @@ const Fees: React.FC = () => {
                 .eq('id', id);
 
             if (error) throw error;
-            fetchData();
+            clearCache(CACHE_KEY_FEES_DATA);
+            fetchData(true);
         } catch (error: any) {
             console.error('Error deleting fee item:', error);
             alert(`Failed to delete: ${error.message}`);
@@ -273,7 +316,7 @@ const Fees: React.FC = () => {
                                 <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">Total Bills</span>
                             </div>
                             <p className="text-slate-500 text-sm font-medium">Total Expected</p>
-                            <h3 className="text-2xl font-bold text-slate-800">GH¢ {totalExpected.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold text-slate-800">{formatAmount(totalExpected)}</h3>
                         </div>
 
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -284,7 +327,7 @@ const Fees: React.FC = () => {
                                 <span className="bg-green-50 text-green-700 text-xs font-bold px-2 py-1 rounded-full">Collected</span>
                             </div>
                             <p className="text-slate-500 text-sm font-medium">Total Received</p>
-                            <h3 className="text-2xl font-bold text-green-600">GH¢ {totalCollected.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold text-green-600">{formatAmount(totalCollected)}</h3>
                         </div>
 
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -295,7 +338,7 @@ const Fees: React.FC = () => {
                                 <span className="bg-red-50 text-red-700 text-xs font-bold px-2 py-1 rounded-full">Arrears</span>
                             </div>
                             <p className="text-slate-500 text-sm font-medium">Outstanding Debt</p>
-                            <h3 className="text-2xl font-bold text-red-600">GH¢ {totalOutstanding.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-bold text-red-600">{formatAmount(totalOutstanding)}</h3>
                         </div>
                     </div>
 
@@ -344,12 +387,12 @@ const Fees: React.FC = () => {
                                                     <td className="px-6 py-4 text-sm text-slate-600">
                                                         <span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{student.class}</span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-sm text-slate-600">GH¢ {totalBilled.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-sm font-medium text-green-600">GH¢ {studentPaid.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-sm text-slate-600">{formatAmount(totalBilled)}</td>
+                                                    <td className="px-6 py-4 text-sm font-medium text-green-600">{formatAmount(studentPaid)}</td>
                                                     <td className="px-6 py-4">
                                                         {student.balance > 0 ? (
                                                             <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-red-100">
-                                                                Owing GH¢ {student.balance}
+                                                                Owing {formatAmount(student.balance)}
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-green-100">
@@ -401,7 +444,7 @@ const Fees: React.FC = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Fee Type</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Target Class</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Amount (GHS)</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Amount ({currency.code})</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Action</th>
                                 </tr>
                             </thead>
@@ -463,6 +506,7 @@ const Fees: React.FC = () => {
 
 // --- Sub-component: Payment Modal ---
 const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClose: () => void, onConfirm: (data: any) => void }) => {
+    const { formatAmount, currency } = useCurrency();
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState('Cash');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -494,15 +538,15 @@ const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClo
                         </div>
                         <div className="text-right">
                             <p className="text-xs text-blue-500 uppercase font-bold tracking-wide">Balance</p>
-                            <p className="font-bold text-red-600 text-lg">GH¢ {student.balance}</p>
+                            <p className="font-bold text-red-600 text-lg">{formatAmount(student.balance)}</p>
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Amount (GHS)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({currency.code})</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-slate-500 font-bold">₵</span>
+                                <span className="text-slate-500 font-bold">{currency.symbol}</span>
                             </div>
                             <input
                                 required
@@ -573,6 +617,7 @@ export default Fees;
 
 // --- Sub-component: Add Fee Item Modal ---
 const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
+    const { currency } = useCurrency();
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');
     const [targetClass, setTargetClass] = useState('All');
@@ -604,7 +649,7 @@ const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Amount (GHS)</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({currency.code})</label>
                         <input
                             required
                             type="number"

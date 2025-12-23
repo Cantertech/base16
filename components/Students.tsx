@@ -6,6 +6,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { getCachedData, setCachedData, clearCache } from '../utils/cache';
+
+const CACHE_KEY_STUDENTS = 'orbit_students_data';
+const CACHE_KEY_CLASSES = 'orbit_classes_data';
 
 // --- Types ---
 interface Student {
@@ -39,6 +44,7 @@ interface StudentsProps {
 
 // --- Main Component ---
 const Students: React.FC<StudentsProps> = ({ currentUser }) => {
+  const { formatAmount, currency } = useCurrency();
   const [students, setStudents] = useState<Student[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [classFilter, setClassFilter] = useState('All');
@@ -65,14 +71,39 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([fetchStudents(), fetchClasses()]);
-      setLoading(false);
+
+      // Check Cache First
+      const cachedStudents = getCachedData<Student[]>(CACHE_KEY_STUDENTS);
+      const cachedClasses = getCachedData<any[]>(CACHE_KEY_CLASSES);
+
+      if (cachedStudents && cachedClasses && !isTeacher) { // Simplified cache check for non-teacher
+        setStudents(cachedStudents);
+        setClasses(cachedClasses);
+        setLoading(false);
+        // Optional: Background refresh
+        fetchStudents(true);
+        fetchClasses(true);
+      } else {
+        await Promise.all([fetchStudents(), fetchClasses()]);
+        setLoading(false);
+      }
     };
     loadAll();
   }, [currentUser, isTeacher]);
 
-  const fetchClasses = async () => {
+  const fetchClasses = async (background = false) => {
     try {
+      if (!background) {
+        const cached = getCachedData<any[]>(CACHE_KEY_CLASSES);
+        if (cached) {
+          setClasses(cached);
+          // Verify with background refresh if needed, but for now just return
+          // Actually, the useEffect above handles the "check cache first" logic.
+          // This function is called by the useEffect if cache hits, or directly.
+          // Let's rely on standard fetch unless background is requested.
+        }
+      }
+
       const { data } = await supabase
         .from('classes')
         .select('*')
@@ -80,6 +111,12 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
       if (data) {
         setClasses(data);
+        setCachedData(CACHE_KEY_CLASSES, data);
+      } else {
+        // Fallback to cache if request fails but we have data?
+        // Usually handled by initial load logic, but if explicit refresh:
+        const cached = getCachedData<any[]>(CACHE_KEY_CLASSES);
+        if (cached) setClasses(cached);
       }
 
       // Fetch Fee Structure
@@ -95,8 +132,18 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     }
   };
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (background = false) => {
     try {
+      if (!background && !isTeacher) {
+        const cached = getCachedData<Student[]>(CACHE_KEY_STUDENTS);
+        if (cached) {
+          setStudents(cached);
+          // We can return here if we trust the cache fully, preventing double network request
+          // OR we can continue to fetch in background.
+          // Given the user complained about "dataload again", they want NO loading.
+          // So if we have cache, we set it. The network request below updates it.
+        }
+      }
       let query = supabase
         .from('students')
         .select('*')
@@ -149,6 +196,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           attendance: 100 // Mock for now
         }));
         setStudents(mappedStudents);
+        if (!isTeacher) {
+          setCachedData(CACHE_KEY_STUDENTS, mappedStudents);
+        }
       }
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -190,6 +240,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       if (error) throw error;
 
       fetchStudents();
+      clearCache(CACHE_KEY_STUDENTS); // Force refresh next time or ensure fetchStudents updates cache
       setIsAddModalOpen(false);
       alert('Student added successfully!');
 
@@ -221,6 +272,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       if (error) throw error;
 
       fetchStudents();
+      clearCache(CACHE_KEY_STUDENTS);
       setIsEditModalOpen(false);
       setStudentToEdit(null);
       alert('Student updated successfully!');
@@ -299,6 +351,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             } else {
               // Refresh classes to ensure subsequent logic (like fee calc) has latest data if needed
               await fetchClasses();
+              clearCache(CACHE_KEY_CLASSES);
             }
           }
         }
@@ -341,6 +394,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           if (error) throw error;
 
           fetchStudents();
+          clearCache(CACHE_KEY_STUDENTS);
           setIsImportModalOpen(false);
           alert(`Successfully imported ${studentsToInsert.length} students. Missing classes were automatically created.`);
         } else {
@@ -492,7 +546,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {student.balance > 0 ? (
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 bg-red-50 px-3 py-1 rounded-full">
-                            <AlertCircle className="h-3 w-3" /> Owes GH¢ {student.balance}
+                            <AlertCircle className="h-3 w-3" /> Owes {formatAmount(student.balance)}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-green-600 bg-green-50 px-3 py-1 rounded-full">
@@ -603,6 +657,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
 // --- Sub-component: Student Modal (Add/Edit) ---
 const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initialData, title, isLoading = false }: any) => {
+  const { currency } = useCurrency();
   const [formData, setFormData] = useState({
     name: '', class: '', gender: 'Male', parentName: '', parentPhone: '', dob: '', balance: 0
   });
@@ -679,7 +734,7 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
                 value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Balance (GH¢)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Balance ({currency.code})</label>
               <input type="number" min="0" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none font-bold text-slate-700"
                 value={formData.balance} onChange={e => setFormData({ ...formData, balance: Number(e.target.value) })} />
               {!initialData && <p className="text-xs text-slate-500 mt-1">Auto-calculated from fee structure.</p>}
@@ -793,6 +848,7 @@ const ImportStudentModal = ({ onClose, onImport, isLoading = false }: any) => {
 
 // --- Sub-component: Student Profile Drawer ---
 const StudentProfileDrawer = ({ student, onClose }: { student: Student; onClose: () => void }) => {
+  const { formatAmount } = useCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
@@ -883,7 +939,7 @@ const StudentProfileDrawer = ({ student, onClose }: { student: Student; onClose:
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-slate-600">Outstanding Balance</span>
                 <span className={`text-lg font-bold ${student.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  GH¢ {student.balance.toLocaleString()}
+                  {formatAmount(student.balance)}
                 </span>
               </div>
               <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
@@ -911,7 +967,7 @@ const StudentProfileDrawer = ({ student, onClose }: { student: Student; onClose:
                         <p className="text-xs text-slate-500">{t.date}</p>
                       </div>
                     </div>
-                    <span className="font-bold text-green-600 text-sm">+ GH¢ {t.amount}</span>
+                    <span className="font-bold text-green-600 text-sm">+ {formatAmount(t.amount)}</span>
                   </div>
                 ))
               ) : (

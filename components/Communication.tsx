@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { getCachedData, setCachedData } from '../utils/cache';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface Notice {
     id: string;
@@ -113,6 +114,7 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
 // --- SUB-COMPONENTS ---
 
 const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number, onUpdateBalance: (n: number) => void, currentUser: any }) => {
+    const { currency } = useCurrency();
     const [recipient, setRecipient] = useState('Debtors');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -146,7 +148,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
     };
 
     const applyTemplate = (type: string) => {
-        if (type === 'fee') setMessage("Dear {Parent Name}, kindly pay the outstanding GHS {Balance} for {Student Name} immediately to avoid any inconvenience.");
+        if (type === 'fee') setMessage(`Dear {Parent Name}, kindly pay the outstanding ${currency.code} {Balance} for {Student Name} immediately to avoid any inconvenience.`);
         if (type === 'result') setMessage("Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}");
         if (type === 'emergency') setMessage("NOTICE: School will be closed tomorrow due to heavy rains. Please stay safe.");
     };

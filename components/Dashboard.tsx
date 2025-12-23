@@ -45,6 +45,7 @@ import Timetable from './Timetable';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { getCachedData, setCachedData } from '../utils/cache';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface DashboardProps {
     onLogout: () => void;
@@ -129,6 +130,7 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
+    const { formatAmount, currency } = useCurrency();
     const [schoolConfig, setSchoolConfig] = useState<any>(null);
     const [activeMenu, setActiveMenu] = useState('Dashboard');
     const [loading, setLoading] = useState(true);
@@ -281,7 +283,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             return (
                 <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg text-sm">
                     <p className="font-bold text-slate-800 mb-1">{label}</p>
-                    <p className={`${theme.text} font-bold`}>₵{payload[0].value.toLocaleString()}</p>
+                    <p className={`${theme.text} font-bold`}>{formatAmount(payload[0].value)}</p>
                 </div>
             );
         }
@@ -323,7 +325,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                         {[
                             { label: 'Total Students', value: stats.students, icon: GraduationCap },
                             { label: 'Teachers', value: stats.teachers, icon: Users },
-                            { label: 'Term Revenue', value: `₵${stats.revenue.toLocaleString()}`, icon: Banknote },
+                            { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote },
                             { label: 'Classes', value: stats.classes, icon: Layers }
                         ].map((item, idx) => (
                             <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
@@ -341,7 +343,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                                         <defs><linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0} /></linearGradient></defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => value >= 1000 ? `₵${(value / 1000).toFixed(1)}k` : `₵${value}`} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => value >= 1000 ? `${currency.symbol}${(value / 1000).toFixed(1)}k` : `${currency.symbol}${value}`} />
                                         <Tooltip content={<CustomTooltip />} />
                                         <Area type="monotone" dataKey="collected" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                                     </AreaChart>

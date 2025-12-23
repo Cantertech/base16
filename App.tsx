@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CurrencyProvider } from './contexts/CurrencyContext';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyUs from './components/WhyUs';
@@ -168,21 +169,23 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <Navbar
-        onNavigateHome={() => setView('landing')}
-        onNavigateLogin={() => setView('login')}
-        onBookDemo={handleBookDemo}
-        showLinks={true}
-      />
-      <main>
-        <Hero onStartWizard={handleStartWizard} />
-        <WhyUs />
-        <Features />
-        <Pricing />
-      </main>
-      <Footer />
-    </div>
+    <CurrencyProvider>
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        <Navbar
+          onNavigateHome={() => setView('landing')}
+          onNavigateLogin={() => setView('login')}
+          onBookDemo={handleBookDemo}
+          showLinks={true}
+        />
+        <main>
+          <Hero onStartWizard={handleStartWizard} />
+          <WhyUs />
+          <Features />
+          <Pricing />
+        </main>
+        <Footer />
+      </div>
+    </CurrencyProvider>
   );
 };
 
