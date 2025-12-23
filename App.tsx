@@ -136,55 +136,46 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  if (view === 'dashboard' && currentUser) {
-    if (currentUser.role === 'super_admin') {
-      return <SuperAdminDashboard onLogout={handleLogout} />;
-    }
-    return <Dashboard onLogout={handleLogout} currentUser={currentUser} />;
-  }
-
-  if (view === 'login') {
-    return (
-      <Login
-        onLogin={handleLogin}
-        onCancel={() => setView('landing')}
-      />
-    );
-  }
-
-  if (view === 'demo') {
-    return <BookDemo onBack={() => setView('landing')} />;
-  }
-
-  if (view === 'wizard') {
-    return (
-      <div>
-        {/* Minimal Navbar for Wizard (no links) */}
-        <Navbar onNavigateHome={() => setView('landing')} showLinks={false} />
-        <div className="pt-16">
-          <SetupWizard onComplete={handleCompleteWizard} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <CurrencyProvider>
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        <Navbar
-          onNavigateHome={() => setView('landing')}
-          onNavigateLogin={() => setView('login')}
-          onBookDemo={handleBookDemo}
-          showLinks={true}
+      {view === 'dashboard' && currentUser ? (
+        currentUser.role === 'super_admin' ? (
+          <SuperAdminDashboard onLogout={handleLogout} />
+        ) : (
+          <Dashboard onLogout={handleLogout} currentUser={currentUser} />
+        )
+      ) : view === 'login' ? (
+        <Login
+          onLogin={handleLogin}
+          onCancel={() => setView('landing')}
         />
-        <main>
-          <Hero onStartWizard={handleStartWizard} />
-          <WhyUs />
-          <Features />
-          <Pricing />
-        </main>
-        <Footer />
-      </div>
+      ) : view === 'demo' ? (
+        <BookDemo onBack={() => setView('landing')} />
+      ) : view === 'wizard' ? (
+        <div>
+          {/* Minimal Navbar for Wizard (no links) */}
+          <Navbar onNavigateHome={() => setView('landing')} showLinks={false} />
+          <div className="pt-16">
+            <SetupWizard onComplete={handleCompleteWizard} />
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <Navbar
+            onNavigateHome={() => setView('landing')}
+            onNavigateLogin={() => setView('login')}
+            onBookDemo={handleBookDemo}
+            showLinks={true}
+          />
+          <main>
+            <Hero onStartWizard={handleStartWizard} />
+            <WhyUs />
+            <Features />
+            <Pricing />
+          </main>
+          <Footer />
+        </div>
+      )}
     </CurrencyProvider>
   );
 };
