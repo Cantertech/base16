@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -12,9 +13,10 @@ import Login from './components/Login';
 import BookDemo from './components/BookDemo';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import Loading from './components/Loading';
+import About from './components/About';
+import Contact from './components/Contact';
+import Legal from './components/Legal';
 import { supabase } from './utils/supabaseClient';
-
-type ViewState = 'landing' | 'wizard' | 'dashboard' | 'login' | 'demo';
 
 interface User {
   id: string;
@@ -27,10 +29,18 @@ interface User {
   assignedClass?: string | null;
 }
 
-const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>('landing');
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
+const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Check if user is already setup on load
   useEffect(() => {
@@ -80,7 +90,6 @@ const App: React.FC = () => {
             }
 
             setCurrentUser(user);
-            setView('dashboard');
           }
         }
       } catch (error) {
@@ -95,94 +104,145 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session) {
         setCurrentUser(null);
-        setView('login');
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return <Loading fullScreen message="Initializing Orbit System..." />;
-  }
-
-  const handleStartWizard = () => {
-    setView('wizard');
-    window.scrollTo(0, 0);
-  };
-
-  const handleBookDemo = () => {
-    setView('demo');
-    window.scrollTo(0, 0);
-  };
-
-  const handleCompleteWizard = (adminUser: User) => {
-    // Auto login after setup
-    setCurrentUser(adminUser);
-    setView('dashboard');
-    window.scrollTo(0, 0);
-  };
-
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    setView('dashboard');
-    window.scrollTo(0, 0);
+    navigate('/dashboard');
   };
 
   const handleLogout = async () => {
-    // Clear all cached data to prevent data leakage between sessions
     sessionStorage.clear();
-    // Also explicitly clear cache keys to be safe
     sessionStorage.removeItem('orbit_teachers_data');
     sessionStorage.removeItem('orbit_classes_data');
     sessionStorage.removeItem('orbit_subjects_data');
     await supabase.auth.signOut();
     setCurrentUser(null);
-    setView('login');
-    window.scrollTo(0, 0);
+    navigate('/login');
   };
+
+  const handleCompleteWizard = (adminUser: User) => {
+    setCurrentUser(adminUser);
+    navigate('/dashboard');
+  };
+
+  if (loading) {
+    return <Loading fullScreen message="Initializing Orbit System..." />;
+  }
 
   return (
     <CurrencyProvider>
-      {view === 'dashboard' && currentUser ? (
-        currentUser.role === 'super_admin' ? (
-          <SuperAdminDashboard onLogout={handleLogout} />
-        ) : (
-          <Dashboard onLogout={handleLogout} currentUser={currentUser} />
-        )
-      ) : view === 'login' ? (
-        <Login
-          onLogin={handleLogin}
-          onCancel={() => setView('landing')}
-        />
-      ) : view === 'demo' ? (
-        <BookDemo onBack={() => setView('landing')} />
-      ) : view === 'wizard' ? (
-        <div>
-          {/* Minimal Navbar for Wizard (no links) */}
-          <Navbar onNavigateHome={() => setView('landing')} showLinks={false} />
-          <div className="pt-16">
-            <SetupWizard onComplete={handleCompleteWizard} />
+      <ScrollToTop />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main>
+              <Hero onStartWizard={() => navigate('/setup')} />
+              <WhyUs />
+              <Features />
+              <Pricing />
+            </main>
+            <Footer />
           </div>
-        </div>
-      ) : (
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-          <Navbar
-            onNavigateHome={() => setView('landing')}
-            onNavigateLogin={() => setView('login')}
-            onBookDemo={handleBookDemo}
-            showLinks={true}
-          />
-          <main>
-            <Hero onStartWizard={handleStartWizard} />
-            <WhyUs />
-            <Features />
-            <Pricing />
-          </main>
-          <Footer />
-        </div>
-      )}
+        } />
+
+        <Route path="/features" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <Features />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/pricing" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <Pricing />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/about" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <About />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/contact" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <Contact />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/legal" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <Legal />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/demo" element={<BookDemo onBack={() => navigate('/')} />} />
+
+        <Route path="/login" element={
+          currentUser ? <Navigate to="/dashboard" /> :
+            <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+        } />
+
+        <Route path="/setup" element={
+          <div>
+            <Navbar showLinks={false} />
+            <div className="pt-16">
+              <SetupWizard onComplete={handleCompleteWizard} />
+            </div>
+          </div>
+        } />
+
+        {/* Protected Routes */}
+        <Route path="/dashboard/*" element={
+          currentUser ? (
+            currentUser.role === 'super_admin' ? (
+              <SuperAdminDashboard onLogout={handleLogout} />
+            ) : (
+              <Dashboard onLogout={handleLogout} currentUser={currentUser} />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
+
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
     </CurrencyProvider>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 };
 
