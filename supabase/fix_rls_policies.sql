@@ -33,5 +33,12 @@ FOR ALL USING (
 CREATE POLICY "Enable read access for all users" ON "public"."profiles"
 FOR SELECT USING (true);
 
-CREATE POLICY "Enable read access for all users" ON "public"."teachers"
-FOR SELECT USING (true);
+-- 4. Enable read access ONLY for users in the same school
+DROP POLICY IF EXISTS "Enable read access for all users" ON "public"."teachers";
+
+CREATE POLICY "Enable read access for same school" ON "public"."teachers"
+FOR SELECT USING (
+  school_id IN (
+    SELECT school_id FROM profiles WHERE id = auth.uid()
+  )
+);

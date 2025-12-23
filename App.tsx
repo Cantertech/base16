@@ -130,6 +130,12 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    // Clear all cached data to prevent data leakage between sessions
+    sessionStorage.clear();
+    // Also explicitly clear cache keys to be safe
+    sessionStorage.removeItem('orbit_teachers_data');
+    sessionStorage.removeItem('orbit_classes_data');
+    sessionStorage.removeItem('orbit_subjects_data');
     await supabase.auth.signOut();
     setCurrentUser(null);
     setView('login');
