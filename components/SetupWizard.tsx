@@ -502,7 +502,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
           {/* Mock Dashboard Card */}
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 transform rotate-1 transition-all duration-500 hover:rotate-0">
             {/* Header Preview */}
-            <div className={`${colorMap[formData.color] || 'bg-primary-900'} p-6 text-white transition-colors duration-300`}>
+            <div
+              className={`${colorMap[formData.color] ? colorMap[formData.color] : ''} p-6 text-white transition-colors duration-300`}
+              style={{ backgroundColor: !colorMap[formData.color] ? formData.color : undefined }}
+            >
               <div className="flex items-center gap-4">
                 <div className="h-14 w-14 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm overflow-hidden border-2 border-white/30">
                   {formData.logo ? (
