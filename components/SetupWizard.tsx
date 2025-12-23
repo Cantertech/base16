@@ -301,7 +301,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-3">Brand Color</label>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-5 gap-4">
                   {['blue', 'green', 'maroon', 'purple'].map((c) => (
                     <div
                       key={c}
@@ -315,6 +315,17 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                       {formData.color === c && <CheckCircle className="text-white h-6 w-6" />}
                     </div>
                   ))}
+                  <div className="relative">
+                    <input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                    />
+                    <div className={`h-12 w-full rounded-full cursor-pointer flex items-center justify-center transition-transform hover:scale-105 border-2 border-slate-200 bg-[conic-gradient(at_center,_red,_yellow,_lime,_aqua,_blue,_magenta,_red)] ${!['blue', 'green', 'maroon', 'purple'].includes(formData.color) ? 'ring-4 ring-offset-2 ring-slate-300' : ''}`}>
+                      {!['blue', 'green', 'maroon', 'purple'].includes(formData.color) && <CheckCircle className="text-white h-6 w-6 drop-shadow-md" />}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
