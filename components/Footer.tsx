@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
             <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-8 w-auto" />
             <div className="flex flex-col">
               <span className="font-bold text-lg tracking-tight leading-none text-white">Base16</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mt-0.5">by SixZones</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none tracking-widest mt-0.5">School Management System</span>
             </div>
           </div>
           <div className="flex space-x-6">
@@ -26,6 +26,9 @@ const Footer: React.FC = () => {
           <p className="text-slate-600 text-xs mt-2 md:mt-0">
             Made with ❤️ in Accra, Ghana.
           </p>
+        </div>
+        <div className="text-center mt-8 border-t border-slate-800 pt-4">
+          <p className="text-slate-600 text-[10px] uppercase tracking-widest font-bold">Powered by SixZones</p>
         </div>
       </div>
     </footer>

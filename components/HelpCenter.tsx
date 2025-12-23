@@ -37,7 +37,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
       },
       {
          question: "Is the data backed up automatically?",
-         answer: "Yes, Brainwave is a cloud-based Progressive Web App. Your data is synced and backed up to our secure servers automatically whenever you are online."
+         answer: "Yes, Base16 is a cloud-based Progressive Web App. Your data is synced and backed up to our secure servers automatically whenever you are online."
       }
    ];
 
@@ -66,7 +66,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
             if (error) throw error;
 
             setFeatureRequest('');
-            alert("Thanks! Our engineers have received your request. We build Brainwave based on feedback like yours.");
+            alert("Thanks! Our engineers have received your request. We build Base16 based on feedback like yours.");
          } catch (error: any) {
             console.error('Error submitting ticket:', error);
             alert("Failed to submit request: " + error.message);
@@ -141,7 +141,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                            <h3 className="font-bold text-lg">Missing a Feature? Tell Us.</h3>
                         </div>
                         <p className="text-blue-100 text-sm mb-4 leading-relaxed">
-                           Brainwave is built for you. What specific tool or report would make your work easier?
+                           Base16 is built for you. What specific tool or report would make your work easier?
                         </p>
 
                         <form onSubmit={handleSubmitRequest} className="space-y-3">

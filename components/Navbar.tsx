@@ -36,7 +36,7 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigateHome, onNavigateLogin, onBook
             <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-auto" />
             <div className="flex flex-col justify-center">
               <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Base16</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">by SixZones</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">School Management System</span>
             </div>
           </div>
 

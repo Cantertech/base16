@@ -346,10 +346,10 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                     <div className="bg-white/20 p-2 rounded-lg">
                                         <Gift className="h-6 w-6 text-white" />
                                     </div>
-                                    <h3 className="font-bold text-lg">Brainwave Referral Hub</h3>
+                                    <h3 className="font-bold text-lg">Base16 Referral Hub</h3>
                                 </div>
                                 <p className="text-purple-100 text-sm mb-6 max-w-lg">
-                                    Refer other schools to Brainwave and earn rewards! Share your unique referral code below.
+                                    Refer other schools to Base16 and earn rewards! Share your unique referral code below.
                                 </p>
 
                                 <div className="bg-white/10 rounded-xl p-4 border border-white/20 backdrop-blur-sm">

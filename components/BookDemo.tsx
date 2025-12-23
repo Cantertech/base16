@@ -26,7 +26,7 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Request Received!</h2>
           <p className="text-slate-600 mb-8 text-sm leading-relaxed">
-            Thank you for your interest in Brainwave. Our team has received your request and will contact you via phone or WhatsApp within 24 hours to confirm your demo slot.
+            Thank you for your interest in Base16. Our team has received your request and will contact you via phone or WhatsApp within 24 hours to confirm your demo slot.
           </p>
           <button
             onClick={onBack}
@@ -60,9 +60,9 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
 
             <div className="relative z-10 flex flex-col h-full justify-between">
               <div>
-                <h2 className="text-3xl lg:text-4xl font-bold mb-6 leading-tight">See Brainwave in Action</h2>
+                <h2 className="text-3xl lg:text-4xl font-bold mb-6 leading-tight">See Base16 in Action</h2>
                 <p className="text-blue-100 mb-10 leading-relaxed text-lg">
-                  Schedule a personalized 20-minute walkthrough. We'll show you exactly how Brainwave solves the specific problems your school faces—from fee collection to report cards.
+                  Schedule a personalized 20-minute walkthrough. We'll show you exactly how Base16 solves the specific problems your school faces—from fee collection to report cards.
                 </p>
 
                 <div className="space-y-8 mb-12">
