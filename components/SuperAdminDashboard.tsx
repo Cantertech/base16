@@ -28,10 +28,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout }) =
         // Note: You need to ensure your RLS policies allow this user to see these records.
         const { data, error } = await supabase
             .from('schools')
-            .select(`
-        *,
-        profiles:admin_id (email, full_name)
-      `)
+            .select('*')
             .eq('status', 'pending');
 
         if (error) {
