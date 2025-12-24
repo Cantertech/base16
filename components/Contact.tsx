@@ -19,11 +19,11 @@ const Contact: React.FC = () => {
                                 <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
                                     <div>
                                         <dt className="sr-only">Email</dt>
-                                        <dd><a className="font-semibold text-blue-600" href="mailto:sales@sixzones.com">sales@sixzones.com</a></dd>
+                                        <dd><a className="font-semibold text-blue-600" href="mailto:sixzonesglobal@gmail.com">sixzonesglobal@gmail.com</a></dd>
                                     </div>
                                     <div className="mt-1">
                                         <dt className="sr-only">Phone</dt>
-                                        <dd>+233 (0) 55 123 4567</dd>
+                                        <dd>050 256 0760</dd>
                                     </div>
                                 </dl>
                             </div>
@@ -32,11 +32,11 @@ const Contact: React.FC = () => {
                                 <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
                                     <div>
                                         <dt className="sr-only">Email</dt>
-                                        <dd><a className="font-semibold text-blue-600" href="mailto:support@sixzones.com">support@sixzones.com</a></dd>
+                                        <dd><a className="font-semibold text-blue-600" href="mailto:sixzonesglobal@gmail.com">sixzonesglobal@gmail.com</a></dd>
                                     </div>
                                     <div className="mt-1">
                                         <dt className="sr-only">Phone</dt>
-                                        <dd>+233 (0) 55 987 6543</dd>
+                                        <dd>050 256 0760</dd>
                                     </div>
                                 </dl>
                             </div>

@@ -27,7 +27,7 @@ const Legal: React.FC = () => {
 
                     <h2 className="mt-10 text-2xl font-bold tracking-tight text-slate-900">4. Contact Us</h2>
                     <p className="mt-6">
-                        If you have any questions about these terms, please contact us at support@sixzones.com.
+                        If you have any questions about these terms, please contact us at sixzonesglobal@gmail.com.
                     </p>
                 </div>
             </div>

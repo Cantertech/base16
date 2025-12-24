@@ -479,7 +479,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               </button>
             ) : (
               <button
-                onClick={() => window.location.reload()} // Simple reload to go back to login for now
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = '/login';
+                }}
                 className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold flex items-center shadow-lg hover:bg-slate-700 transition-all"
               >
                 Go to Login

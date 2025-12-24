@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
    HelpCircle, ChevronDown, ChevronUp, MessageSquare,
-   Send, Phone, Mail, ExternalLink, Lightbulb, CheckCircle, BookOpen, Layers, Users, CreditCard
+   Send, Phone, Mail, ExternalLink, Lightbulb, CheckCircle, BookOpen, Layers, Users, CreditCard, Settings, GraduationCap, Banknote, Clock, Calendar, ArrowRight
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 
@@ -42,41 +42,94 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
       }
    ];
 
-   const manualGuides = [
+   const manualSteps = [
       {
-         id: 'setup',
-         title: 'System Setup & Configuration',
+         id: 1,
+         title: "School Profile & Settings",
+         description: "Ensure your school's identity is correctly set up. This includes your logo, motto, and contact details which appear on reports and receipts.",
+         icon: Settings,
+         color: "bg-slate-100 text-slate-600",
+         action: "Go to Settings > General",
+         tips: [
+            "Upload a high-quality logo (PNG format recommended).",
+            "Set your brand color to match your school's uniform or identity.",
+            "Verify your contact number as it will be used for SMS notifications."
+         ]
+      },
+      {
+         id: 2,
+         title: "Academic Structure (Classes & Subjects)",
+         description: "Define the backbone of your school. You must create classes (e.g., Grade 1) before you can add students.",
          icon: Layers,
-         description: 'Initial school configuration setting semesters, and grading systems.',
-         steps: [
-            "Navigate to 'Settings' via the sidebar.",
-            "Update your School Profile (Logo, Name, Motto).",
-            "Go to 'Academic Data' to set the current Semester and Year.",
-            "Configure your Grading System (e.g., A1: 80-100)."
+         color: "bg-blue-100 text-blue-600",
+         action: "Go to Classes (Course Management)",
+         tips: [
+            "Create Classes first (e.g., Nursery 1, Primary 1, JHS 1).",
+            "Then create Subjects (e.g., Mathematics, English).",
+            "Assign Subjects to the relevant Classes (e.g., Assign 'Science' to 'Primary 1' through 'JHS 3')."
          ]
       },
       {
-         id: 'teachers',
-         title: 'Managing Teachers',
+         id: 3,
+         title: "Staff Onboarding",
+         description: "Add your teaching and administrative staff. Teachers need accounts to enter marks and take attendance.",
+         icon: GraduationCap,
+         color: "bg-purple-100 text-purple-600",
+         action: "Go to Teachers",
+         tips: [
+            "Add teachers and assign them to a specific Class (Class Teacher) if applicable.",
+            "Teachers will receive their login credentials to access their own dashboard."
+         ]
+      },
+      {
+         id: 4,
+         title: "Financial Setup (Fees)",
+         description: "Configure your fee structure so you can track payments and generate receipts.",
+         icon: Banknote,
+         color: "bg-orange-100 text-orange-600",
+         action: "Go to Fees",
+         tips: [
+            "Create Fee Types (e.g., Tuition, Feeding Fee, PTA Dues).",
+            "Assign fees to specific classes (e.g., JHS fees might differ from Primary fees).",
+            "Once set up, you can start recording payments immediately."
+         ]
+      },
+      {
+         id: 5,
+         title: "Student Enrollment",
+         description: "Register your students into the classes you created.",
          icon: Users,
-         description: 'How to onboard staff and assign them to classes.',
-         steps: [
-            "Go to the 'Teachers' module.",
-            "Click 'Add Teacher' and fill in their details.",
-            "The default password is 'password123'. Share this with them.",
-            "To assign a class, edit their profile and select 'Assigned Class'."
+         color: "bg-emerald-100 text-emerald-600",
+         action: "Go to Students",
+         tips: [
+            "You can add students individually.",
+            "Ensure you select the correct Class and Gender for accurate analytics.",
+            "Parent phone numbers are crucial for communication features."
          ]
       },
       {
-         id: 'fees',
-         title: 'Financial Management',
-         icon: CreditCard,
-         description: 'Setting fee structures and recording payments.',
-         steps: [
-            "Open the 'Fees' module.",
-            "Click 'Fee Structure' to define fees for each class/form (e.g., Tuition, Feeding).",
-            "To record a payment, find the student in the list and click 'Record Payment'.",
-            "Receipts are generated automatically."
+         id: 6,
+         title: "Timetable Scheduling",
+         description: "Organize the daily learning schedule for each class.",
+         icon: Clock,
+         color: "bg-pink-100 text-pink-600",
+         action: "Go to Timetable",
+         tips: [
+            "Select a Class and assign subjects to time slots.",
+            "This helps teachers know where they need to be and when."
+         ]
+      },
+      {
+         id: 7,
+         title: "Daily Operations",
+         description: "You are now ready for day-to-day management!",
+         icon: Calendar,
+         color: "bg-indigo-100 text-indigo-600",
+         action: "Attendance, Exams & Reports",
+         tips: [
+            "Mark Attendance daily.",
+            "Record Exam scores at the end of the term.",
+            "Generate Terminal Reports automatically."
          ]
       }
    ];
@@ -151,25 +204,43 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                </div>
 
                {activeTab === 'manual' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                     {manualGuides.map((guide) => (
-                        <div key={guide.id} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow">
-                           <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4">
-                              <guide.icon className="h-6 w-6" />
-                           </div>
-                           <h3 className="font-bold text-slate-800 mb-2">{guide.title}</h3>
-                           <p className="text-sm text-slate-500 mb-6 min-h-[40px]">{guide.description}</p>
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 mb-6">
+                        <h3 className="font-bold text-blue-800 text-lg mb-2">Welcome to Base16!</h3>
+                        <p className="text-blue-600">Follow this step-by-step guide to get your school up and running efficiently.</p>
+                     </div>
 
-                           <div className="space-y-3">
-                              {guide.steps.map((step, idx) => (
-                                 <div key={idx} className="flex gap-3 text-sm text-slate-600">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-                                    <span>{step}</span>
+                     <div className="grid grid-cols-1 gap-6">
+                        {manualSteps.map((step, index) => (
+                           <div key={step.id} className="relative flex gap-x-6 rounded-xl bg-white p-6 border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${step.color}`}>
+                                 <step.icon className="h-6 w-6" aria-hidden="true" />
+                              </div>
+
+                              <div className="flex-1">
+                                 <h3 className="text-lg font-bold leading-7 text-slate-900 flex items-center gap-2">
+                                    <span className="text-slate-400 mr-1">#{step.id}</span> {step.title}
+                                 </h3>
+                                 <p className="mt-1 text-sm leading-6 text-slate-600">{step.description}</p>
+
+                                 <div className="mt-3 bg-slate-50 rounded-lg border border-slate-100 p-3">
+                                    <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
+                                       <CheckCircle className="h-3 w-3 text-green-500" /> Pro Tips:
+                                    </h4>
+                                    <ul className="list-disc list-inside text-xs text-slate-600 space-y-1 ml-1">
+                                       {step.tips.map((tip, i) => (
+                                          <li key={i}>{tip}</li>
+                                       ))}
+                                    </ul>
                                  </div>
-                              ))}
+
+                                 <div className="mt-3 flex items-center gap-2 text-xs font-bold text-primary-600">
+                                    <ArrowRight className="h-3 w-3" /> {step.action}
+                                 </div>
+                              </div>
                            </div>
-                        </div>
-                     ))}
+                        ))}
+                     </div>
                   </div>
                )}
 
@@ -258,7 +329,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                                  </div>
                                  <div>
                                     <p className="text-xs font-bold text-slate-500 uppercase">WhatsApp Hotline</p>
-                                    <p className="font-bold text-slate-800">+233 50 256 0760</p>
+                                    <p className="font-bold text-slate-800">050 256 0760</p>
                                     <p className="text-xs text-slate-500 mt-1">Available 8am - 5pm (Mon-Fri)</p>
                                  </div>
                               </div>
@@ -269,7 +340,7 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                                  </div>
                                  <div>
                                     <p className="text-xs font-bold text-slate-500 uppercase">Email Support</p>
-                                    <p className="font-bold text-slate-800">support@brainwave.com</p>
+                                    <p className="font-bold text-slate-800">sixzonesglobal@gmail.com</p>
                                     <p className="text-xs text-slate-500 mt-1">Response within 24 hours</p>
                                  </div>
                               </div>
