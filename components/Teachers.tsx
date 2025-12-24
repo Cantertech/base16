@@ -38,6 +38,7 @@ const Teachers: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   // Modal & Drawer States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,56 +47,81 @@ const Teachers: React.FC = () => {
 
   // Load Data
   useEffect(() => {
-    const loadAll = async () => {
+    const init = async () => {
       setLoading(true);
-
-      const cachedTeachers = getCachedData<Teacher[]>(CACHE_KEY_TEACHERS);
-      const cachedClasses = getCachedData<any[]>(CACHE_KEY_CLASSES);
-      const cachedSubjects = getCachedData<any[]>(CACHE_KEY_SUBJECTS);
-
-      if (cachedTeachers && cachedClasses && cachedSubjects) {
-        setTeachers(cachedTeachers);
-        setClasses(cachedClasses);
-        setSubjects(cachedSubjects);
-        setLoading(false);
-        // Background update
-        fetchTeachers(true);
-        fetchClasses(true);
-        fetchSubjects(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+        if (profile?.school_id) {
+          setSchoolId(profile.school_id);
+          loadAll(profile.school_id);
+        } else {
+          setLoading(false);
+        }
       } else {
-        await Promise.all([fetchTeachers(), fetchClasses(), fetchSubjects()]);
         setLoading(false);
       }
     };
-    loadAll();
+    init();
   }, []);
 
-  const fetchClasses = async (background = false) => {
+  const loadAll = async (sId: string) => {
+    const keyTeachers = `${CACHE_KEY_TEACHERS}_${sId}`;
+    const keyClasses = `${CACHE_KEY_CLASSES}_${sId}`;
+    const keySubjects = `${CACHE_KEY_SUBJECTS}_${sId}`;
+
+    const cachedTeachers = getCachedData<Teacher[]>(keyTeachers);
+    const cachedClasses = getCachedData<any[]>(keyClasses);
+    const cachedSubjects = getCachedData<any[]>(keySubjects);
+
+    if (cachedTeachers && cachedClasses && cachedSubjects) {
+      setTeachers(cachedTeachers);
+      setClasses(cachedClasses);
+      setSubjects(cachedSubjects);
+      setLoading(false);
+      // Background update
+      fetchTeachers(sId, true);
+      fetchClasses(sId, true);
+      fetchSubjects(sId, true);
+    } else {
+      await Promise.all([fetchTeachers(sId), fetchClasses(sId), fetchSubjects(sId)]);
+      setLoading(false);
+    }
+  };
+
+  const fetchClasses = async (sId: string, background = false) => {
     try {
       const { data } = await supabase
         .from('classes')
         .select('*')
+        .eq('school_id', sId)
         .order('name', { ascending: true });
-      setClasses(data);
-      setCachedData(CACHE_KEY_CLASSES, data);
+      if (data) {
+        setClasses(data);
+        setCachedData(`${CACHE_KEY_CLASSES}_${sId}`, data);
+      }
     } catch (error) {
       console.error('Error fetching classes:', error);
     }
   };
 
-  const fetchSubjects = async (background = false) => {
+  const fetchSubjects = async (sId: string, background = false) => {
     try {
-      const { data } = await supabase.from('subjects').select('*').order('name');
+      const { data } = await supabase
+        .from('subjects')
+        .select('*')
+        .eq('school_id', sId)
+        .order('name');
       if (data) {
         setSubjects(data);
-        setCachedData(CACHE_KEY_SUBJECTS, data);
+        setCachedData(`${CACHE_KEY_SUBJECTS}_${sId}`, data);
       }
     } catch (error) {
       console.error('Error fetching subjects:', error);
     }
   };
 
-  const fetchTeachers = async (background = false) => {
+  const fetchTeachers = async (sId: string, background = false) => {
     try {
       // Fetch teachers with their assignments
       const { data, error } = await supabase
@@ -110,12 +136,13 @@ const Teachers: React.FC = () => {
                 subjects (name)
             )
         `)
+        .eq('school_id', sId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (data) {
-        setTeachers(data.map((t: any) => ({
+        const mappedTeachers = data.map((t: any) => ({
           id: t.id,
           name: t.name,
           email: t.email,
@@ -127,20 +154,9 @@ const Teachers: React.FC = () => {
           password: t.password,
           salary: t.salary || 0,
           assignments: t.teacher_assignments || []
-        })));
-        setCachedData(CACHE_KEY_TEACHERS, data.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          email: t.email,
-          phone: t.phone,
-          subject: t.subject,
-          assignedClass: t.assigned_class,
-          status: t.status,
-          role: 'teacher',
-          password: t.password,
-          salary: t.salary || 0,
-          assignments: t.teacher_assignments || []
-        })));
+        }));
+        setTeachers(mappedTeachers);
+        setCachedData(`${CACHE_KEY_TEACHERS}_${sId}`, mappedTeachers);
       }
       setEditingTeacher(null);
     } catch (error: any) {
@@ -276,8 +292,8 @@ const Teachers: React.FC = () => {
         }
       }
 
-      fetchTeachers();
-      clearCache(CACHE_KEY_TEACHERS);
+      if (schoolId) fetchTeachers(schoolId);
+      if (schoolId) clearCache(`${CACHE_KEY_TEACHERS}_${schoolId}`);
       setIsModalOpen(false);
       setEditingTeacher(null);
     } catch (error: any) {
@@ -296,8 +312,8 @@ const Teachers: React.FC = () => {
 
         if (error) throw error;
 
-        fetchTeachers();
-        clearCache(CACHE_KEY_TEACHERS);
+        if (schoolId) fetchTeachers(schoolId);
+        if (schoolId) clearCache(`${CACHE_KEY_TEACHERS}_${schoolId}`);
       } catch (error: any) {
         console.error('Error deleting teacher:', error);
         alert(`Failed to delete teacher: ${error.message}`);

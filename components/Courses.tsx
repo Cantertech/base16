@@ -29,6 +29,8 @@ const Courses: React.FC = () => {
     const [classes, setClasses] = useState<ClassItem[]>([]);
     const [subjects, setSubjects] = useState<SubjectItem[]>([]);
 
+    const [schoolId, setSchoolId] = useState<string | null>(null);
+
     // Modals
     const [isClassModalOpen, setIsClassModalOpen] = useState(false);
     const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -37,22 +39,34 @@ const Courses: React.FC = () => {
 
     // Load Data
     useEffect(() => {
-        fetchData();
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+                if (profile?.school_id) {
+                    setSchoolId(profile.school_id);
+                    fetchData(profile.school_id);
+                }
+            }
+        };
+        init();
     }, []);
 
-    const fetchData = async () => {
+    const fetchData = async (sId: string) => {
         try {
             // 1. Fetch Classes
             const { data: classesData, error: classError } = await supabase
                 .from('classes')
-                .select('*');
+                .select('*')
+                .eq('school_id', sId);
 
             if (classError) throw classError;
 
             // 2. Fetch Students for counts
             const { data: studentsData } = await supabase
                 .from('students')
-                .select('class');
+                .select('class')
+                .eq('school_id', sId);
 
             const studentCounts: Record<string, number> = {};
             studentsData?.forEach((s: any) => {
@@ -64,7 +78,8 @@ const Courses: React.FC = () => {
             // 3. Fetch Teachers for assignment
             const { data: teachersData } = await supabase
                 .from('teachers')
-                .select('name, assigned_class');
+                .select('name, assigned_class')
+                .eq('school_id', sId);
 
             const classTeachers: Record<string, string> = {};
             teachersData?.forEach((t: any) => {
@@ -85,14 +100,16 @@ const Courses: React.FC = () => {
             // 2. Fetch Subjects
             const { data: subjectsData, error: subjectError } = await supabase
                 .from('subjects')
-                .select('*');
+                .select('*')
+                .eq('school_id', sId);
 
             if (subjectError) throw subjectError;
 
             // 3. Fetch Assignments
             const { data: assignmentsData, error: assignError } = await supabase
                 .from('subject_assignments')
-                .select('subject_id, classes(name)');
+                .select('subject_id, classes(name)')
+                .eq('school_id', sId);
 
             if (assignError) throw assignError;
 
@@ -152,7 +169,7 @@ const Courses: React.FC = () => {
                 if (error) throw error;
             }
 
-            fetchData();
+            if (schoolId) fetchData(schoolId);
             setIsClassModalOpen(false);
             setEditingClass(null);
         } catch (error: any) {
@@ -170,7 +187,7 @@ const Courses: React.FC = () => {
                 .eq('id', id);
 
             if (error) throw error;
-            fetchData();
+            if (schoolId) fetchData(schoolId);
         } catch (error: any) {
             console.error('Error deleting class:', error);
             alert(`Failed to delete class: ${error.message}`);
@@ -253,7 +270,7 @@ const Courses: React.FC = () => {
                 }
             }
 
-            fetchData();
+            if (schoolId) fetchData(schoolId);
             setIsSubjectModalOpen(false);
             setEditingSubject(null);
 
@@ -297,7 +314,7 @@ const Courses: React.FC = () => {
                 .eq('id', id);
 
             if (error) throw error;
-            fetchData();
+            if (schoolId) fetchData(schoolId);
         } catch (error: any) {
             console.error('Error deleting subject:', error);
             alert(`Failed to delete subject: ${error.message}`);
