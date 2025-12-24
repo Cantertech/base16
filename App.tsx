@@ -16,6 +16,7 @@ import Loading from './components/Loading';
 import About from './components/About';
 import Contact from './components/Contact';
 import Legal from './components/Legal';
+import Guide from './components/Guide';
 import { supabase } from './utils/supabaseClient';
 
 interface User {
@@ -197,6 +198,16 @@ const AppContent: React.FC = () => {
             <Navbar />
             <main className="pt-16">
               <Legal />
+            </main>
+            <Footer />
+          </div>
+        } />
+
+        <Route path="/guide" element={
+          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <Navbar />
+            <main className="pt-16">
+              <Guide />
             </main>
             <Footer />
           </div>

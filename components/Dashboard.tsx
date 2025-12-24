@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -20,7 +21,8 @@ import {
     Clock,
     CheckCircle,
     Megaphone,
-    Calendar
+    Calendar,
+    X
 } from 'lucide-react';
 import {
     AreaChart,
@@ -146,6 +148,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     });
     const [financialHistory, setFinancialHistory] = useState<any[]>([]);
     const [recentNotices, setRecentNotices] = useState<any[]>([]);
+
+    // Welcome Modal State
+    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+    useEffect(() => {
+        if (!loading && currentUser.role === 'admin' && stats.students === 0 && stats.classes === 0 && stats.teachers === 0) {
+            const hasSeenWelcome = sessionStorage.getItem('hasSeenWelcome');
+            if (!hasSeenWelcome) {
+                setShowWelcomeModal(true);
+                sessionStorage.setItem('hasSeenWelcome', 'true');
+            }
+        }
+    }, [loading, stats, currentUser.role]);
 
     const loadConfig = async () => {
         if (!currentUser.school_id) return;
@@ -427,6 +442,49 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                     )}
                 </div>
             </main>
+
+            {/* Welcome Modal */}
+            {showWelcomeModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="relative h-32 bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center">
+                            <div className="absolute top-4 right-4">
+                                <button onClick={() => setShowWelcomeModal(false)} className="text-white/70 hover:text-white transition-colors bg-white/10 p-1 rounded-full backdrop-blur-sm">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <div className="text-center">
+                                <div className="bg-white p-3 rounded-full inline-block shadow-lg mb-2">
+                                    <span className="text-3xl">🚀</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white">Welcome to Base16!</h2>
+                            </div>
+                        </div>
+                        <div className="p-8 text-center">
+                            <p className="text-slate-600 mb-6 leading-relaxed">
+                                Your school account has been successfully approved and activated! 🎉
+                                <br /><br />
+                                To help you get started, we've prepared a step-by-step manual to guide you through setting up your classes, teachers, and students.
+                            </p>
+
+                            <div className="space-y-3">
+                                <Link
+                                    to="/guide"
+                                    className="block w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+                                >
+                                    Open Setup Guide
+                                </Link>
+                                <button
+                                    onClick={() => setShowWelcomeModal(false)}
+                                    className="block w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                    I'll explore on my own
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
