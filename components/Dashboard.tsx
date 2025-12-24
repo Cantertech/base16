@@ -18,6 +18,7 @@ import {
     MessageSquare,
     ClipboardList,
     AlertTriangle,
+    Lock,
     Clock,
     CheckCircle,
     Megaphone,
@@ -152,12 +153,46 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     // Welcome Modal State
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
+    // Subscription State
+    const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'warning' | 'suspended'>('active');
+    const [daysOverdue, setDaysOverdue] = useState(0);
+
     useEffect(() => {
         // Use the flag passed from Login.tsx
         if ((currentUser as any).isFirstLogin) {
             setShowWelcomeModal(true);
         }
+        checkSubscription();
     }, [currentUser]);
+
+    const checkSubscription = async () => {
+        if (!currentUser.school_id) return;
+        const { data: school } = await supabase
+            .from('schools')
+            .select('next_payment_due')
+            .eq('id', currentUser.school_id)
+            .single();
+
+        if (school?.next_payment_due) {
+            const today = new Date();
+            const due = new Date(school.next_payment_due);
+            // Reset time part for accurate day comparison
+            today.setHours(0, 0, 0, 0);
+            due.setHours(0, 0, 0, 0);
+
+            const diffTime = today.getTime() - due.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 7) {
+                setSubscriptionStatus('suspended');
+            } else if (diffDays > 0) {
+                setSubscriptionStatus('warning');
+                setDaysOverdue(diffDays);
+            } else {
+                setSubscriptionStatus('active');
+            }
+        }
+    };
 
     const loadConfig = async () => {
         if (!currentUser.school_id) return;
@@ -417,9 +452,44 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
         }
     };
 
+    if (subscriptionStatus === 'suspended') {
+        return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center">
+                <div className="bg-white p-8 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Lock className="h-10 w-10 text-red-600" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-slate-900 mb-2">Account Suspended</h1>
+                    <p className="text-slate-600 mb-6">
+                        Your subscription payment is overdue by more than 7 days. Access to the dashboard has been temporarily locked.
+                    </p>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 text-left">
+                        <p className="text-sm font-bold text-slate-700 mb-1">How to reactivate:</p>
+                        <p className="text-sm text-slate-500">Please contact the administration to settle your outstanding invoice. Once payment is verified, your account will be instantly reactivated.</p>
+                    </div>
+                    <button
+                        onClick={onLogout}
+                        className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <LogOut className="h-4 w-4" /> Logout
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
-            <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col fixed h-full z-10">
+        <div className="flex h-screen bg-slate-50 font-sans text-slate-900 flex-col md:flex-row">
+            {/* Warning Banner */}
+            {subscriptionStatus === 'warning' && (
+                <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white px-4 py-2 text-center font-bold text-sm flex items-center justify-center gap-2 shadow-md">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>
+                        Action Required: Your subscription is overdue by {daysOverdue} days. System access will be suspended in {7 - daysOverdue} days.
+                    </span>
+                </div>
+            )}
+            <aside className={`w-64 bg-white border-r border-slate-200 hidden md:flex flex-col fixed h-full z-10 ${subscriptionStatus === 'warning' ? 'mt-9' : ''}`}>
                 <div className="p-6 border-b border-slate-100 flex items-center gap-3">
                     <div
                         className={`h-10 w-10 rounded-xl ${theme.bg} flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200`}
@@ -444,7 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                     <div className="pt-4 mt-4 border-t border-slate-100"><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"><LogOut className="h-5 w-5" /> Logout</button></div>
                 </nav>
             </aside>
-            <main className="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative">
+            <main className={`flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative ${subscriptionStatus === 'warning' ? 'mt-9' : ''}`}>
                 <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 md:hidden">
                         <div

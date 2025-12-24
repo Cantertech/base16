@@ -67,7 +67,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                     color: school.theme_color || 'blue',
                     referralCode: school.referral_code || `BW-${Math.floor(Math.random() * 900 + 100)}`, // Generate if missing
                     referralPreference: school.referral_preference || 'CASH',
-                    plan: school.subscription_plan || 'Small School' // Default to Small School
+                    plan: school.subscription_plan || 'Small School', // Default to Small School
+                    nextPaymentDue: school.next_payment_due
                 });
                 setSmsBalance(school.sms_balance || 0);
 
@@ -488,7 +489,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                         </div>
                                         <div className="flex justify-between text-sm border-b border-white/10 pb-2">
                                             <span className="text-slate-300">Next Billing</span>
-                                            <span className="font-bold">Jan 1, 2026</span>
+                                            <span className="font-bold">{config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}</span>
                                         </div>
                                     </div>
 
