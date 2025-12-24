@@ -80,6 +80,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           throw new Error("Your school account is pending approval. Please complete payment.");
         }
 
+        // --- NEW: First Login Check ---
+        let isFirstLogin = false;
+        if (role === 'admin' && !profileData.first_login_done) {
+          // Update the flag
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ first_login_done: true })
+            .eq('id', authData.user.id);
+
+          if (!updateError) {
+            isFirstLogin = true;
+          }
+        }
+
         // 5. Success
         onLogin({
           id: authData.user.id,
@@ -90,7 +104,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           school_id: profileData.school_id,
           schoolLogo: profileData.schools?.logo_url, // Use school logo for the sidebar
           schoolName: profileData.schools?.name,
-          assignedClass: assignedClass
+          assignedClass: assignedClass,
+          isFirstLogin: isFirstLogin
         });
       }
     } catch (err: any) {

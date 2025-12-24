@@ -153,14 +153,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
     useEffect(() => {
-        if (!loading && currentUser.role === 'admin' && stats.students === 0 && stats.classes === 0 && stats.teachers === 0) {
-            const hasSeenWelcome = sessionStorage.getItem('hasSeenWelcome');
-            if (!hasSeenWelcome) {
-                setShowWelcomeModal(true);
-                sessionStorage.setItem('hasSeenWelcome', 'true');
-            }
+        // Use the flag passed from Login.tsx
+        if ((currentUser as any).isFirstLogin) {
+            setShowWelcomeModal(true);
         }
-    }, [loading, stats, currentUser.role]);
+    }, [currentUser]);
 
     const loadConfig = async () => {
         if (!currentUser.school_id) return;
@@ -464,16 +461,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                             <p className="text-slate-600 mb-6 leading-relaxed">
                                 Your school account has been successfully approved and activated! 🎉
                                 <br /><br />
-                                To help you get started, we've prepared a step-by-step manual to guide you through setting up your classes, teachers, and students.
+                                To help you get started, we've prepared a comprehensive User Manual in the Help Center.
                             </p>
 
                             <div className="space-y-3">
-                                <Link
-                                    to="/guide"
+                                <button
+                                    onClick={() => { setShowWelcomeModal(false); setActiveMenu('Help center'); }}
                                     className="block w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
                                 >
-                                    Open Setup Guide
-                                </Link>
+                                    Open User Manual
+                                </button>
                                 <button
                                     onClick={() => setShowWelcomeModal(false)}
                                     className="block w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"

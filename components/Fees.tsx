@@ -226,23 +226,41 @@ const Fees: React.FC = () => {
 
             if (!profile?.school_id) throw new Error('No school associated with user');
 
-            const newFee = {
-                school_id: profile.school_id,
-                name: feeData.name,
-                amount: Number(feeData.amount),
-                target_class: feeData.targetClass === 'All' ? null : feeData.targetClass
-            };
+            const feesToInsert = [];
+
+            if (feeData.applyToAll) {
+                feesToInsert.push({
+                    school_id: profile.school_id,
+                    name: feeData.name,
+                    amount: Number(feeData.amount),
+                    target_class: null // All
+                });
+            } else {
+                if (!feeData.selectedClasses || feeData.selectedClasses.length === 0) {
+                    alert("Please select at least one class.");
+                    return;
+                }
+                // Create one entry per selected class
+                feeData.selectedClasses.forEach((cls: string) => {
+                    feesToInsert.push({
+                        school_id: profile.school_id,
+                        name: feeData.name,
+                        amount: Number(feeData.amount),
+                        target_class: cls
+                    });
+                });
+            }
 
             const { error } = await supabase
                 .from('fee_structure')
-                .insert([newFee]);
+                .insert(feesToInsert);
 
             if (error) throw error;
 
             clearCache(CACHE_KEY_FEES_DATA);
             fetchData(true);
             setIsAddFeeModalOpen(false);
-            alert('Fee item added successfully!');
+            alert('Fee item(s) added successfully!');
         } catch (error: any) {
             console.error('Error adding fee item:', error);
             alert(`Failed to add fee item: ${error.message}`);
@@ -620,11 +638,20 @@ const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
     const { currency } = useCurrency();
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');
-    const [targetClass, setTargetClass] = useState('All');
+    const [applyToAll, setApplyToAll] = useState(true);
+    const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onConfirm({ name, amount, targetClass });
+        onConfirm({ name, amount, applyToAll, selectedClasses });
+    };
+
+    const toggleClass = (className: string) => {
+        if (selectedClasses.includes(className)) {
+            setSelectedClasses(selectedClasses.filter(c => c !== className));
+        } else {
+            setSelectedClasses([...selectedClasses, className]);
+        }
     };
 
     return (
@@ -661,20 +688,40 @@ const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
                             placeholder="0.00"
                         />
                     </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Target Class</label>
-                        <select
-                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
-                            value={targetClass}
-                            onChange={e => setTargetClass(e.target.value)}
-                        >
-                            <option value="All">All Students</option>
-                            {classes.map((c: any) => (
-                                <option key={c.id} value={c.name}>{c.name}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-slate-500 mt-1">Select "All Students" or a specific class.</p>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Target Audience</label>
+
+                        <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setApplyToAll(!applyToAll)}>
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${applyToAll ? 'bg-primary-600 border-primary-600' : 'border-slate-300 bg-white'}`}>
+                                {applyToAll && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                            </div>
+                            <span className="text-sm text-slate-700">Apply to All Students</span>
+                        </div>
+
+                        {!applyToAll && (
+                            <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
+                                <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Select Classes</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {classes.map((c: any) => (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => toggleClass(c.name)}
+                                            className={`text-xs px-2 py-1.5 rounded border transition-all text-left truncate ${selectedClasses.includes(c.name)
+                                                    ? 'bg-primary-100 border-primary-300 text-primary-700 font-medium'
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                                }`}
+                                        >
+                                            {c.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                {classes.length === 0 && <p className="text-xs text-slate-400 italic">No classes found.</p>}
+                            </div>
+                        )}
                     </div>
+
                     <div className="pt-4">
                         <button
                             type="submit"
