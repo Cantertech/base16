@@ -274,7 +274,23 @@ const Courses: React.FC = () => {
 
             if (assignError) throw assignError;
 
-            // 2. Delete the subject
+            // 2. Delete timetable entries (Foreign Key Constraint)
+            const { error: timetableError } = await supabase
+                .from('timetable_entries')
+                .delete()
+                .eq('subject_id', id);
+
+            if (timetableError) throw timetableError;
+
+            // 3. Delete teacher assignments (Foreign Key Constraint)
+            const { error: teacherError } = await supabase
+                .from('teacher_assignments')
+                .delete()
+                .eq('subject_id', id);
+
+            if (teacherError) throw teacherError;
+
+            // 4. Delete the subject
             const { error } = await supabase
                 .from('subjects')
                 .delete()
