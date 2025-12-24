@@ -266,6 +266,15 @@ const Courses: React.FC = () => {
     const handleDeleteSubject = async (id: string) => {
         if (!confirm('Delete this subject? This action cannot be undone.')) return;
         try {
+            // 1. Delete assignments first (Foreign Key Constraint)
+            const { error: assignError } = await supabase
+                .from('subject_assignments')
+                .delete()
+                .eq('subject_id', id);
+
+            if (assignError) throw assignError;
+
+            // 2. Delete the subject
             const { error } = await supabase
                 .from('subjects')
                 .delete()
