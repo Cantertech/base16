@@ -253,11 +253,33 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
     }, [currentUser.school_id]);
 
     const getThemeStyles = (color: string) => {
+        const isHex = color?.startsWith('#');
+        if (isHex) {
+            return {
+                bg: '',
+                bgLight: '',
+                text: '',
+                textDark: '',
+                border: '',
+                ring: 'focus:ring-opacity-50',
+                shadow: '',
+                custom: {
+                    bg: color,
+                    bgLight: `${color}15`, // ~8% opacity
+                    text: color,
+                    textDark: color,
+                    border: `${color}33`, // ~20% opacity
+                    ring: color,
+                    shadow: `${color}33`
+                }
+            };
+        }
+
         switch (color) {
-            case 'purple': return { bg: 'bg-purple-600', bgLight: 'bg-purple-50', text: 'text-purple-600', textDark: 'text-purple-800', border: 'border-purple-200', ring: 'focus:ring-purple-200', shadow: 'shadow-purple-200' };
-            case 'emerald': return { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', text: 'text-emerald-600', textDark: 'text-emerald-800', border: 'border-emerald-200', ring: 'focus:ring-emerald-200', shadow: 'shadow-emerald-200' };
-            case 'orange': return { bg: 'bg-orange-600', bgLight: 'bg-orange-50', text: 'text-orange-600', textDark: 'text-orange-800', border: 'border-orange-200', ring: 'focus:ring-orange-200', shadow: 'shadow-orange-200' };
-            default: return { bg: 'bg-blue-600', bgLight: 'bg-blue-50', text: 'text-blue-600', textDark: 'text-blue-800', border: 'border-blue-200', ring: 'focus:ring-blue-200', shadow: 'shadow-blue-200' };
+            case 'purple': return { bg: 'bg-purple-600', bgLight: 'bg-purple-50', text: 'text-purple-600', textDark: 'text-purple-800', border: 'border-purple-200', ring: 'focus:ring-purple-200', shadow: 'shadow-purple-200', custom: null };
+            case 'emerald': return { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', text: 'text-emerald-600', textDark: 'text-emerald-800', border: 'border-emerald-200', ring: 'focus:ring-emerald-200', shadow: 'shadow-emerald-200', custom: null };
+            case 'orange': return { bg: 'bg-orange-600', bgLight: 'bg-orange-50', text: 'text-orange-600', textDark: 'text-orange-800', border: 'border-orange-200', ring: 'focus:ring-orange-200', shadow: 'shadow-orange-200', custom: null };
+            default: return { bg: 'bg-blue-600', bgLight: 'bg-blue-50', text: 'text-blue-600', textDark: 'text-blue-800', border: 'border-blue-200', ring: 'focus:ring-blue-200', shadow: 'shadow-blue-200', custom: null };
         }
     };
 
@@ -295,7 +317,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             return (
                 <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg text-sm">
                     <p className="font-bold text-slate-800 mb-1">{label}</p>
-                    <p className={`${theme.text} font-bold`}>{formatAmount(payload[0].value)}</p>
+                    <p
+                        className={`${theme.text} font-bold`}
+                        style={theme.custom ? { color: theme.custom.text } : {}}
+                    >
+                        {formatAmount(payload[0].value)}
+                    </p>
                 </div>
             );
         }
@@ -341,7 +368,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                             { label: 'Classes', value: stats.classes, icon: Layers }
                         ].map((item, idx) => (
                             <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
-                                <div className={`p-4 rounded-xl ${theme.bgLight} ${theme.text}`}><item.icon className="h-6 w-6" /></div>
+                                <div
+                                    className={`p-4 rounded-xl ${theme.bgLight} ${theme.text}`}
+                                    style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
+                                >
+                                    <item.icon className="h-6 w-6" />
+                                </div>
                                 <div><p className="text-slate-500 text-sm font-medium">{item.label}</p><h3 className="text-2xl font-bold text-slate-800">{item.value}</h3></div>
                             </div>
                         ))}
@@ -352,12 +384,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                             <div className="h-72">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={financialHistory}>
-                                        <defs><linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0} /></linearGradient></defs>
+                                        <defs><linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0.1} /><stop offset="95%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0} /></linearGradient></defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => value >= 1000 ? `${currency.symbol}${(value / 1000).toFixed(1)}k` : `${currency.symbol}${value}`} />
                                         <Tooltip content={<CustomTooltip />} />
-                                        <Area type="monotone" dataKey="collected" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                                        <Area type="monotone" dataKey="collected" stroke={theme.custom ? theme.custom.bg : "#2563eb"} strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
@@ -389,14 +421,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
         <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
             <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col fixed h-full z-10">
                 <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl ${theme.bg} flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200`}>
+                    <div
+                        className={`h-10 w-10 rounded-xl ${theme.bg} flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-200`}
+                        style={theme.custom ? { backgroundColor: theme.custom.bg, boxShadow: `0 10px 15px -3px ${theme.custom.shadow}` } : {}}
+                    >
                         {schoolConfig?.logo ? <img src={schoolConfig.logo} alt="Logo" className="h-full w-full object-cover rounded-xl" /> : (schoolConfig?.name?.[0] || 'O')}
                     </div>
                     <div><h1 className="font-bold text-lg text-slate-800 tracking-tight">{schoolConfig?.name || 'Base16'}</h1><p className="text-xs text-slate-400 font-medium">School Management</p></div>
                 </div>
                 <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
                     {currentMenuItems.map((item) => (
-                        <button key={item.name} onClick={() => setActiveMenu(item.name)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeMenu === item.name ? `${theme.bg} text-white shadow-md shadow-blue-200` : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
+                        <button
+                            key={item.name}
+                            onClick={() => setActiveMenu(item.name)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeMenu === item.name ? `${theme.bg} text-white shadow-md shadow-blue-200` : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+                            style={activeMenu === item.name && theme.custom ? { backgroundColor: theme.custom.bg, boxShadow: `0 4px 6px -1px ${theme.custom.shadow}` } : {}}
+                        >
                             <item.icon className={`h-5 w-5 ${activeMenu === item.name ? 'text-white' : 'text-slate-400'}`} />
                             {item.name}
                         </button>
@@ -407,12 +447,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
             <main className="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative">
                 <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 md:hidden">
-                        <div className={`h-8 w-8 rounded-lg ${theme.bg} flex items-center justify-center text-white font-bold`}>{schoolConfig?.name?.[0] || 'O'}</div>
+                        <div
+                            className={`h-8 w-8 rounded-lg ${theme.bg} flex items-center justify-center text-white font-bold`}
+                            style={theme.custom ? { backgroundColor: theme.custom.bg } : {}}
+                        >{schoolConfig?.name?.[0] || 'O'}</div>
                     </div>
                     <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
                         <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <input type="text" placeholder="Search students, teachers, or records..." className={`w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-sm ${theme.ring}`} />
+                            <input
+                                type="text"
+                                placeholder="Search students, teachers, or records..."
+                                className={`w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-sm ${theme.ring}`}
+                                style={theme.custom ? { '--tw-ring-color': theme.custom.ring } as React.CSSProperties : {}}
+                            />
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -425,8 +473,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                                 <p className="text-sm font-bold text-slate-800">{currentUser.name}</p>
                                 <p className="text-xs text-slate-500 font-medium capitalize">{currentUser.role}</p>
                             </div>
-                            <div className={`h-10 w-10 rounded-full ${theme.bgLight} flex items-center justify-center border-2 ${theme.border} shadow-sm`}>
-                                <span className={`${theme.text} font-bold text-lg`}>{currentUser?.name?.charAt(0) || 'U'}</span>
+                            <div
+                                className={`h-10 w-10 rounded-full ${theme.bgLight} flex items-center justify-center border-2 ${theme.border} shadow-sm`}
+                                style={theme.custom ? { backgroundColor: theme.custom.bgLight, borderColor: theme.custom.border } : {}}
+                            >
+                                <span
+                                    className={`${theme.text} font-bold text-lg`}
+                                    style={theme.custom ? { color: theme.custom.text } : {}}
+                                >{currentUser?.name?.charAt(0) || 'U'}</span>
                             </div>
                         </div>
                     </div>

@@ -221,6 +221,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                         <button
                             onClick={() => setActiveTab('general')}
                             className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'general' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            style={activeTab === 'general' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
                         >
                             <Building2 className="h-5 w-5" /> General
                         </button>
@@ -228,6 +229,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                     <button
                         onClick={() => setActiveTab('security')}
                         className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'security' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                        style={activeTab === 'security' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
                     >
                         <Lock className="h-5 w-5" /> Security
                     </button>
@@ -235,6 +237,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                         <button
                             onClick={() => setActiveTab('billing')}
                             className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'billing' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            style={activeTab === 'billing' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
                         >
                             <CreditCard className="h-5 w-5" /> Billing & Plans
                         </button>
@@ -306,7 +309,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-3">Theme Color</label>
-                                <div className="flex gap-4">
+                                <div className="flex gap-4 items-center flex-wrap">
                                     {['blue', 'green', 'maroon', 'purple'].map(color => (
                                         <button
                                             key={color}
@@ -321,6 +324,20 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                             {config.color === color && <CheckCircle className="text-white h-5 w-5" />}
                                         </button>
                                     ))}
+                                    <div className="relative group">
+                                        <input
+                                            type="color"
+                                            value={config.color?.startsWith('#') ? config.color : '#000000'}
+                                            onChange={(e) => setConfig({ ...config, color: e.target.value })}
+                                            className="h-10 w-10 rounded-full overflow-hidden cursor-pointer border-0 p-0"
+                                            title="Custom Color"
+                                        />
+                                        {config.color?.startsWith('#') && (
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <CheckCircle className="text-white h-5 w-5 drop-shadow-md" />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -329,6 +346,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                     type="submit"
                                     disabled={loading}
                                     className="bg-primary-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg flex items-center gap-2 disabled:opacity-70"
+                                    style={config.color?.startsWith('#') ? { backgroundColor: config.color } : {}}
                                 >
                                     {loading ? 'Saving...' : 'Save Changes'}
                                     {!loading && <Save className="h-4 w-4" />}
@@ -427,6 +445,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                     type="submit"
                                     disabled={loading}
                                     className="bg-primary-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg flex items-center gap-2 disabled:opacity-70"
+                                    style={config.color?.startsWith('#') ? { backgroundColor: config.color } : {}}
                                 >
                                     {loading ? 'Updating...' : 'Update Password'}
                                     {!loading && <Lock className="h-4 w-4" />}
