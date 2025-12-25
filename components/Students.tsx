@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
-  ChevronRight, Download, DollarSign, Calendar, TrendingUp
+  ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -56,6 +56,10 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Bulk Selection & Import Progress State
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; status: string } | null>(null);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -291,9 +295,56 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     }
   };
 
+  // --- Bulk Selection Handlers ---
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = new Set(filteredStudents.map(s => s.id));
+      setSelectedStudents(allIds);
+    } else {
+      setSelectedStudents(new Set());
+    }
+  };
+
+  const handleSelectStudent = (id: string) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedStudents(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedStudents.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedStudents.size} students? This action cannot be undone.`)) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .in('id', Array.from(selectedStudents));
+
+      if (error) throw error;
+
+      alert('Students deleted successfully.');
+      setSelectedStudents(new Set());
+      fetchStudents();
+      clearCache(CACHE_KEY_STUDENTS);
+    } catch (error: any) {
+      console.error('Error deleting students:', error);
+      alert(`Failed to delete students: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImportCSV = async (file: File) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setImportProgress({ current: 0, total: 0, status: 'Reading file...' });
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
@@ -323,17 +374,20 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         // Simple header check
         const startIndex = lines[0].toLowerCase().includes('name') ? 1 : 0;
 
-        // 1. Fetch existing students for duplicate checking (Smart Upsert)
+        setImportProgress({ current: 0, total: lines.length - startIndex, status: 'Fetching existing data...' });
+
+        // 1. Fetch existing students for duplicate checking (Smart Upsert by NAME only)
+        // We match by Name to allow updating Class and other details.
         const { data: existingStudents } = await supabase
           .from('students')
-          .select('id, name, class')
+          .select('id, name')
           .eq('school_id', targetSchoolId);
 
         const studentMap = new Map();
         if (existingStudents) {
           existingStudents.forEach(s => {
-            // Create a unique key based on Name and Class (normalized)
-            const key = `${s.name.trim().toLowerCase()}|${s.class.trim().toLowerCase()}`;
+            // Create a unique key based on Name only (normalized)
+            const key = s.name.trim().toLowerCase();
             studentMap.set(key, s.id);
           });
         }
@@ -354,6 +408,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
         // 3. Check and Create Missing Classes
         if (csvClasses.size > 0) {
+          setImportProgress({ current: 0, total: parsedLines.length, status: 'Checking classes...' });
           const { data: existingClasses } = await supabase
             .from('classes')
             .select('name')
@@ -368,25 +423,21 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
               name: name
             }));
 
-            const { error: classError } = await supabase
-              .from('classes')
-              .insert(newClassesPayload);
-
-            if (classError) {
-              console.error("Error creating classes:", classError);
-              // We continue even if class creation fails
-            } else {
-              await fetchClasses();
-              clearCache(CACHE_KEY_CLASSES);
-            }
+            await supabase.from('classes').insert(newClassesPayload);
+            await fetchClasses(); // Refresh classes
+            clearCache(CACHE_KEY_CLASSES);
           }
         }
 
         // 4. Prepare Student Data for Upsert
         let updateCount = 0;
         let insertCount = 0;
+        const total = parsedLines.length;
 
-        for (const parts of parsedLines) {
+        setImportProgress({ current: 0, total: total, status: 'Preparing data...' });
+
+        for (let i = 0; i < total; i++) {
+          const parts = parsedLines[i];
           // Expected: Name, Class, Gender, Parent Name, Parent Phone, Balance(Optional)
           if (parts.length >= 2) {
             const name = parts[0]?.trim();
@@ -394,7 +445,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
             if (!name || !studentClass) continue;
 
-            const key = `${name.toLowerCase()}|${studentClass.toLowerCase()}`;
+            const key = name.toLowerCase(); // Match by Name only
             const existingId = studentMap.get(key);
 
             // Calculate default balance from fee structure if not provided in CSV
@@ -437,11 +488,23 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         }
 
         if (studentsToUpsert.length > 0) {
-          const { error } = await supabase
-            .from('students')
-            .upsert(studentsToUpsert);
+          setImportProgress({ current: 0, total: total, status: 'Saving to database...' });
 
-          if (error) throw error;
+          // Upsert in chunks of 100 to avoid payload limits and show progress
+          const chunkSize = 100;
+          for (let i = 0; i < studentsToUpsert.length; i += chunkSize) {
+            const chunk = studentsToUpsert.slice(i, i + chunkSize);
+            const { error } = await supabase
+              .from('students')
+              .upsert(chunk);
+
+            if (error) throw error;
+            setImportProgress({
+              current: Math.min(i + chunkSize, studentsToUpsert.length),
+              total: studentsToUpsert.length,
+              status: `Saved ${Math.min(i + chunkSize, studentsToUpsert.length)} of ${studentsToUpsert.length}...`
+            });
+          }
 
           fetchStudents();
           clearCache(CACHE_KEY_STUDENTS);
@@ -459,6 +522,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       alert(`Import failed: ${error.message}`);
     } finally {
       setIsSubmitting(false);
+      setImportProgress(null);
     }
   };
 
@@ -523,6 +587,15 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           )}
 
           {/* Actions */}
+          {selectedStudents.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium text-sm transition-colors"
+            >
+              <Trash2 className="h-4 w-4" /> Delete ({selectedStudents.size})
+            </button>
+          )}
+
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors"
@@ -544,6 +617,14 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
+                <th className="px-6 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                    onChange={handleSelectAll}
+                    checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                  />
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student Info</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Class</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Gender</th>
@@ -555,13 +636,21 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={isTeacher ? 5 : 6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={isTeacher ? 6 : 7} className="px-6 py-12 text-center text-slate-500">
                     <Loading type="skeleton" fullScreen={false} />
                   </td>
                 </tr>
               ) : paginatedStudents.length > 0 ? (
                 paginatedStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50 transition-colors group">
+                  <tr key={student.id} className={`hover:bg-slate-50 transition-colors group ${selectedStudents.has(student.id) ? 'bg-blue-50/50' : ''}`}>
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        checked={selectedStudents.has(student.id)}
+                        onChange={() => handleSelectStudent(student.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm mr-3 border border-slate-200">
@@ -690,6 +779,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           onClose={() => setIsImportModalOpen(false)}
           onImport={handleImportCSV}
           isLoading={isSubmitting}
+          progress={importProgress}
         />
       )}
 
@@ -819,7 +909,7 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
 };
 
 // --- Sub-component: Import Modal ---
-const ImportStudentModal = ({ onClose, onImport, isLoading = false }: any) => {
+const ImportStudentModal = ({ onClose, onImport, isLoading = false, progress }: any) => {
   const [file, setFile] = useState<File | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -866,18 +956,37 @@ const ImportStudentModal = ({ onClose, onImport, isLoading = false }: any) => {
             )}
           </div>
 
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-            <h4 className="text-xs font-bold text-blue-700 uppercase mb-2">CSV Format Guide</h4>
-            <p className="text-xs text-blue-600 mb-2">Ensure your CSV columns are in this order:</p>
-            <ol className="list-decimal list-inside text-xs text-blue-800 space-y-1">
-              <li>Student Name</li>
-              <li>Class (e.g. JHS 1)</li>
-              <li>Gender (Male/Female)</li>
-              <li>Parent Name</li>
-              <li>Parent Phone</li>
-              <li>Outstanding Balance (Optional)</li>
-            </ol>
-          </div>
+          {progress && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-blue-700">{progress.status}</span>
+                <span className="text-xs font-bold text-blue-700">
+                  {progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0}%
+                </span>
+              </div>
+              <div className="h-2 w-full bg-blue-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {!progress && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <h4 className="text-xs font-bold text-blue-700 uppercase mb-2">CSV Format Guide</h4>
+              <p className="text-xs text-blue-600 mb-2">Ensure your CSV columns are in this order:</p>
+              <ol className="list-decimal list-inside text-xs text-blue-800 space-y-1">
+                <li>Student Name</li>
+                <li>Class (e.g. JHS 1)</li>
+                <li>Gender (Male/Female)</li>
+                <li>Parent Name</li>
+                <li>Parent Phone</li>
+                <li>Outstanding Balance (Optional)</li>
+              </ol>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
@@ -887,7 +996,7 @@ const ImportStudentModal = ({ onClose, onImport, isLoading = false }: any) => {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isLoading && <Loading type="spinner" fullScreen={false} message="" />}
-              Import Students
+              {isLoading ? 'Processing...' : 'Import Students'}
             </button>
           </div>
         </form>
