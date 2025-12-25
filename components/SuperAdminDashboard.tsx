@@ -125,46 +125,48 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
 
     const fetchSchools = async () => {
         setLoading(true);
+        try {
+            // Use the new secure RPC function to get all schools with accurate counts
+            const { data, error } = await supabase.rpc('get_admin_school_stats');
 
-        // Fetch Pending
-        const { data: pending, error: pendingError } = await supabase
-            .from('schools')
-            .select('*, profiles(*)')
-            .eq('status', 'pending');
+            if (error) throw error;
 
-        if (pendingError) console.error('Error fetching pending schools:', pendingError);
-        else setPendingSchools(pending || []);
+            if (data) {
+                // Map the flat RPC result to the structure expected by the UI
+                const formattedSchools = data.map((s: any) => ({
+                    id: s.id,
+                    name: s.name,
+                    status: s.status,
+                    created_at: s.created_at,
+                    next_payment_due: s.next_payment_due,
+                    last_payment_date: s.last_payment_date,
+                    student_count: s.student_count,
+                    teacher_count: s.teacher_count,
+                    profiles: { // Mocking the profile structure the UI expects
+                        full_name: s.admin_name,
+                        email: s.admin_email,
+                        role: 'admin'
+                    }
+                }));
 
-        // Fetch Active with counts
-        // Note: Supabase doesn't support deep count joins easily in one go without RPC or complex queries.
-        // For now, we'll fetch schools and then fetch counts in parallel or use a simplified approach.
-        // A better approach for production is a database view or RPC.
-        const { data: active, error: activeError } = await supabase
-            .from('schools')
-            .select('*, profiles(*)')
-            .eq('status', 'active');
+                setPendingSchools(formattedSchools.filter((s: any) => s.status === 'pending'));
+                setActiveSchools(formattedSchools.filter((s: any) => s.status === 'active'));
 
-        if (activeError) {
-            console.error('Error fetching active schools:', activeError);
-        } else if (active) {
-            // Fetch counts for each school (This is N+1 but acceptable for admin dashboard with low N)
-            const enriched = await Promise.all(active.map(async (school: any) => {
-                const { count: sCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', school.id);
-                const { count: tCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('school_id', school.id).eq('role', 'teacher');
-                return { ...school, student_count: sCount || 0, teacher_count: tCount || 0 };
-            }));
-            setActiveSchools(enriched);
+                // Calculate Global Stats
+                const totalStudents = formattedSchools.reduce((sum: number, s: any) => sum + (Number(s.student_count) || 0), 0);
+                const activeCount = formattedSchools.filter((s: any) => s.status === 'active').length;
 
-            // Calculate Global Stats
-            const totalStudents = enriched.reduce((sum, s) => sum + (s.student_count || 0), 0);
-            setGlobalStats({
-                schools: enriched.length,
-                students: totalStudents,
-                revenue: enriched.length * 200 // Mock revenue calc based on base plan
-            });
+                setGlobalStats({
+                    schools: activeCount,
+                    students: totalStudents,
+                    revenue: activeCount * 200 // Mock revenue
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching school stats:', error);
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     const approveSchool = async (schoolId: string) => {
