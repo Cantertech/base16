@@ -40,6 +40,7 @@ const ScrollToTop = () => {
 
 const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [realUser, setRealUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -123,12 +124,67 @@ const AppContent: React.FC = () => {
     sessionStorage.removeItem('orbit_subjects_data');
     await supabase.auth.signOut();
     setCurrentUser(null);
+    setRealUser(null);
     navigate('/login');
   };
 
   const handleCompleteWizard = (adminUser: User) => {
     setCurrentUser(adminUser);
     navigate('/dashboard');
+  };
+
+  const handleImpersonate = async (schoolId: string) => {
+    setLoading(true);
+    try {
+      // Fetch the admin profile for the target school
+      const { data: adminProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('school_id', schoolId)
+        .eq('role', 'admin')
+        .limit(1)
+        .single();
+
+      if (error || !adminProfile) {
+        alert('Could not find an admin for this school.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch school logo
+      const { data: school } = await supabase
+        .from('schools')
+        .select('logo_url')
+        .eq('id', schoolId)
+        .single();
+
+      const targetUser: User = {
+        id: adminProfile.id,
+        school_id: adminProfile.school_id,
+        name: adminProfile.name,
+        role: 'admin', // Force role to admin so Dashboard renders
+        photo: null,
+        schoolLogo: school?.logo_url,
+        subject: adminProfile.subject,
+        assignedClass: null
+      };
+
+      setRealUser(currentUser); // Save super admin session
+      setCurrentUser(targetUser); // Switch to target user
+      // No need to navigate, the route will re-render Dashboard
+    } catch (err) {
+      console.error('Impersonation error:', err);
+      alert('Failed to impersonate.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExitImpersonation = () => {
+    if (realUser) {
+      setCurrentUser(realUser);
+      setRealUser(null);
+    }
   };
 
   if (loading) {
@@ -222,10 +278,18 @@ const AppContent: React.FC = () => {
         {/* Protected Routes */}
         <Route path="/dashboard/*" element={
           currentUser ? (
-            currentUser.role === 'super_admin' ? (
-              <SuperAdminDashboard onLogout={handleLogout} />
+            currentUser.role === 'super_admin' && !realUser ? (
+              <SuperAdminDashboard
+                onLogout={handleLogout}
+                onImpersonate={handleImpersonate}
+              />
             ) : (
-              <Dashboard onLogout={handleLogout} currentUser={currentUser} />
+              <Dashboard
+                onLogout={handleLogout}
+                currentUser={currentUser}
+                isImpersonating={!!realUser}
+                onExitImpersonation={handleExitImpersonation}
+              />
             )
           ) : (
             <Navigate to="/login" />

@@ -63,6 +63,8 @@ interface DashboardProps {
         assignedClass?: string | null;
         classes?: string[];
     };
+    isImpersonating?: boolean;
+    onExitImpersonation?: () => void;
 }
 
 const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any) => {
@@ -132,7 +134,7 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any
     );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImpersonating, onExitImpersonation }) => {
     const { formatAmount, currency } = useCurrency();
     const [schoolConfig, setSchoolConfig] = useState<any>(null);
     const [activeMenu, setActiveMenu] = useState('Dashboard');
@@ -604,6 +606,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser }) => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Impersonation Banner */}
+            {isImpersonating && (
+                <div className="fixed bottom-0 left-0 right-0 bg-red-600 text-white p-3 z-50 flex justify-between items-center shadow-lg animate-in slide-in-from-bottom-full duration-300">
+                    <div className="flex items-center gap-3 px-4">
+                        <div className="bg-white/20 p-1.5 rounded-full animate-pulse">
+                            <AlertTriangle className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm">Super Admin Mode</p>
+                            <p className="text-xs text-red-100">You are viewing {schoolConfig?.name || 'this school'} as {currentUser.name}.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onExitImpersonation}
+                        className="bg-white text-red-600 px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-red-50 transition-colors mr-4 shadow-sm"
+                    >
+                        Exit Mode
+                    </button>
                 </div>
             )}
         </div>

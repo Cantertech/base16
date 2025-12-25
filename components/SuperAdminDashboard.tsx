@@ -19,9 +19,10 @@ interface SchoolDetailModalProps {
     onClose: () => void;
     onRenew: (id: string) => void;
     onToggleStatus: (id: string, currentStatus: string) => void;
+    onImpersonate: (id: string) => void;
 }
 
-const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus }) => {
+const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate }) => {
     const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
@@ -79,6 +80,12 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
 
                         <div className="mt-6 flex gap-3">
                             <button
+                                onClick={() => onImpersonate(school.id)}
+                                className="flex-1 bg-slate-800 text-white py-2 rounded-lg font-bold text-sm hover:bg-slate-900 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <LogOut className="h-4 w-4" /> Login as Admin
+                            </button>
+                            <button
                                 onClick={() => onRenew(school.id)}
                                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                             >
@@ -89,7 +96,7 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 className={`flex-1 py-2 rounded-lg font-bold text-sm border transition-colors flex items-center justify-center gap-2 ${school.status === 'active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
                             >
                                 {school.status === 'active' ? <Lock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-                                {school.status === 'active' ? 'Suspend Account' : 'Activate Account'}
+                                {school.status === 'active' ? 'Suspend' : 'Activate'}
                             </button>
                         </div>
                     </div>
@@ -101,9 +108,10 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
 
 interface SuperAdminDashboardProps {
     onLogout: () => void;
+    onImpersonate?: (schoolId: string) => void;
 }
 
-const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout }) => {
+const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onImpersonate }) => {
     const [pendingSchools, setPendingSchools] = useState<any[]>([]);
     const [activeSchools, setActiveSchools] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -390,6 +398,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout }) =
                         onClose={() => setSelectedSchool(null)}
                         onRenew={renewSubscription}
                         onToggleStatus={toggleSchoolStatus}
+                        onImpersonate={onImpersonate!}
                     />
                 )
             }
