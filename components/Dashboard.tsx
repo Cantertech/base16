@@ -384,9 +384,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Teachers': return <Teachers currentUser={currentUser} />;
             case 'Timetable': return <Timetable currentUser={currentUser} />;
             case 'Attendance': return <Attendance currentUser={currentUser} />;
-            case 'Fees': return <Fees />;
+            case 'Fees': return <Fees currentUser={currentUser} />;
             case 'Exam': return <Exams currentUser={currentUser} />;
-            case 'Classes': return <Courses />;
+            case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;

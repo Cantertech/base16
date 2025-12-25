@@ -29,8 +29,16 @@ interface Transaction {
     reference?: string;
 }
 
+interface FeesProps {
+    currentUser?: {
+        id: string;
+        school_id: string;
+        role: 'admin' | 'teacher';
+    };
+}
+
 // --- Main Component ---
-const Fees: React.FC = () => {
+const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const { formatAmount, currency } = useCurrency();
     const [activeTab, setActiveTab] = useState<'overview' | 'structure'>('overview');
     const [students, setStudents] = useState<Student[]>([]);
@@ -47,7 +55,7 @@ const Fees: React.FC = () => {
     // Load Data
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [currentUser]);
 
     const fetchData = async (background = false) => {
         // Cache Check
@@ -66,44 +74,57 @@ const Fees: React.FC = () => {
             }
         }
         try {
+            let schoolId = currentUser?.school_id;
+
+            if (!schoolId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('school_id')
+                        .eq('id', user.id)
+                        .single();
+                    schoolId = profile?.school_id;
+                }
+            }
+
+            if (!schoolId) {
+                console.error("No school ID found for Fees data fetch");
+                return;
+            }
+
             // Fetch Students
             const { data: studentsData, error: studentsError } = await supabase
                 .from('students')
-                .select('*');
+                .select('*')
+                .eq('school_id', schoolId);
 
             if (studentsError) throw studentsError;
-
-            if (studentsData) {
-                // Logic moved to end for unified cache setting
-            }
 
             // Fetch Transactions
             const { data: transactionsData, error: transactionsError } = await supabase
                 .from('transactions')
                 .select('*, students(name)')
+                .eq('school_id', schoolId)
                 .order('created_at', { ascending: false });
 
             if (transactionsError) throw transactionsError;
-
-            if (transactionsData) {
-                // Logic moved to end for unified cache setting
-            }
 
             // Fetch Fee Structure
             const { data: feesData, error: feesError } = await supabase
                 .from('fee_structure')
                 .select('*')
+                .eq('school_id', schoolId)
                 .order('created_at', { ascending: true });
 
             if (feesError) throw feesError;
-            // setFeeStructure handled below
 
             // Fetch Classes (for dropdowns)
             const { data: classesData } = await supabase
                 .from('classes')
                 .select('*')
+                .eq('school_id', schoolId)
                 .order('name');
-            // setClasses handled below
 
 
             // Transform Students
@@ -164,17 +185,22 @@ const Fees: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No user logged in');
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('school_id')
-                .eq('id', user.id)
-                .single();
+            let targetSchoolId = currentUser?.school_id;
 
-            if (!profile?.school_id) throw new Error('No school associated with user');
+            if (!targetSchoolId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('school_id')
+                    .eq('id', user.id)
+                    .single();
+                targetSchoolId = profile?.school_id;
+            }
+
+            if (!targetSchoolId) throw new Error('No school associated with user');
 
             // 1. Create Transaction Record
             const newTransaction = {
-                school_id: profile.school_id,
+                school_id: targetSchoolId,
                 student_id: selectedStudent.id,
                 amount: Number(paymentData.amount),
                 date: paymentData.date,
@@ -218,19 +244,24 @@ const Fees: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No user logged in');
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('school_id')
-                .eq('id', user.id)
-                .single();
+            let targetSchoolId = currentUser?.school_id;
 
-            if (!profile?.school_id) throw new Error('No school associated with user');
+            if (!targetSchoolId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('school_id')
+                    .eq('id', user.id)
+                    .single();
+                targetSchoolId = profile?.school_id;
+            }
+
+            if (!targetSchoolId) throw new Error('No school associated with user');
 
             const feesToInsert = [];
 
             if (feeData.applyToAll) {
                 feesToInsert.push({
-                    school_id: profile.school_id,
+                    school_id: targetSchoolId,
                     name: feeData.name,
                     amount: Number(feeData.amount),
                     target_class: null // All
@@ -243,7 +274,7 @@ const Fees: React.FC = () => {
                 // Create one entry per selected class
                 feeData.selectedClasses.forEach((cls: string) => {
                     feesToInsert.push({
-                        school_id: profile.school_id,
+                        school_id: targetSchoolId,
                         name: feeData.name,
                         amount: Number(feeData.amount),
                         target_class: cls
@@ -709,8 +740,8 @@ const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
                                             type="button"
                                             onClick={() => toggleClass(c.name)}
                                             className={`text-xs px-2 py-1.5 rounded border transition-all text-left truncate ${selectedClasses.includes(c.name)
-                                                    ? 'bg-primary-100 border-primary-300 text-primary-700 font-medium'
-                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                                ? 'bg-primary-100 border-primary-300 text-primary-700 font-medium'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                                                 }`}
                                         >
                                             {c.name}

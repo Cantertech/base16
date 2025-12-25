@@ -22,7 +22,15 @@ interface SubjectItem {
     classes: string[]; // Array of Class Names
 }
 
-const Courses: React.FC = () => {
+interface CoursesProps {
+    currentUser?: {
+        id: string;
+        school_id: string;
+        role: 'admin' | 'teacher';
+    };
+}
+
+const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const [activeTab, setActiveTab] = useState<'classes' | 'subjects'>('classes');
 
     // Data State
@@ -40,17 +48,22 @@ const Courses: React.FC = () => {
     // Load Data
     useEffect(() => {
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
-                if (profile?.school_id) {
-                    setSchoolId(profile.school_id);
-                    fetchData(profile.school_id);
+            if (currentUser?.school_id) {
+                setSchoolId(currentUser.school_id);
+                fetchData(currentUser.school_id);
+            } else {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+                    if (profile?.school_id) {
+                        setSchoolId(profile.school_id);
+                        fetchData(profile.school_id);
+                    }
                 }
             }
         };
         init();
-    }, []);
+    }, [currentUser]);
 
     const fetchData = async (sId: string) => {
         try {
@@ -140,16 +153,21 @@ const Courses: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No user logged in');
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('school_id')
-                .eq('id', user.id)
-                .single();
+            let targetSchoolId = currentUser?.school_id;
 
-            if (!profile?.school_id) throw new Error('No school associated with user');
+            if (!targetSchoolId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('school_id')
+                    .eq('id', user.id)
+                    .single();
+                targetSchoolId = profile?.school_id;
+            }
+
+            if (!targetSchoolId) throw new Error('No school associated with user');
 
             const payload = {
-                school_id: profile.school_id,
+                school_id: targetSchoolId,
                 name: classData.name,
                 section: classData.section
             };
@@ -169,7 +187,7 @@ const Courses: React.FC = () => {
                 if (error) throw error;
             }
 
-            if (schoolId) fetchData(schoolId);
+            if (targetSchoolId) fetchData(targetSchoolId);
             setIsClassModalOpen(false);
             setEditingClass(null);
         } catch (error: any) {
@@ -200,19 +218,24 @@ const Courses: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No user logged in');
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('school_id')
-                .eq('id', user.id)
-                .single();
+            let targetSchoolId = currentUser?.school_id;
 
-            if (!profile?.school_id) throw new Error('No school associated with user');
+            if (!targetSchoolId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('school_id')
+                    .eq('id', user.id)
+                    .single();
+                targetSchoolId = profile?.school_id;
+            }
+
+            if (!targetSchoolId) throw new Error('No school associated with user');
 
             let subjectId = editingSubject?.id;
 
             // 1. Upsert Subject
             const payload = {
-                school_id: profile.school_id,
+                school_id: targetSchoolId,
                 name: subjectData.name,
                 code: subjectData.code,
                 type: subjectData.type
@@ -249,11 +272,11 @@ const Courses: React.FC = () => {
             if (subjectData.classes && subjectData.classes.length > 0) {
                 // We need to map class names back to IDs
                 // This is a bit inefficient, but since we have `classes` state, we can find IDs
-                const assignments = subjectData.classes.map(className => {
+                const assignments = subjectData.classes.map((className: string) => {
                     const cls = classes.find(c => c.name === className);
                     if (cls) {
                         return {
-                            school_id: profile.school_id,
+                            school_id: targetSchoolId,
                             subject_id: subjectId,
                             class_id: cls.id
                         };
@@ -270,7 +293,7 @@ const Courses: React.FC = () => {
                 }
             }
 
-            if (schoolId) fetchData(schoolId);
+            if (targetSchoolId) fetchData(targetSchoolId);
             setIsSubjectModalOpen(false);
             setEditingSubject(null);
 

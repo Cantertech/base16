@@ -54,7 +54,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
     useEffect(() => {
         fetchMetadata();
-    }, []);
+    }, [currentUser]);
 
     useEffect(() => {
         if (viewMode === 'class' && selectedClassId) {
@@ -66,7 +66,10 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
     const fetchMetadata = async () => {
         try {
-            const { data: cls } = await supabase.from('classes').select('*').order('name');
+            const { data: cls } = await supabase.from('classes')
+                .select('*')
+                .eq('school_id', currentUser.school_id)
+                .order('name');
             if (cls) {
                 setClasses(cls);
                 // Auto-select first class for admin
@@ -75,7 +78,10 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                 }
             }
 
-            const { data: sub } = await supabase.from('subjects').select('*').order('name');
+            const { data: sub } = await supabase.from('subjects')
+                .select('*')
+                .eq('school_id', currentUser.school_id)
+                .order('name');
             if (sub) setSubjects(sub);
 
             // Fetch teachers from profiles or teachers table depending on architecture
@@ -84,6 +90,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                 .from('profiles')
                 .select('id, name:full_name')
                 .eq('role', 'teacher')
+                .eq('school_id', currentUser.school_id)
                 .order('full_name');
             if (tch) setTeachersList(tch);
 

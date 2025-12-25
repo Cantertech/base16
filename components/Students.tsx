@@ -215,16 +215,21 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single();
+      let targetSchoolId = currentUser?.school_id;
 
-      if (!profile?.school_id) throw new Error('No school associated with user');
+      if (!targetSchoolId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('school_id')
+          .eq('id', user.id)
+          .single();
+        targetSchoolId = profile?.school_id;
+      }
+
+      if (!targetSchoolId) throw new Error('No school associated with user');
 
       const newStudent = {
-        school_id: profile.school_id,
+        school_id: targetSchoolId,
         name: studentData.name,
         class: studentData.class,
         gender: studentData.gender,
@@ -293,13 +298,18 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single();
+      let targetSchoolId = currentUser?.school_id;
 
-      if (!profile?.school_id) throw new Error('No school associated with user');
+      if (!targetSchoolId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('school_id')
+          .eq('id', user.id)
+          .single();
+        targetSchoolId = profile?.school_id;
+      }
+
+      if (!targetSchoolId) throw new Error('No school associated with user');
 
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -332,14 +342,14 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           const { data: existingClasses } = await supabase
             .from('classes')
             .select('name')
-            .eq('school_id', profile.school_id);
+            .eq('school_id', targetSchoolId);
 
           const existingClassNames = new Set(existingClasses?.map(c => c.name) || []);
           const classesToCreate = Array.from(csvClasses).filter(c => !existingClassNames.has(c));
 
           if (classesToCreate.length > 0) {
             const newClassesPayload = classesToCreate.map(name => ({
-              school_id: profile.school_id,
+              school_id: targetSchoolId,
               name: name
             }));
 
@@ -376,7 +386,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             }
 
             studentsToInsert.push({
-              school_id: profile.school_id,
+              school_id: targetSchoolId,
               name: parts[0]?.trim(),
               class: studentClass,
               gender: (parts[2]?.trim().toLowerCase() === 'female' ? 'Female' : 'Male'),

@@ -167,13 +167,18 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user logged in');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('school_id')
-        .eq('id', user.id)
-        .single();
+      let targetSchoolId = currentUser?.school_id;
 
-      if (!profile?.school_id) throw new Error('No school associated with user');
+      if (!targetSchoolId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('school_id')
+          .eq('id', user.id)
+          .single();
+        targetSchoolId = profile?.school_id;
+      }
+
+      if (!targetSchoolId) throw new Error('No school associated with user');
 
       // Determine Primary Assigned Class (first one or manual override if we kept the field)
       // For now, let's just take the first class from assignments if available, or stay with the old field if passed
@@ -187,7 +192,7 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
         : teacherData.assignedClass;
 
       const payload = {
-        school_id: profile.school_id,
+        school_id: targetSchoolId,
         name: teacherData.name,
         email: teacherData.email,
         phone: teacherData.phone,
@@ -237,7 +242,7 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
 
         const { error: profileError } = await supabase.from('profiles').insert([{
           id: teacherId,
-          school_id: profile.school_id,
+          school_id: targetSchoolId,
           role: 'teacher',
           full_name: teacherData.name,
           email: teacherData.email,
@@ -247,7 +252,7 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
         if (profileError && profileError.code !== '23505') throw profileError;
         else if (profileError?.code === '23505') {
           await supabase.from('profiles').update({
-            school_id: profile.school_id,
+            school_id: targetSchoolId,
             role: 'teacher',
             full_name: teacherData.name,
             phone_number: teacherData.phone
@@ -273,7 +278,7 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
         if (teacherData.assignments.length > 0) {
           const assignmentInserts = teacherData.assignments.map((a: any) => ({
             teacher_id: teacherId,
-            school_id: profile.school_id,
+            school_id: targetSchoolId,
             class_id: a.classId,
             subject_id: a.isClassTeacher ? null : a.subjectId,
             is_class_teacher: a.isClassTeacher
