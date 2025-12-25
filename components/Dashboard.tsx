@@ -381,7 +381,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         }
         switch (activeMenu) {
             case 'Students': return <Students currentUser={currentUser} />;
-            case 'Teachers': return <Teachers />;
+            case 'Teachers': return <Teachers currentUser={currentUser} />;
             case 'Timetable': return <Timetable currentUser={currentUser} />;
             case 'Attendance': return <Attendance currentUser={currentUser} />;
             case 'Fees': return <Fees />;

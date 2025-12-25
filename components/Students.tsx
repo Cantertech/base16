@@ -36,9 +36,10 @@ interface Transaction {
 
 interface StudentsProps {
   currentUser?: {
-    id: string; // Add ID
+    id: string;
     role: 'admin' | 'teacher';
     assignedClass?: string | null;
+    school_id?: string;
   };
 }
 
@@ -147,6 +148,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       let query = supabase
         .from('students')
         .select('*')
+        .eq('school_id', currentUser?.school_id)
         .order('created_at', { ascending: false });
 
       if (isTeacher && currentUser?.id) {

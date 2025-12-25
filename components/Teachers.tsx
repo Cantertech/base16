@@ -30,7 +30,16 @@ interface Teacher {
 }
 
 // --- Main Component ---
-const Teachers: React.FC = () => {
+interface TeachersProps {
+  currentUser: {
+    id: string;
+    school_id: string;
+    role: 'admin' | 'teacher';
+    name: string;
+  };
+}
+
+const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
   const { formatAmount, currency } = useCurrency();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
@@ -38,7 +47,6 @@ const Teachers: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   // Modal & Drawer States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,23 +55,10 @@ const Teachers: React.FC = () => {
 
   // Load Data
   useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
-        if (profile?.school_id) {
-          setSchoolId(profile.school_id);
-          loadAll(profile.school_id);
-        } else {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
+    if (currentUser?.school_id) {
+      loadAll(currentUser.school_id);
+    }
+  }, [currentUser]);
 
   const loadAll = async (sId: string) => {
     const keyTeachers = `${CACHE_KEY_TEACHERS}_${sId}`;
@@ -292,8 +287,8 @@ const Teachers: React.FC = () => {
         }
       }
 
-      if (schoolId) fetchTeachers(schoolId);
-      if (schoolId) clearCache(`${CACHE_KEY_TEACHERS}_${schoolId}`);
+      if (currentUser.school_id) fetchTeachers(currentUser.school_id);
+      if (currentUser.school_id) clearCache(`${CACHE_KEY_TEACHERS}_${currentUser.school_id}`);
       setIsModalOpen(false);
       setEditingTeacher(null);
     } catch (error: any) {
@@ -312,8 +307,8 @@ const Teachers: React.FC = () => {
 
         if (error) throw error;
 
-        if (schoolId) fetchTeachers(schoolId);
-        if (schoolId) clearCache(`${CACHE_KEY_TEACHERS}_${schoolId}`);
+        if (currentUser.school_id) fetchTeachers(currentUser.school_id);
+        if (currentUser.school_id) clearCache(`${CACHE_KEY_TEACHERS}_${currentUser.school_id}`);
       } catch (error: any) {
         console.error('Error deleting teacher:', error);
         alert(`Failed to delete teacher: ${error.message}`);
