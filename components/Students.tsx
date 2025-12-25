@@ -317,13 +317,28 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         if (!text) return;
 
         const lines = text.split('\n');
-        const studentsToInsert: any[] = [];
+        const studentsToUpsert: any[] = [];
         const csvClasses = new Set<string>();
 
         // Simple header check
         const startIndex = lines[0].toLowerCase().includes('name') ? 1 : 0;
 
-        // 1. Parse CSV and collect data
+        // 1. Fetch existing students for duplicate checking (Smart Upsert)
+        const { data: existingStudents } = await supabase
+          .from('students')
+          .select('id, name, class')
+          .eq('school_id', targetSchoolId);
+
+        const studentMap = new Map();
+        if (existingStudents) {
+          existingStudents.forEach(s => {
+            // Create a unique key based on Name and Class (normalized)
+            const key = `${s.name.trim().toLowerCase()}|${s.class.trim().toLowerCase()}`;
+            studentMap.set(key, s.id);
+          });
+        }
+
+        // 2. Parse CSV and collect data
         const parsedLines = [];
         for (let i = startIndex; i < lines.length; i++) {
           const line = lines[i].trim();
@@ -337,7 +352,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           }
         }
 
-        // 2. Check and Create Missing Classes
+        // 3. Check and Create Missing Classes
         if (csvClasses.size > 0) {
           const { data: existingClasses } = await supabase
             .from('classes')
@@ -359,56 +374,79 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
             if (classError) {
               console.error("Error creating classes:", classError);
-              alert(`Warning: Failed to create some classes. Import may continue but class assignments might be inconsistent.`);
+              // We continue even if class creation fails
             } else {
-              // Refresh classes to ensure subsequent logic (like fee calc) has latest data if needed
               await fetchClasses();
               clearCache(CACHE_KEY_CLASSES);
             }
           }
         }
 
-        // 3. Prepare Student Data
+        // 4. Prepare Student Data for Upsert
+        let updateCount = 0;
+        let insertCount = 0;
+
         for (const parts of parsedLines) {
           // Expected: Name, Class, Gender, Parent Name, Parent Phone, Balance(Optional)
-          if (parts.length >= 5) {
+          if (parts.length >= 2) {
+            const name = parts[0]?.trim();
             const studentClass = parts[1]?.trim();
+
+            if (!name || !studentClass) continue;
+
+            const key = `${name.toLowerCase()}|${studentClass.toLowerCase()}`;
+            const existingId = studentMap.get(key);
 
             // Calculate default balance from fee structure if not provided in CSV
             let initialBalance = 0;
             if (parts[5] && parts[5].trim() !== '') {
               initialBalance = Number(parts[5].trim());
-            } else {
-              // Calculate from fee structure
+            } else if (!existingId) {
+              // Only calculate default balance for NEW students
               initialBalance = feeStructure
                 .filter(f => !f.target_class || f.target_class === 'All' || f.target_class === studentClass)
                 .reduce((sum, f) => sum + Number(f.amount), 0);
             }
 
-            studentsToInsert.push({
+            const studentPayload: any = {
               school_id: targetSchoolId,
-              name: parts[0]?.trim(),
+              name: name,
               class: studentClass,
               gender: (parts[2]?.trim().toLowerCase() === 'female' ? 'Female' : 'Male'),
               parent_name: parts[3]?.trim() || 'Parent',
               parent_phone: parts[4]?.trim(),
-              status: 'Active',
-              balance: initialBalance
-            });
+              status: 'Active'
+            };
+
+            // Only update balance if it was explicitly provided in CSV, otherwise keep existing or set default for new
+            if (parts[5] && parts[5].trim() !== '') {
+              studentPayload.balance = initialBalance;
+            } else if (!existingId) {
+              studentPayload.balance = initialBalance;
+            }
+
+            if (existingId) {
+              studentPayload.id = existingId; // Add ID to trigger update
+              updateCount++;
+            } else {
+              insertCount++;
+            }
+
+            studentsToUpsert.push(studentPayload);
           }
         }
 
-        if (studentsToInsert.length > 0) {
+        if (studentsToUpsert.length > 0) {
           const { error } = await supabase
             .from('students')
-            .insert(studentsToInsert);
+            .upsert(studentsToUpsert);
 
           if (error) throw error;
 
           fetchStudents();
           clearCache(CACHE_KEY_STUDENTS);
           setIsImportModalOpen(false);
-          alert(`Successfully imported ${studentsToInsert.length} students. Missing classes were automatically created.`);
+          alert(`Import successful!\nUpdated: ${updateCount} students\nInserted: ${insertCount} students`);
         } else {
           alert('No valid student data found in file.');
         }
