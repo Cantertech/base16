@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
+import FeeReceipt from './FeeReceipt';
 import { getCachedData, setCachedData, clearCache } from '../utils/cache';
 
 const CACHE_KEY_FEES_DATA = 'orbit_fees_full_data';
@@ -46,6 +47,8 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const [feeStructure, setFeeStructure] = useState<any[]>([]);
     const [classes, setClasses] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [schoolInfo, setSchoolInfo] = useState<any>(null);
+    const [receiptData, setReceiptData] = useState<any>(null);
 
     // Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -100,6 +103,14 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                 .eq('school_id', schoolId);
 
             if (studentsError) throw studentsError;
+
+            // Fetch School Details
+            const { data: schoolData } = await supabase
+                .from('schools')
+                .select('*')
+                .eq('id', schoolId)
+                .single();
+            if (schoolData) setSchoolInfo(schoolData);
 
             // Fetch Transactions
             const { data: transactionsData, error: transactionsError } = await supabase
@@ -209,14 +220,18 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                 reference: paymentData.reference
             };
 
-            const { error: trxError } = await supabase
+            const { data: insertedTrx, error: trxError } = await supabase
                 .from('transactions')
-                .insert([newTransaction]);
+                .insert([newTransaction])
+                .select()
+                .single();
 
             if (trxError) throw trxError;
 
             // 2. Update Student Balance
-            const newBalance = Math.max(0, selectedStudent.balance - Number(paymentData.amount));
+            const previousBalance = selectedStudent.balance;
+            const newBalance = Math.max(0, previousBalance - Number(paymentData.amount));
+
             const { error: updateError } = await supabase
                 .from('students')
                 .update({ balance: newBalance })
@@ -226,12 +241,30 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
             // 3. Refresh Data
             clearCache(CACHE_KEY_FEES_DATA);
-            fetchData(true); // Force background refresh
+            fetchData(true);
 
-            // 4. Close & Notify
+            // 4. Generate Receipt & Close Modal
             setIsPaymentModalOpen(false);
             setSelectedStudent(null);
-            alert(`Success! Payment recorded. SMS sent to parent (${selectedStudent.parentPhone}): "Thank you for your payment of ${currency.code} ${paymentData.amount}."`);
+
+            setReceiptData({
+                schoolName: schoolInfo?.name || 'School Name',
+                schoolLogo: schoolInfo?.logo_url,
+                schoolAddress: schoolInfo?.address,
+                schoolPhone: schoolInfo?.phone,
+                schoolEmail: schoolInfo?.email,
+                studentName: selectedStudent.name,
+                studentClass: selectedStudent.class,
+                studentId: selectedStudent.id,
+                transactionId: insertedTrx.id,
+                date: paymentData.date,
+                amount: Number(paymentData.amount),
+                method: paymentData.method,
+                reference: paymentData.reference,
+                previousBalance: previousBalance,
+                newBalance: newBalance,
+                type: 'Tuition Fee Payment'
+            });
 
         } catch (error: any) {
             console.error('Payment error:', error);
@@ -537,6 +570,14 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     student={selectedStudent}
                     onClose={() => setIsPaymentModalOpen(false)}
                     onConfirm={handlePayment}
+                />
+            )}
+
+            {/* --- RECEIPT MODAL --- */}
+            {receiptData && (
+                <FeeReceipt
+                    data={receiptData}
+                    onClose={() => setReceiptData(null)}
                 />
             )}
 
