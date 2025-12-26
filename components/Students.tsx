@@ -368,7 +368,6 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         if (!text) return;
 
         const lines = text.split('\n');
-        const studentsToUpsert: any[] = [];
         const csvClasses = new Set<string>();
 
         // Simple header check
@@ -436,6 +435,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
         setImportProgress({ current: 0, total: total, status: 'Preparing data...' });
 
+        const studentsToUpdate: any[] = [];
+        const studentsToInsert: any[] = [];
+
         for (let i = 0; i < total; i++) {
           const parts = parsedLines[i];
           // Expected: Name, Class, Gender, Parent Name, Parent Phone, Balance(Optional)
@@ -478,41 +480,61 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
             if (existingId) {
               studentPayload.id = existingId; // Add ID to trigger update
+              studentsToUpdate.push(studentPayload);
               updateCount++;
             } else {
+              studentsToInsert.push(studentPayload);
               insertCount++;
             }
-
-            studentsToUpsert.push(studentPayload);
           }
         }
 
-        if (studentsToUpsert.length > 0) {
-          setImportProgress({ current: 0, total: total, status: 'Saving to database...' });
+        // 5. Execute Updates and Inserts
+        const chunkSize = 100;
+        let processed = 0;
 
-          // Upsert in chunks of 100 to avoid payload limits and show progress
-          const chunkSize = 100;
-          for (let i = 0; i < studentsToUpsert.length; i += chunkSize) {
-            const chunk = studentsToUpsert.slice(i, i + chunkSize);
+        // Handle Updates
+        if (studentsToUpdate.length > 0) {
+          setImportProgress({ current: processed, total: total, status: `Updating ${studentsToUpdate.length} existing students...` });
+          for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
+            const chunk = studentsToUpdate.slice(i, i + chunkSize);
             const { error } = await supabase
               .from('students')
-              .upsert(chunk);
+              .upsert(chunk); // upsert is fine here because all have IDs
 
             if (error) throw error;
+            processed += chunk.length;
             setImportProgress({
-              current: Math.min(i + chunkSize, studentsToUpsert.length),
-              total: studentsToUpsert.length,
-              status: `Saved ${Math.min(i + chunkSize, studentsToUpsert.length)} of ${studentsToUpsert.length}...`
+              current: processed,
+              total: total,
+              status: `Updated ${Math.min(processed, studentsToUpdate.length)} of ${studentsToUpdate.length} existing...`
             });
           }
-
-          fetchStudents();
-          clearCache(CACHE_KEY_STUDENTS);
-          setIsImportModalOpen(false);
-          alert(`Import successful!\nUpdated: ${updateCount} students\nInserted: ${insertCount} students`);
-        } else {
-          alert('No valid student data found in file.');
         }
+
+        // Handle Inserts
+        if (studentsToInsert.length > 0) {
+          setImportProgress({ current: processed, total: total, status: `Inserting ${studentsToInsert.length} new students...` });
+          for (let i = 0; i < studentsToInsert.length; i += chunkSize) {
+            const chunk = studentsToInsert.slice(i, i + chunkSize);
+            const { error } = await supabase
+              .from('students')
+              .insert(chunk); // insert strictly for new records
+
+            if (error) throw error;
+            processed += chunk.length;
+            setImportProgress({
+              current: processed,
+              total: total,
+              status: `Inserted ${Math.min(processed - studentsToUpdate.length, studentsToInsert.length)} of ${studentsToInsert.length} new...`
+            });
+          }
+        }
+
+        fetchStudents();
+        clearCache(CACHE_KEY_STUDENTS);
+        setIsImportModalOpen(false);
+        alert(`Import successful!\nUpdated: ${updateCount} students\nInserted: ${insertCount} students`);
       };
 
       reader.readAsText(file);
