@@ -243,11 +243,8 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
             clearCache(CACHE_KEY_FEES_DATA);
             fetchData(true);
 
-            // 4. Generate Receipt & Close Modal
-            setIsPaymentModalOpen(false);
-            setSelectedStudent(null);
-
-            setReceiptData({
+            // 4. Return Receipt Data (Do NOT set state or close modal yet)
+            return {
                 schoolName: schoolInfo?.name || 'School Name',
                 schoolLogo: schoolInfo?.logo_url,
                 schoolAddress: schoolInfo?.address,
@@ -264,11 +261,12 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                 previousBalance: previousBalance,
                 newBalance: newBalance,
                 type: 'Tuition Fee Payment'
-            });
+            };
 
         } catch (error: any) {
             console.error('Payment error:', error);
             alert(`Payment failed: ${error.message}`);
+            return null;
         }
     };
 
@@ -570,6 +568,11 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     student={selectedStudent}
                     onClose={() => setIsPaymentModalOpen(false)}
                     onConfirm={handlePayment}
+                    onGenerateReceipt={(data) => {
+                        setIsPaymentModalOpen(false);
+                        setSelectedStudent(null);
+                        setReceiptData(data);
+                    }}
                 />
             )}
 
@@ -595,17 +598,55 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 };
 
 // --- Sub-component: Payment Modal ---
-const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClose: () => void, onConfirm: (data: any) => void }) => {
+const PaymentModal = ({ student, onClose, onConfirm, onGenerateReceipt }: { student: Student, onClose: () => void, onConfirm: (data: any) => Promise<any>, onGenerateReceipt: (data: any) => void }) => {
     const { formatAmount, currency } = useCurrency();
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState('Cash');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [reference, setReference] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [successData, setSuccessData] = useState<any>(null);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onConfirm({ amount, method, date, reference });
+        setIsSubmitting(true);
+        const result = await onConfirm({ amount, method, date, reference });
+        setIsSubmitting(false);
+        if (result) {
+            setSuccessData(result);
+        }
     };
+
+    if (successData) {
+        return (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-center p-8">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Payment Confirmed!</h3>
+                    <p className="text-slate-500 text-sm mb-6">
+                        Successfully received <span className="font-bold text-slate-700">{currency.code} {amount}</span> from {student.name}.
+                    </p>
+
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => onGenerateReceipt(successData)}
+                            className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Download className="h-5 w-5" /> Generate Receipt
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="w-full bg-white text-slate-500 py-3 rounded-xl font-medium hover:bg-slate-50 border border-slate-200 transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
@@ -635,7 +676,7 @@ const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClo
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({currency.code})</label>
                         <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                 <span className="text-slate-500 font-bold">{currency.symbol}</span>
                             </div>
                             <input
@@ -645,7 +686,7 @@ const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClo
                                 max={student.balance} // Optional: restrict overpayment
                                 value={amount}
                                 onChange={e => setAmount(e.target.value)}
-                                className="w-full pl-8 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none font-bold text-lg"
+                                className="w-full pl-16 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none font-bold text-lg"
                                 placeholder="0.00"
                             />
                         </div>
@@ -691,9 +732,10 @@ const PaymentModal = ({ student, onClose, onConfirm }: { student: Student, onClo
                     <div className="pt-4">
                         <button
                             type="submit"
-                            className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                            disabled={isSubmitting}
+                            className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            <CheckCircle className="h-5 w-5" /> Confirm Payment
+                            {isSubmitting ? 'Processing...' : <><CheckCircle className="h-5 w-5" /> Confirm Payment</>}
                         </button>
                     </div>
 
