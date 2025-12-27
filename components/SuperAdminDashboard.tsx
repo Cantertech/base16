@@ -113,14 +113,12 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 {school.status === 'active' ? <Lock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
                                 {school.status === 'active' ? 'Suspend' : 'Activate'}
                             </button>
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-slate-200">
                             <button
                                 onClick={() => onResetPassword(school.id)}
-                                className="w-full bg-orange-50 text-orange-700 py-3 rounded-lg font-bold text-sm hover:bg-orange-100 border border-orange-200 transition-colors flex items-center justify-center gap-2"
+                                className="flex-1 bg-orange-100 text-orange-700 py-2 rounded-lg font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
+                                title="Reset Admin Password to 'password123'"
                             >
-                                <Lock className="h-4 w-4" /> Reset Admin Password to 'password123'
+                                <Lock className="h-4 w-4" /> Reset Pass
                             </button>
                         </div>
                     </div>
