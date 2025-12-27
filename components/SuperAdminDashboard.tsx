@@ -93,7 +93,6 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 <RefreshCw className="h-4 w-4" /> Extend 30 Days
                             </button>
                             <button
-                                <button
                                 onClick={() => onToggleStatus(school.id, school.status)}
                                 className={`flex-1 py-2 rounded-lg font-bold text-sm border transition-colors flex items-center justify-center gap-2 ${school.status === 'active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
                             >
