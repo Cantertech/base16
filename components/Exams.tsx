@@ -65,6 +65,27 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
 
     // --- Config Logic ---
+    const gradingPresets = {
+        STANDARD: [
+            { grade: "A", min: 80, max: 100, remark: "Excellent", points: 4.0 },
+            { grade: "B", min: 70, max: 79, remark: "Very Good", points: 3.0 },
+            { grade: "C", min: 60, max: 69, remark: "Good", points: 2.0 },
+            { grade: "D", min: 50, max: 59, remark: "Credit", points: 1.0 },
+            { grade: "E", min: 40, max: 49, remark: "Pass", points: 0.5 },
+            { grade: "F", min: 0, max: 39, remark: "Fail", points: 0 }
+        ],
+        COMPETENCY: [
+            { grade: "EE1", min: 90, max: 100, remark: "Exceeding Expectations (High)", points: 4.0 },
+            { grade: "EE2", min: 75, max: 89, remark: "Exceeding Expectations (Low)", points: 3.5 },
+            { grade: "ME1", min: 58, max: 74, remark: "Meeting Expectations (High)", points: 3.0 },
+            { grade: "ME2", min: 41, max: 57, remark: "Meeting Expectations (Low)", points: 2.5 },
+            { grade: "AE1", min: 31, max: 40, remark: "Approaching Expectations (High)", points: 2.0 },
+            { grade: "AE2", min: 21, max: 30, remark: "Approaching Expectations (Low)", points: 1.5 },
+            { grade: "BE1", min: 11, max: 20, remark: "Below Expectations (High)", points: 1.0 },
+            { grade: "BE2", min: 0, max: 10, remark: "Below Expectations (Low)", points: 0.5 }
+        ]
+    };
+
     const defaultExamConfig = {
         exam_name: "End of Term 1 Exam",
         current_term: "First Term",
@@ -73,14 +94,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         target_classes: [] as string[],
         target_subjects: [] as string[],
         weights: { class: 30, exam: 70 },
-        grading: [
-            { grade: "A", min: 80, max: 100, remark: "Excellent" },
-            { grade: "B", min: 70, max: 79, remark: "Very Good" },
-            { grade: "C", min: 60, max: 69, remark: "Good" },
-            { grade: "D", min: 50, max: 59, remark: "Credit" },
-            { grade: "E", min: 40, max: 49, remark: "Pass" },
-            { grade: "F", min: 0, max: 39, remark: "Fail" }
-        ]
+        grading_type: 'STANDARD',
+        grading: gradingPresets.STANDARD
     };
 
     const [examConfig, setExamConfig] = useState<any>(defaultExamConfig);
@@ -496,7 +511,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             <h3 className="text-lg font-bold text-slate-800 mb-1">Exam Status</h3>
                             <div className="flex items-center gap-2">
                                 <span className={`h-3 w-3 rounded-full ${examConfig.status === 'OPEN' ? 'bg-green-500 animate-pulse' :
-                                        examConfig.status === 'LOCKED' ? 'bg-red-500' : 'bg-yellow-500'
+                                    examConfig.status === 'LOCKED' ? 'bg-red-500' : 'bg-yellow-500'
                                     }`}></span>
                                 <span className="font-medium text-slate-600">
                                     {examConfig.status === 'OPEN' ? 'Marks Entry OPEN' :
@@ -639,21 +654,56 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
                     {/* Grading System */}
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">Grading System</h3>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Grading System</h3>
+                                <p className="text-sm text-slate-500">Choose a template or customize the ranges manually.</p>
+                            </div>
+                            <select
+                                value={examConfig.grading_type || 'STANDARD'}
+                                onChange={(e) => {
+                                    const type = e.target.value as 'STANDARD' | 'COMPETENCY';
+                                    if (confirm('Changing the grading system will overwrite current manual edits. Continue?')) {
+                                        setExamConfig({
+                                            ...examConfig,
+                                            grading_type: type,
+                                            grading: gradingPresets[type]
+                                        });
+                                    }
+                                }}
+                                className="p-2 border border-slate-300 rounded-lg outline-none bg-slate-50 font-medium text-slate-700"
+                            >
+                                <option value="STANDARD">Standard Grading (A-F)</option>
+                                <option value="COMPETENCY">Competency Based (EE-BE)</option>
+                            </select>
+                        </div>
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
-                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Grade</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Grade / Code</th>
                                         <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Min Score</th>
                                         <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Max Score</th>
-                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Remark</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Remark / Meaning</th>
+                                        <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Points</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {examConfig.grading.map((g: any, idx: number) => (
                                         <tr key={idx}>
-                                            <td className="px-4 py-2 font-bold">{g.grade}</td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="text"
+                                                    value={g.grade}
+                                                    onChange={e => {
+                                                        const newGrading = [...examConfig.grading];
+                                                        newGrading[idx].grade = e.target.value;
+                                                        setExamConfig({ ...examConfig, grading: newGrading });
+                                                    }}
+                                                    className="w-20 p-1 border border-slate-300 rounded font-bold text-slate-700"
+                                                />
+                                            </td>
                                             <td className="px-4 py-2">
                                                 <input
                                                     type="number"
@@ -688,6 +738,19 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                                         setExamConfig({ ...examConfig, grading: newGrading });
                                                     }}
                                                     className="w-full p-1 border border-slate-300 rounded"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={g.points || 0}
+                                                    onChange={e => {
+                                                        const newGrading = [...examConfig.grading];
+                                                        newGrading[idx].points = Number(e.target.value);
+                                                        setExamConfig({ ...examConfig, grading: newGrading });
+                                                    }}
+                                                    className="w-16 p-1 border border-slate-300 rounded text-center text-slate-500"
                                                 />
                                             </td>
                                         </tr>
