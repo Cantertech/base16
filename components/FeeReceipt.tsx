@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import { X, Printer, Download, Share2 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface FeeReceiptProps {
     data: {
@@ -27,6 +29,7 @@ interface FeeReceiptProps {
 const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
     const { formatAmount, currency } = useCurrency();
     const receiptRef = useRef<HTMLDivElement>(null);
+    const [isDownloading, setIsDownloading] = React.useState(false);
 
     const handlePrint = () => {
         const printContent = receiptRef.current;
@@ -61,6 +64,31 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
         }
     };
 
+    const handleDownloadPdf = async () => {
+        if (!receiptRef.current) return;
+        setIsDownloading(true);
+        try {
+            const canvas = await html2canvas(receiptRef.current, {
+                scale: 2, // Higher quality
+                backgroundColor: '#ffffff',
+                useCORS: true // For images
+            } as any);
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Receipt_${data.transactionId}.pdf`);
+        } catch (error) {
+            console.error('PDF Generation failed', error);
+            alert('Failed to generate PDF');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -73,7 +101,20 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                             onClick={handlePrint}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors text-sm font-medium"
                         >
-                            <Printer className="h-4 w-4" /> Print / PDF
+                            <Printer className="h-4 w-4" /> Print
+                        </button>
+                        <button
+                            onClick={handleDownloadPdf}
+                            disabled={isDownloading}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {isDownloading ? (
+                                <span className="animate-pulse">Saving...</span>
+                            ) : (
+                                <>
+                                    <Download className="h-4 w-4" /> Download PDF
+                                </>
+                            )}
                         </button>
                         <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
                             <X className="h-5 w-5" />
@@ -153,45 +194,59 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                                 </tbody>
                             </table>
 
-                            {/* Summary Box */}
-                            <div className="flex justify-end mt-4">
-                                <div className="w-64 space-y-2">
-                                    <div className="flex justify-between text-sm text-slate-500">
-                                        <span>Previous Balance:</span>
-                                        <span>{formatAmount(data.previousBalance)}</span>
+                            {/* --- REDESIGNED FOOTER SECTION --- */}
+                            <div className="mt-8 pt-6 border-t-2 border-slate-100">
+                                <div className="grid grid-cols-5 gap-8">
+
+                                    {/* Left Side: Words & Signature */}
+                                    <div className="col-span-3 flex flex-col justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Amount in Words</p>
+                                            <div className="text-slate-700 font-serif italic text-lg leading-relaxed">
+                                                {currency.code} {data.amount} Only
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-12 pt-4">
+                                            <div className="border-b border-slate-400 border-dashed w-64 mb-2"></div>
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authorized Signature</p>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between text-sm font-bold text-slate-800 border-b border-slate-200 pb-2">
-                                        <span>Amount Paid:</span>
-                                        <span>- {formatAmount(data.amount)}</span>
+
+                                    {/* Right Side: Financial Summary Card */}
+                                    <div className="col-span-2 bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm">
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center text-slate-500">
+                                                <span className="text-xs font-bold uppercase tracking-wide">Outstanding</span>
+                                                <span className="font-mono font-medium">{formatAmount(data.previousBalance)}</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-slate-800 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                                                <span className="text-sm font-bold flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                                    Paid Now
+                                                </span>
+                                                <span className="font-mono font-bold text-green-700">{formatAmount(data.amount)}</span>
+                                            </div>
+
+                                            <div className="border-t border-slate-200 my-2"></div>
+
+                                            <div>
+                                                <p className="text-xs text-slate-500 uppercase font-bold text-right mb-1">New Balance</p>
+                                                <p className={`text-2xl font-extrabold text-right ${data.newBalance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                                    {formatAmount(data.newBalance)}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between text-base font-bold text-slate-900 pt-1">
-                                        <span>Remaining Balance:</span>
-                                        <span className={`${data.newBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                            {formatAmount(data.newBalance)}
-                                        </span>
-                                    </div>
+
                                 </div>
                             </div>
 
-                            {/* Amount in Words (Simple Placeholder) */}
-                            <div className="pt-4 border-t border-slate-100">
-                                <p className="text-xs text-slate-400 uppercase font-bold">Amount in Words</p>
-                                <p className="text-sm text-slate-600 italic capitalize">
-                                    {/* In a real app, use a number-to-words library here */}
-                                    {currency.code} {data.amount} Only
-                                </p>
-                            </div>
-
-                            {/* Footer / Signature */}
-                            <div className="mt-12 pt-8 flex justify-between items-end">
-                                <div className="text-xs text-slate-400">
-                                    <p>Generated by Orbit School Management System</p>
-                                    <p>{new Date().toLocaleString()}</p>
-                                </div>
-                                <div className="text-center">
-                                    <div className="border-b border-slate-300 w-48 mb-2"></div>
-                                    <p className="text-xs font-bold text-slate-500 uppercase">Authorized Signature</p>
-                                </div>
+                            {/* Footer Meta */}
+                            <div className="mt-8 flex justify-between items-center text-[10px] text-slate-300 uppercase tracking-widest font-medium">
+                                <p>System Generated Receipt • base16 School Management</p>
+                                <p>{new Date().toLocaleString()}</p>
                             </div>
 
                         </div>
