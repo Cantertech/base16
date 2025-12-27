@@ -28,8 +28,22 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
 
     useEffect(() => {
         const fetchStats = async () => {
-            const { count: students } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', school.id);
-            const { count: teachers } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('school_id', school.id).eq('role', 'teacher');
+            // Fetch real-time count of students
+            const { count: students, error: studentError } = await supabase
+                .from('students')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', school.id);
+
+            // Fetch real-time count of teachers
+            const { count: teachers, error: teacherError } = await supabase
+                .from('profiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', school.id)
+                .eq('role', 'teacher');
+
+            if (studentError) console.error('Error fetching student count:', studentError);
+            if (teacherError) console.error('Error fetching teacher count:', teacherError);
+
             setStats({ students: students || 0, teachers: teachers || 0 });
         };
         fetchStats();
@@ -104,7 +118,7 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                         <div className="mt-4 pt-4 border-t border-slate-200">
                             <button
                                 onClick={() => onResetPassword(school.id)}
-                                className="w-full bg-orange-100 text-orange-700 py-2 rounded-lg font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
+                                className="w-full bg-orange-50 text-orange-700 py-3 rounded-lg font-bold text-sm hover:bg-orange-100 border border-orange-200 transition-colors flex items-center justify-center gap-2"
                             >
                                 <Lock className="h-4 w-4" /> Reset Admin Password to 'password123'
                             </button>
