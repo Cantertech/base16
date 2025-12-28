@@ -1,3 +1,6 @@
+-- Ensure pgcrypto is enabled for password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Create a stored procedure to allow super admins to reset user passwords
 CREATE OR REPLACE FUNCTION reset_school_admin_password(target_school_id UUID, new_password TEXT)
 RETURNS void
@@ -6,13 +9,20 @@ SECURITY DEFINER
 AS $$
 DECLARE
     target_user_id UUID;
+    current_user_email TEXT;
 BEGIN
-    -- 1. Check if the executing user is a super admin
+    -- 1. Get current user's email from JWT
+    current_user_email := auth.jwt() ->> 'email';
+
+    -- 2. Check permissions: Super Admin role OR 'silas' email fallback
     IF NOT EXISTS (
         SELECT 1 FROM profiles
         WHERE id = auth.uid() AND role = 'super_admin'
     ) THEN
-        RAISE EXCEPTION 'Access denied: Only super admins can perform this action';
+        -- Fallback: Check if the logged-in user's email matches 'silas'
+        IF (current_user_email NOT ILIKE '%silas%') AND (current_user_email != 'silas@222') THEN
+             RAISE EXCEPTION 'Access denied: Only super admins can perform this action. Your email (%) is not authorized.', current_user_email;
+        END IF;
     END IF;
 
     -- 2. Find the admin user for the specified school

@@ -68,12 +68,41 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
         if (!receiptRef.current) return;
         setIsDownloading(true);
         try {
-            const canvas = await html2canvas(receiptRef.current, {
+            // 1. Create a temporary container for the clone
+            // We place it off-screen but ensuring it has the full width/height needed
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '0';
+            tempContainer.style.width = '210mm'; // A4 width
+            tempContainer.style.zIndex = '-1';
+            document.body.appendChild(tempContainer);
+
+            // 2. Clone the receipt node
+            const clone = receiptRef.current.cloneNode(true) as HTMLElement;
+
+            // 3. Reset any scroll or max-height constraints on the clone to ensure full visibility
+            clone.style.height = 'auto';
+            clone.style.maxHeight = 'none';
+            clone.style.overflow = 'visible';
+            clone.style.transform = 'none'; // Clear potential transforms
+
+            tempContainer.appendChild(clone);
+
+            // 4. Capture the clone
+            // We wait a tiny bit to ensure DOM is updated (though usually synchronous for append)
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const canvas = await html2canvas(clone, {
                 scale: 2, // Higher quality
                 backgroundColor: '#ffffff',
-                useCORS: true // For images
+                useCORS: true, // For images
+                logging: false,
+                windowWidth: tempContainer.scrollWidth,
+                windowHeight: tempContainer.scrollHeight
             } as any);
 
+            // 5. Generate PDF
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -81,9 +110,13 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
 
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             pdf.save(`Receipt_${data.transactionId}.pdf`);
+
+            // 6. Cleanup
+            document.body.removeChild(tempContainer);
+
         } catch (error) {
             console.error('PDF Generation failed', error);
-            alert('Failed to generate PDF');
+            alert('Failed to generate PDF. Please try again.');
         } finally {
             setIsDownloading(false);
         }
@@ -214,28 +247,26 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                                     </div>
 
                                     {/* Right Side: Financial Summary Card */}
-                                    <div className="col-span-2 bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm">
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-slate-500">
-                                                <span className="text-xs font-bold uppercase tracking-wide">Outstanding</span>
-                                                <span className="font-mono font-medium">{formatAmount(data.previousBalance)}</span>
+                                    {/* Right Side: Financial Summary */}
+                                    <div className="col-span-2 pl-4">
+                                        <div className="space-y-3 text-right">
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Previous Balance</span>
+                                                <span className="font-mono text-sm font-semibold text-slate-500">{formatAmount(data.previousBalance)}</span>
                                             </div>
 
-                                            <div className="flex justify-between items-center text-slate-800 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
-                                                <span className="text-sm font-bold flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                                    Paid Now
-                                                </span>
-                                                <span className="font-mono font-bold text-green-700">{formatAmount(data.amount)}</span>
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Paid Now</span>
+                                                <span className="font-mono text-lg font-bold text-slate-800">{formatAmount(data.amount)}</span>
                                             </div>
 
-                                            <div className="border-t border-slate-200 my-2"></div>
+                                            <div className="border-t-2 border-slate-100 my-2"></div>
 
-                                            <div>
-                                                <p className="text-xs text-slate-500 uppercase font-bold text-right mb-1">New Balance</p>
-                                                <p className={`text-2xl font-extrabold text-right ${data.newBalance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-xs font-bold text-red-400 uppercase tracking-widest">Balance Due</span>
+                                                <span className={`font-mono text-xl font-bold ${data.newBalance > 0 ? 'text-red-500' : 'text-green-600'}`}>
                                                     {formatAmount(data.newBalance)}
-                                                </p>
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
