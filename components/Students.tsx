@@ -440,6 +440,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
         const studentsToUpdate: any[] = [];
         const studentsToInsert: any[] = [];
+        const seenInBatch = new Set<string>();
 
         for (let i = 0; i < total; i++) {
           const parts = parsedLines[i];
@@ -451,6 +452,11 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             if (!name || !studentClass) continue;
 
             const key = name.toLowerCase(); // Match by Name only
+
+            // Prevent duplicates within the same file upload
+            if (seenInBatch.has(key)) continue;
+            seenInBatch.add(key);
+
             const existingId = studentMap.get(key);
 
             // Calculate default balance from fee structure if not provided in CSV
@@ -493,7 +499,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         }
 
         // 5. Execute Updates and Inserts
-        const chunkSize = 100;
+        const chunkSize = 20; // Reduced to prevent server timeout
         let processed = 0;
 
         // Handle Updates

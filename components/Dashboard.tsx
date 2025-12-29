@@ -24,7 +24,7 @@ import {
     Megaphone,
     Calendar,
     X,
-    Heart
+    Utensils
 } from 'lucide-react';
 import {
     AreaChart,
@@ -46,7 +46,7 @@ import HelpCenter from './HelpCenter';
 import Settings from './Settings';
 import Attendance from './Attendance';
 import Timetable from './Timetable';
-import Health from './Health';
+import Feeding from './Feeding';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { getCachedData, setCachedData } from '../utils/cache';
@@ -331,11 +331,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Timetable', icon: Clock },
         { name: 'Attendance', icon: Calendar },
         { name: 'Fees', icon: Banknote },
+        { name: 'Feeding', icon: Utensils },
         { name: 'Exam', icon: FileText },
         { name: 'Classes', icon: Layers },
         { name: 'Analytics', icon: BarChart2 },
         { name: 'Notice', icon: Bell },
-        { name: 'Health', icon: Heart },
         { name: 'Help center', icon: HelpCircle },
         { name: 'Settings', icon: SettingsIcon },
     ];
@@ -347,7 +347,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Attendance', icon: Calendar },
         { name: 'Mark Entry & Reports', icon: FileText },
         { name: 'Notice Board', icon: Bell },
-        { name: 'Health', icon: Heart },
         { name: 'Settings & Profile', icon: SettingsIcon },
     ];
 
@@ -379,7 +378,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Attendance': return <Attendance currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
-                case 'Health': return <Health currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
             }
@@ -390,11 +388,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Timetable': return <Timetable currentUser={currentUser} />;
             case 'Attendance': return <Attendance currentUser={currentUser} />;
             case 'Fees': return <Fees currentUser={currentUser} />;
+            case 'Feeding': return <Feeding currentUser={currentUser} />;
             case 'Exam': return <Exams currentUser={currentUser} />;
             case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
-            case 'Health': return <Health currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
             case 'Settings': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
             default: return (
