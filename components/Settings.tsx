@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Lock, CreditCard, Save, Upload, CheckCircle,
-    History, Gift, Copy, MessageSquare, Plus, X
+    History, Gift, Copy, X
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -26,8 +26,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
     const [config, setConfig] = useState<any>({});
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [billingHistory, setBillingHistory] = useState<any[]>([]);
-    const [smsBalance, setSmsBalance] = useState(0);
-    const [showSmsModal, setShowSmsModal] = useState(false);
+    const [showPlanModal, setShowPlanModal] = useState(false);
+
 
     // -- Pricing Plans --
     const plans = [
@@ -70,7 +70,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                     plan: school.subscription_plan || 'Small School', // Default to Small School
                     nextPaymentDue: school.next_payment_due
                 });
-                setSmsBalance(school.sms_balance || 0);
 
                 // If referral code was generated on fly, save it back (lazy init)
                 if (!school.referral_code) {
@@ -145,49 +144,25 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
         setLoading(false);
     };
 
-    const handleBuySms = async (units: number, cost: number) => {
+
+
+    const handleUpdatePlan = async (planName: string) => {
         if (!currentUser?.school_id) return;
         setLoading(true);
 
-        // 1. Update Balance in DB
-        const newBalance = smsBalance + units;
-        const { error: balanceError } = await supabase
+        const { error } = await supabase
             .from('schools')
-            .update({ sms_balance: newBalance })
+            .update({ subscription_plan: planName })
             .eq('id', currentUser.school_id);
 
-        if (balanceError) {
-            alert("Error purchasing SMS: " + balanceError.message);
-            setLoading(false);
-            return;
+        if (error) {
+            alert("Error updating plan: " + error.message);
+        } else {
+            setConfig({ ...config, plan: planName });
+            alert(`Plan updated to ${planName}`);
+            setShowPlanModal(false);
         }
-
-        setSmsBalance(newBalance);
-
-        // 2. Add Billing Record to Supabase
-        const newRecord = {
-            school_id: currentUser.school_id,
-            date: new Date().toISOString().split('T')[0],
-            description: `SMS Bundle (${units} Units)`,
-            amount: cost,
-            status: 'Paid'
-        };
-
-        const { data: insertedRecord, error: billingError } = await supabase
-            .from('billing_history')
-            .insert(newRecord)
-            .select()
-            .single();
-
-        if (billingError) {
-            console.error('Error saving billing record:', billingError);
-        } else if (insertedRecord) {
-            setBillingHistory([insertedRecord, ...billingHistory]);
-        }
-
         setLoading(false);
-        setShowSmsModal(false);
-        alert(`Successfully purchased ${units} SMS credits!`);
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -461,7 +436,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div>
                             <h2 className="text-2xl font-bold text-slate-800">Billing & Plans</h2>
-                            <p className="text-slate-500 text-sm">Manage your subscription and SMS credits.</p>
+                            <p className="text-slate-500 text-sm">Manage your subscription.</p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -493,117 +468,122 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                                         </div>
                                     </div>
 
-                                    <button className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors">
+                                    <button
+                                        onClick={() => setShowPlanModal(true)}
+                                        className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
+                                    >
                                         Manage Subscription
                                     </button>
                                 </div>
                             </div>
 
-                            {/* SMS Balance Card */}
-                            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                                            <MessageSquare className="h-6 w-6" />
-                                        </div>
-                                        <h3 className="font-bold text-slate-800 text-lg">SMS Credits</h3>
-                                    </div>
-                                    <p className="text-slate-500 text-sm mb-6">
-                                        Credits are required to send bulk messages to parents. They do not expire.
-                                    </p>
-                                    <div className="flex items-baseline gap-2 mb-6">
-                                        <span className="text-4xl font-extrabold text-slate-900">{smsBalance}</span>
-                                        <span className="text-slate-500 font-medium">Units Available</span>
-                                    </div>
+                            {/* Payment History (Full Width in Grid) */}
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden col-span-1 md:col-span-2">
+                                <div className="p-6 border-b border-slate-100 flex items-center gap-2">
+                                    <History className="h-5 w-5 text-slate-500" />
+                                    <h3 className="font-bold text-slate-800">Payment History</h3>
                                 </div>
-                                <button
-                                    onClick={() => setShowSmsModal(true)}
-                                    className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2"
-                                >
-                                    <Plus className="h-4 w-4" /> Buy Credits
-                                </button>
-                            </div>
-                        </div>
+                                {/* Mobile Billing History View */}
+                                <div className="md:hidden divide-y divide-slate-100">
+                                    {billingHistory.length > 0 ? (
+                                        billingHistory.map((item: any) => (
+                                            <div key={item.id} className="p-4 flex justify-between items-center bg-white">
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-sm mb-1">{item.description}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-slate-500">{item.date}</span>
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            <CheckCircle className="h-3 w-3" /> {item.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <span className="font-bold text-slate-900">GH¢ {item.amount.toFixed(2)}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-6 text-center text-slate-500 text-sm font-medium italic">
+                                            No payment history found.
+                                        </div>
+                                    )}
+                                </div>
 
-                        {/* Payment History */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-                                <History className="h-5 w-5 text-slate-500" />
-                                <h3 className="font-bold text-slate-800">Payment History</h3>
+                                {/* Desktop Billing History Table */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-50 border-b border-slate-100">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {billingHistory.map((item: any) => (
+                                                <tr key={item.id} className="hover:bg-slate-50">
+                                                    <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                                                    <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
+                                                    <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                                            <CheckCircle className="h-3 w-3" /> {item.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {billingHistory.map((item: any) => (
-                                        <tr key={item.id} className="hover:bg-slate-50">
-                                            <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                                            <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                                                    <CheckCircle className="h-3 w-3" /> {item.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 )}
 
             </div>
 
-            {/* --- SMS PURCHASE MODAL --- */}
-            {showSmsModal && !isTeacher && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="font-bold text-lg text-slate-800">Top Up SMS Credits</h3>
-                            <button onClick={() => setShowSmsModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <X className="h-5 w-5" />
-                            </button>
+            {/* Plan Upgrade Modal */}
+            {showPlanModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Manage Subscription</h3>
+                            <button onClick={() => setShowPlanModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="h-5 w-5 text-slate-500" /></button>
                         </div>
 
-                        <div className="p-6">
-                            <p className="text-slate-500 text-sm mb-6">Select a bundle package below. Payment is processed securely via Mobile Money.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {plans.map((plan) => (
+                                <div key={plan.name} className={`border-2 rounded-xl p-6 relative flex flex-col ${config.plan === plan.name ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-slate-200 hover:border-slate-300'}`}>
+                                    {config.plan === plan.name && (
+                                        <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-lg">
+                                            CURRENT PLAN
+                                        </div>
+                                    )}
+                                    <h4 className="font-bold text-lg text-slate-800 mb-1">{plan.name}</h4>
+                                    <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500">/mo</span></p>
 
-                            <div className="grid grid-cols-1 gap-4">
-                                {[
-                                    { units: 500, price: 20, tag: 'Starter' },
-                                    { units: 1000, price: 35, tag: 'Popular', highlight: true },
-                                    { units: 2000, price: 60, tag: 'Best Value' }
-                                ].map(pkg => (
+                                    <ul className="space-y-2 mb-6 flex-1">
+                                        {plan.features.map((feat, i) => (
+                                            <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                                                <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                <span>{feat}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+
                                     <button
-                                        key={pkg.units}
-                                        onClick={() => handleBuySms(pkg.units, pkg.price)}
-                                        disabled={loading}
-                                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all hover:scale-[1.02] ${pkg.highlight
-                                            ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-200'
-                                            : 'border-slate-200 hover:border-primary-300'
-                                            }`}
+                                        disabled={loading || config.plan === plan.name}
+                                        onClick={() => handleUpdatePlan(plan.name)}
+                                        className={`w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${config.plan === plan.name ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-200'}`}
                                     >
-                                        <div className="text-left">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-bold text-slate-900 text-lg">{pkg.units} SMS</span>
-                                                {pkg.highlight && <span className="bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{pkg.tag}</span>}
-                                                {!pkg.highlight && <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{pkg.tag}</span>}
-                                            </div>
-                                            <p className="text-xs text-slate-500">Instant delivery</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="block font-bold text-xl text-slate-800">GH¢ {pkg.price}</span>
-                                        </div>
+                                        {loading ? 'Processing...' : config.plan === plan.name ? 'Active Plan' : 'Switch to ' + plan.name}
                                     </button>
-                                ))}
-                            </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-6 p-4 bg-slate-50 rounded-xl text-center">
+                            <p className="text-sm text-slate-500">Need a custom enterprise plan? <button className="text-primary-600 font-bold hover:underline">Contact Sales</button></p>
                         </div>
                     </div>
                 </div>

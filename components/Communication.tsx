@@ -40,7 +40,7 @@ interface MessageLog {
 }
 
 const Communication = ({ currentUser }: { currentUser: any }) => {
-    const [activeTab, setActiveTab] = useState('compose');
+    const [activeTab, setActiveTab] = useState('notices');
     const [smsBalance, setSmsBalance] = useState(0);
     const isTeacher = currentUser.role === 'teacher';
 
@@ -55,46 +55,27 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
     };
 
     return (
-        <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-full overflow-hidden">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Communication Hub</h1>
-                    <p className="text-slate-500 text-sm">Manage notices, SMS blasts, and announcements.</p>
+                    <p className="text-slate-500 text-sm">Manage notices and announcements.</p>
                 </div>
-                {!isTeacher && (
-                    <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                            <MessageSquare className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">SMS Balance</p>
-                            <p className="text-xl font-bold text-slate-800">{smsBalance.toLocaleString()} <span className="text-xs font-normal text-slate-400">units</span></p>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Tabs */}
-            <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl w-full md:w-fit">
-                {!isTeacher && (
-                    <button
-                        onClick={() => setActiveTab('compose')}
-                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'compose' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Send className="h-4 w-4" /> Compose SMS
-                    </button>
-                )}
+            <div className="flex space-x-2 bg-slate-100 p-1 rounded-xl w-full md:w-fit overflow-x-auto no-scrollbar">
                 <button
                     onClick={() => setActiveTab('notices')}
-                    className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'notices' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex-1 md:flex-none px-4 md:px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'notices' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <StickyNote className="h-4 w-4" /> Digital Notice Board
+                    <StickyNote className="h-4 w-4" /> <span className="hidden sm:inline">Digital Notice Board</span><span className="sm:hidden">Notices</span>
                 </button>
                 {!isTeacher && (
                     <button
                         onClick={() => setActiveTab('history')}
-                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-4 md:px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <History className="h-4 w-4" /> History
                     </button>
@@ -103,7 +84,6 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
 
             {/* Content Area */}
             <div className="min-h-[400px]">
-                {activeTab === 'compose' && !isTeacher && <ComposeSMS balance={smsBalance} onUpdateBalance={updateBalance} currentUser={currentUser} />}
                 {activeTab === 'notices' && <NoticeBoard isTeacher={isTeacher} currentUser={currentUser} />}
                 {activeTab === 'history' && !isTeacher && <HistoryTable currentUser={currentUser} />}
             </div>
@@ -264,15 +244,15 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Users className="h-5 w-5 text-slate-500" /> Select Target Audience
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     {['Debtors', 'All Parents', 'Results', 'Teachers'].map((r) => (
                         <button
                             key={r}
                             onClick={() => setRecipient(r)}
-                            className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === r ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
+                            className={`p-3 md:p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === r ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
                         >
-                            <span className="block font-bold text-slate-700">{r === 'Results' ? 'Exam Results' : r}</span>
-                            <span className="text-xs text-slate-500">{r === 'Debtors' ? 'Fees > 0' : r === 'Teachers' ? 'Staff Only' : r === 'Results' ? 'Links & Scores' : 'General Info'}</span>
+                            <span className="block font-bold text-slate-700 text-sm md:text-base">{r === 'Results' ? 'Exam Results' : r}</span>
+                            <span className="text-[10px] md:text-xs text-slate-500">{r === 'Debtors' ? 'Fees > 0' : r === 'Teachers' ? 'Staff Only' : r === 'Results' ? 'Links & Scores' : 'General Info'}</span>
                         </button>
                     ))}
                 </div>
@@ -461,10 +441,10 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><StickyNote className="h-5 w-5 text-slate-500" /> School Notices</h2>
                 {!isTeacher && (
-                    <button onClick={() => setIsModalOpen(true)} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all hover:shadow-md">
+                    <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-md">
                         <Plus className="h-4 w-4" /> Post Notice
                     </button>
                 )}
@@ -499,34 +479,61 @@ const HistoryTable = ({ currentUser }: { currentUser: any }) => {
     }, [currentUser?.school_id]);
 
     return (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
-            <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Type</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Recipient</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Content Preview</th>
-                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {history.length > 0 ? history.map(log => (
-                        <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4 text-sm text-slate-600">{log.date}</td>
-                            <td className="px-6 py-4 text-sm font-medium text-slate-800">{log.type}</td>
-                            <td className="px-6 py-4 text-sm text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{log.recipient}</span></td>
-                            <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">{log.content}</td>
-                            <td className="px-6 py-4 text-right">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${log.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {log.status === 'Delivered' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                                    {log.status}
-                                </span>
-                            </td>
+        <div className="space-y-4">
+            {/* Mobile History Cards */}
+            <div className="md:hidden space-y-4">
+                {history.length > 0 ? history.map(log => (
+                    <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <span className="text-xs font-bold text-slate-400 block mb-1">{log.date}</span>
+                                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    {log.type}
+                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-500 border border-slate-200 font-normal">{log.recipient}</span>
+                                </h4>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${log.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {log.status === 'Delivered' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                                {log.status}
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-2 bg-slate-50 p-2.5 rounded-lg italic border border-slate-100">"{log.content}"</p>
+                    </div>
+                )) : (
+                    <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">No message history found.</div>
+                )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Recipient</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Content Preview</th>
+                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
                         </tr>
-                    )) : <tr><td colSpan={5} className="p-8 text-center text-slate-400">No message history found.</td></tr>}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {history.length > 0 ? history.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4 text-sm text-slate-600">{log.date}</td>
+                                <td className="px-6 py-4 text-sm font-medium text-slate-800">{log.type}</td>
+                                <td className="px-6 py-4 text-sm text-slate-600"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{log.recipient}</span></td>
+                                <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">{log.content}</td>
+                                <td className="px-6 py-4 text-right">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${log.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                        {log.status === 'Delivered' ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                                        {log.status}
+                                    </span>
+                                </td>
+                            </tr>
+                        )) : <tr><td colSpan={5} className="p-8 text-center text-slate-400">No message history found.</td></tr>}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

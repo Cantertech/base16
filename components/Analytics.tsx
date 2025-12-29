@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+    AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { TrendingUp, Users, AlertCircle, BookOpen, Gift, CheckCircle, Clock } from 'lucide-react';
@@ -77,24 +77,21 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                     const totalDebt = debtData?.reduce((sum, s) => sum + (s.balance || 0), 0) || 0;
                     const currentMonth = new Date().toLocaleString('default', { month: 'short' });
 
-                    const chartData = Object.keys(monthlyData).map(m => ({
-                        month: m,
-                        expected: m === currentMonth ? (monthlyData[m] + totalDebt) : monthlyData[m],
-                        collected: monthlyData[m]
-                    }));
-
-                    // Ensure current month exists in chart even if no transactions
-                    if (!monthlyData[currentMonth]) {
-                        chartData.push({
-                            month: currentMonth,
-                            expected: totalDebt,
-                            collected: 0
-                        });
-                    }
-
-                    // Sort by month (simple sort for now, assuming standard months)
+                    // Construct chart for all months to ensure lines are drawn (not just dots)
                     const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    chartData.sort((a, b) => monthsOrder.indexOf(a.month) - monthsOrder.indexOf(b.month));
+
+                    const chartData = monthsOrder.map(m => {
+                        const collected = monthlyData[m] || 0;
+                        // For current month, Expected = Collected + Outstanding Debt
+                        // For other months, Expected = Collected (assuming no historical debt tracking per month)
+                        const expected = m === currentMonth ? (collected + totalDebt) : collected;
+
+                        return {
+                            month: m,
+                            expected,
+                            collected
+                        };
+                    });
 
                     setFinancialData(chartData);
                 }
@@ -236,34 +233,27 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
     };
 
     return (
-        <div className="p-8 space-y-8 h-full bg-slate-50 overflow-y-auto">
-
+        <div className="p-4 md:p-8 space-y-6 md:space-y-8 h-full bg-slate-50 overflow-y-auto">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-slate-800">Analytics & Reports</h1>
-                <p className="text-slate-500 text-sm">Real-time insights into your school's performance.</p>
+                <h1 className="text-xl md:text-2xl font-bold text-slate-800">Analytics & Reports</h1>
+                <p className="text-slate-500 text-xs md:text-sm">Real-time insights into your school's performance.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
 
                 {/* 1. MAIN CHART: Money Trend (Line Chart) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 md:mb-6">
                         <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                            <TrendingUp className="h-5 w-5" />
+                            <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Monthly Fee Collection (2025)</h3>
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg">Monthly Fee Collection (2025)</h3>
                     </div>
 
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={financialData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
+                            <LineChart data={financialData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis
                                     dataKey="month"
@@ -280,36 +270,37 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                                 />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Legend verticalAlign="top" height={36} iconType="circle" />
-                                <Area
+                                <Line
                                     type="monotone"
                                     dataKey="expected"
                                     name="Expected Revenue"
                                     stroke="#94a3b8"
                                     strokeDasharray="5 5"
-                                    fill="none"
                                     strokeWidth={2}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 6 }}
                                 />
-                                <Area
+                                <Line
                                     type="monotone"
                                     dataKey="collected"
                                     name="Actual Collected"
                                     stroke="#2563eb"
-                                    fillOpacity={1}
-                                    fill="url(#colorCollected)"
                                     strokeWidth={3}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 6 }}
                                 />
-                            </AreaChart>
+                            </LineChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
                 {/* 2. ATTENDANCE OVERVIEW (NEW) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 md:mb-6">
                         <div className="bg-green-50 p-2 rounded-lg text-green-600">
-                            <Clock className="h-5 w-5" />
+                            <Clock className="h-4 w-4 md:h-5 md:w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Today's Attendance</h3>
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg">Today's Attendance</h3>
                     </div>
 
                     <div className="h-64 w-full relative">
@@ -345,12 +336,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* 3. Debtor Analysis (Donut Chart) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 md:mb-6">
                         <div className="bg-red-50 p-2 rounded-lg text-red-600">
-                            <AlertCircle className="h-5 w-5" />
+                            <AlertCircle className="h-4 w-4 md:h-5 md:w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Fee Payment Status</h3>
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg">Fee Payment Status</h3>
                     </div>
 
                     <div className="h-64 w-full relative">
@@ -385,12 +376,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* 4. Class Population (Bar Chart) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 md:mb-6">
                         <div className="bg-purple-50 p-2 rounded-lg text-purple-600">
-                            <Users className="h-5 w-5" />
+                            <Users className="h-4 w-4 md:h-5 md:w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Students per Class</h3>
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg">Students per Class</h3>
                     </div>
 
                     <div className="h-64 w-full">
@@ -420,12 +411,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* 5. Academic Performance (Bar Chart - Vertical) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+                <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 md:mb-6">
                         <div className="bg-orange-50 p-2 rounded-lg text-orange-600">
-                            <BookOpen className="h-5 w-5" />
+                            <BookOpen className="h-4 w-4 md:h-5 md:w-5" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Avg Performance</h3>
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg">Avg Performance</h3>
                     </div>
 
                     <div className="h-72 w-full">
@@ -463,7 +454,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* 6. REFERRAL PAYOUTS */}
-                <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="lg:col-span-3 bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-2 mb-6">
                         <div className="bg-purple-50 p-2 rounded-lg text-purple-600">
                             <Gift className="h-5 w-5" />

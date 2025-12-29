@@ -37,7 +37,11 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
     const [classes, setClasses] = useState<any[]>([]);
     const [subjects, setSubjects] = useState<any[]>([]);
     const [teachersList, setTeachersList] = useState<any[]>([]);
+
     const [loading, setLoading] = useState(false);
+
+    // Mobile View State
+    const [activeDay, setActiveDay] = useState(DAYS.includes(new Date().toLocaleDateString('en-US', { weekday: 'long' })) ? new Date().toLocaleDateString('en-US', { weekday: 'long' }) : 'Monday');
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -230,7 +234,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
     };
 
     return (
-        <div className="p-4 md:p-6 max-w-7xl mx-auto min-h-screen">
+        <div className="p-4 md:p-6 max-w-7xl mx-auto min-h-screen pb-20 md:pb-0">
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
@@ -241,19 +245,19 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                     <p className="text-slate-500">Manage and view weekly schedules</p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 items-center">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full md:w-auto">
                     {currentUser.role === 'teacher' && (
-                        <div className="bg-slate-100 p-1 rounded-lg flex items-center">
+                        <div className="bg-slate-100 p-1 rounded-lg flex items-center w-full sm:w-auto">
                             <button
                                 onClick={() => setViewMode('teacher')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'teacher' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'
+                                className={`flex-1 sm:flex-none px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'teacher' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 My Schedule
                             </button>
                             <button
                                 onClick={() => setViewMode('class')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'class' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'
+                                className={`flex-1 sm:flex-none px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'class' ? 'bg-white shadow text-primary-700' : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Class View
@@ -262,12 +266,12 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                     )}
 
                     {(currentUser.role === 'admin' || viewMode === 'class') && (
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                             <School className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <select
                                 value={selectedClassId}
                                 onChange={(e) => setSelectedClassId(e.target.value)}
-                                className="pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none shadow-sm min-w-[150px]"
+                                className="w-full sm:w-auto pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none shadow-sm min-w-[150px]"
                             >
                                 <option value="">Select Class</option>
                                 {classes.map(c => (
@@ -279,15 +283,32 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
                     {currentUser.role === 'admin' && viewMode === 'class' && (
                         <button
-                            onClick={() => openAddModal()}
+                            onClick={() => openAddModal(activeDay)} // Default to active day on mobile
                             disabled={!selectedClassId}
-                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Plus className="h-4 w-4" />
-                            Add Entry
+                            <span className="md:hidden">Add Entry</span>
+                            <span className="hidden md:inline">Add</span>
                         </button>
                     )}
                 </div>
+            </div>
+
+            {/* Mobile Day Tabs */}
+            <div className="md:hidden flex overflow-x-auto gap-2 mb-6 pb-2 no-scrollbar">
+                {DAYS.map(day => (
+                    <button
+                        key={day}
+                        onClick={() => setActiveDay(day)}
+                        className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeDay === day
+                            ? 'bg-primary-600 text-white shadow-md'
+                            : 'bg-white text-slate-500 border border-slate-200'
+                            }`}
+                    >
+                        {day.slice(0, 3)}
+                    </button>
+                ))}
             </div>
 
             {/* Timetable Grid */}
@@ -302,90 +323,169 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                     <p className="text-slate-400">Please select a class to view its timetable</p>
                 </div>
             ) : (
-                <div className="overflow-x-auto pb-4">
-                    <div className="min-w-[1000px] grid grid-cols-5 gap-4">
-                        {DAYS.map(day => (
-                            <div key={day} className="flex flex-col gap-3">
-                                {/* Day Header */}
-                                <div className="bg-white p-3 rounded-lg border-t-4 border-primary-500 shadow-sm text-center sticky top-0 z-10">
-                                    <h3 className="font-bold text-slate-800">{day}</h3>
-                                    <p className="text-xs text-slate-400">{getEntriesForDay(day).length} slots</p>
+                <>
+                    {/* Mobile View (Single Day) */}
+                    <div className="md:hidden space-y-4">
+                        <div className="flex flex-col gap-3">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+                                <h3 className="font-bold text-lg text-slate-800">{activeDay}</h3>
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-1 rounded-md">
+                                    {getEntriesForDay(activeDay).length} Slots
                                 </div>
+                            </div>
 
-                                {/* Slots */}
-                                <div className="space-y-3 min-h-[500px] bg-slate-100/50 p-2 rounded-lg">
-                                    {getEntriesForDay(day).map(entry => (
-                                        <div
-                                            key={entry.id}
-                                            className={`p-3 rounded-lg border shadow-sm relative group transition-all hover:shadow-md ${entry.type === 'Break' ? 'bg-orange-50 border-orange-200' :
-                                                entry.type === 'Assembly' ? 'bg-purple-50 border-purple-200' :
-                                                    'bg-white border-slate-200'
-                                                }`}
-                                        >
-                                            {/* Time Badge */}
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+                            <div className="space-y-3">
+                                {getEntriesForDay(activeDay).map(entry => (
+                                    <div
+                                        key={entry.id}
+                                        className={`p-4 rounded-xl border shadow-sm relative group transition-all ${entry.type === 'Break' ? 'bg-orange-50/50 border-orange-100' :
+                                            entry.type === 'Assembly' ? 'bg-purple-50/50 border-purple-100' :
+                                                'bg-white border-slate-200'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex gap-2 items-center">
+                                                <div className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-xs font-bold font-mono border border-slate-200">
                                                     {entry.start_time.slice(0, 5)} - {entry.end_time.slice(0, 5)}
-                                                </span>
-
-                                                {currentUser.role === 'admin' && (
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => openEditModal(entry)} className="p-1 hover:bg-slate-200 rounded text-slate-500">
-                                                            <Edit2 className="h-3 w-3" />
-                                                        </button>
-                                                        <button onClick={() => handleDelete(entry.id)} className="p-1 hover:bg-red-100 rounded text-red-500">
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
+                                                </div>
+                                                {entry.room_number && (
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">
+                                                        RM {entry.room_number}
+                                                    </span>
                                                 )}
                                             </div>
 
-                                            {/* Content */}
-                                            {entry.type === 'Lesson' ? (
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 text-sm mb-1">{entry.subjects?.name || 'Unknown Subject'}</h4>
-                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                                        <User className="h-3 w-3" />
-                                                        <span>{entry.teachers?.name ? entry.teachers.name.split(' ')[0] : 'No Teacher'}</span>
-                                                    </div>
-                                                    {viewMode === 'teacher' && entry.classes && (
-                                                        <div className="flex items-center gap-1.5 text-xs text-primary-600 font-medium mt-1">
-                                                            <School className="h-3 w-3" />
-                                                            <span>{entry.classes.name}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="text-center py-2">
-                                                    <span className={`text-sm font-bold ${entry.type === 'Break' ? 'text-orange-600' : 'text-purple-600'
-                                                        }`}>
-                                                        {entry.type}
-                                                    </span>
+                                            {currentUser.role === 'admin' && (
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => openEditModal(entry)} className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-500 shadow-sm">
+                                                        <Edit2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(entry.id)} className="p-1.5 bg-red-50 border border-red-100 rounded-lg text-red-500 shadow-sm">
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
 
-                                    {/* Empty State / Add Button */}
-                                    {getEntriesForDay(day).length === 0 && (
-                                        <div className="text-center py-8 opacity-50">
-                                            <p className="text-xs text-slate-400 italic">No entries</p>
-                                        </div>
-                                    )}
-
-                                    {currentUser.role === 'admin' && viewMode === 'class' && (
-                                        <button
-                                            onClick={() => openAddModal(day)}
-                                            className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-slate-400 hover:border-primary-400 hover:text-primary-600 hover:bg-white transition-colors text-xs font-medium flex items-center justify-center gap-1"
-                                        >
-                                            <Plus className="h-3 w-3" /> Add Slot
-                                        </button>
-                                    )}
-                                </div>
+                                        {entry.type === 'Lesson' ? (
+                                            <div>
+                                                <h4 className="font-bold text-slate-900 text-lg mb-1">{entry.subjects?.name || 'Unknown Subject'}</h4>
+                                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                    <User className="h-3.5 w-3.5" />
+                                                    <span>{entry.teachers?.name || 'No Teacher'}</span>
+                                                </div>
+                                                {viewMode === 'teacher' && entry.classes && (
+                                                    <div className="flex items-center gap-2 text-sm text-primary-600 font-medium mt-1">
+                                                        <School className="h-3.5 w-3.5" />
+                                                        <span>{entry.classes.name}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-base font-bold ${entry.type === 'Break' ? 'text-orange-600' : 'text-purple-600'
+                                                    }`}>
+                                                    {entry.type}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {getEntriesForDay(activeDay).length === 0 && (
+                                    <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-200">
+                                        <p className="text-slate-400 italic">No classes scheduled for {activeDay}</p>
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                        </div>
                     </div>
-                </div>
+
+                    {/* Desktop View (Full Grid) */}
+                    <div className="hidden md:block overflow-x-auto pb-4">
+                        <div className="min-w-[1000px] grid grid-cols-5 gap-4">
+                            {DAYS.map(day => (
+                                <div key={day} className="flex flex-col gap-3">
+                                    {/* Day Header */}
+                                    <div className="bg-white p-3 rounded-lg border-t-4 border-primary-500 shadow-sm text-center sticky top-0 z-10">
+                                        <h3 className="font-bold text-slate-800">{day}</h3>
+                                        <p className="text-xs text-slate-400">{getEntriesForDay(day).length} slots</p>
+                                    </div>
+
+                                    {/* Slots */}
+                                    <div className="space-y-3 min-h-[500px] bg-slate-100/50 p-2 rounded-lg">
+                                        {getEntriesForDay(day).map(entry => (
+                                            <div
+                                                key={entry.id}
+                                                className={`p-3 rounded-lg border shadow-sm relative group transition-all hover:shadow-md ${entry.type === 'Break' ? 'bg-orange-50 border-orange-200' :
+                                                    entry.type === 'Assembly' ? 'bg-purple-50 border-purple-200' :
+                                                        'bg-white border-slate-200'
+                                                    }`}
+                                            >
+                                                {/* Time Badge */}
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+                                                        {entry.start_time.slice(0, 5)} - {entry.end_time.slice(0, 5)}
+                                                    </span>
+
+                                                    {currentUser.role === 'admin' && (
+                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => openEditModal(entry)} className="p-1 hover:bg-slate-200 rounded text-slate-500">
+                                                                <Edit2 className="h-3 w-3" />
+                                                            </button>
+                                                            <button onClick={() => handleDelete(entry.id)} className="p-1 hover:bg-red-100 rounded text-red-500">
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Content */}
+                                                {entry.type === 'Lesson' ? (
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-800 text-sm mb-1">{entry.subjects?.name || 'Unknown Subject'}</h4>
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                                            <User className="h-3 w-3" />
+                                                            <span>{entry.teachers?.name ? entry.teachers.name.split(' ')[0] : 'No Teacher'}</span>
+                                                        </div>
+                                                        {viewMode === 'teacher' && entry.classes && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-primary-600 font-medium mt-1">
+                                                                <School className="h-3 w-3" />
+                                                                <span>{entry.classes.name}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-2">
+                                                        <span className={`text-sm font-bold ${entry.type === 'Break' ? 'text-orange-600' : 'text-purple-600'
+                                                            }`}>
+                                                            {entry.type}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                        {/* Empty State / Add Button */}
+                                        {getEntriesForDay(day).length === 0 && (
+                                            <div className="text-center py-8 opacity-50">
+                                                <p className="text-xs text-slate-400 italic">No entries</p>
+                                            </div>
+                                        )}
+
+                                        {currentUser.role === 'admin' && viewMode === 'class' && (
+                                            <button
+                                                onClick={() => openAddModal(day)}
+                                                className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-slate-400 hover:border-primary-400 hover:text-primary-600 hover:bg-white transition-colors text-xs font-medium flex items-center justify-center gap-1"
+                                            >
+                                                <Plus className="h-3 w-3" /> Add Slot
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </>
             )}
 
             {/* Modal */}

@@ -23,7 +23,8 @@ import {
     CheckCircle,
     Megaphone,
     Calendar,
-    X
+    X,
+    Heart
 } from 'lucide-react';
 import {
     AreaChart,
@@ -45,6 +46,7 @@ import HelpCenter from './HelpCenter';
 import Settings from './Settings';
 import Attendance from './Attendance';
 import Timetable from './Timetable';
+import Health from './Health';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { getCachedData, setCachedData } from '../utils/cache';
@@ -333,6 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Classes', icon: Layers },
         { name: 'Analytics', icon: BarChart2 },
         { name: 'Notice', icon: Bell },
+        { name: 'Health', icon: Heart },
         { name: 'Help center', icon: HelpCircle },
         { name: 'Settings', icon: SettingsIcon },
     ];
@@ -344,6 +347,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Attendance', icon: Calendar },
         { name: 'Mark Entry & Reports', icon: FileText },
         { name: 'Notice Board', icon: Bell },
+        { name: 'Health', icon: Heart },
         { name: 'Settings & Profile', icon: SettingsIcon },
     ];
 
@@ -375,6 +379,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Attendance': return <Attendance currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
+                case 'Health': return <Health currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
             }
@@ -389,63 +394,87 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
+            case 'Health': return <Health currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
             case 'Settings': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
             default: return (
-                <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Dashboard Overview</h1>
-                        <p className="text-slate-500 text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
+                        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Dashboard Overview</h1>
+                        <p className="text-slate-500 text-xs md:text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Stats Cards - Grid optimized for mobile (2cols) vs desktop (4cols) */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                         {[
                             { label: 'Total Students', value: stats.students, icon: GraduationCap },
                             { label: 'Teachers', value: stats.teachers, icon: Users },
                             { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote },
                             { label: 'Classes', value: stats.classes, icon: Layers }
                         ].map((item, idx) => (
-                            <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div key={idx} className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow">
                                 <div
-                                    className={`p-4 rounded-xl ${theme.bgLight} ${theme.text}`}
+                                    className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text}`}
                                     style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
                                 >
-                                    <item.icon className="h-6 w-6" />
+                                    <item.icon className="h-5 w-5 md:h-6 md:w-6" />
                                 </div>
-                                <div><p className="text-slate-500 text-sm font-medium">{item.label}</p><h3 className="text-2xl font-bold text-slate-800">{item.value}</h3></div>
+                                <div>
+                                    <p className="text-slate-500 text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</p>
+                                    <h3 className="text-lg md:text-2xl font-bold text-slate-800 truncate">{item.value}</h3>
+                                </div>
                             </div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800">Revenue Trend</h3></div>
-                            <div className="h-72">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                        {/* Revenue Chart */}
+                        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-center mb-4 md:mb-6">
+                                <h3 className="font-bold text-sm md:text-base text-slate-800">Revenue Trend</h3>
+                            </div>
+                            <div className="h-48 md:h-72">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={financialHistory}>
                                         <defs><linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0.1} /><stop offset="95%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0} /></linearGradient></defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(value) => value >= 1000 ? `${currency.symbol}${(value / 1000).toFixed(1)}k` : `${currency.symbol}${value}`} />
+                                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} tickFormatter={(value) => value >= 1000 ? `${currency.symbol}${(value / 1000).toFixed(0)}k` : `${currency.symbol}${value}`} width={35} />
                                         <Tooltip content={<CustomTooltip />} />
                                         <Area type="monotone" dataKey="collected" stroke={theme.custom ? theme.custom.bg : "#2563eb"} strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <h3 className="font-bold text-slate-800 mb-6">Student Composition</h3>
-                            <div className="flex justify-center mb-8 relative">
-                                <div className="relative h-48 w-48">
+                        {/* Student Composition */}
+                        <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
+                            <h3 className="font-bold text-sm md:text-base text-slate-800 mb-4 md:mb-6">Student Composition</h3>
+                            <div className="flex justify-center mb-6 md:mb-8 relative">
+                                <div className="relative h-32 w-32 md:h-48 md:w-48">
                                     <svg viewBox="0 0 36 36" className="h-full w-full transform -rotate-90">
                                         <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" />
                                         <path className="text-blue-500" strokeDasharray={`${stats.students > 0 ? (stats.boys / stats.students) * 100 : 0}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" />
                                         <path className="text-pink-500" strokeDasharray={`${stats.students > 0 ? (stats.girls / stats.students) * 100 : 0}, 100`} strokeDashoffset={`-${stats.students > 0 ? (stats.boys / stats.students) * 100 : 0}`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" />
                                     </svg>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-3xl font-bold text-slate-800">{stats.students}</span><span className="text-xs text-slate-500 uppercase tracking-wider">Total</span></div>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-xl md:text-3xl font-bold text-slate-800">{stats.students}</span>
+                                        <span className="text-[10px] md:text-xs text-slate-500 uppercase tracking-wider">Total</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl"><div className="flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-blue-500"></div><span className="text-sm font-medium text-slate-700">Boys</span></div><span className="font-bold text-slate-800">{stats.boys}</span></div>
-                                <div className="flex justify-between items-center p-3 bg-pink-50 rounded-xl"><div className="flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-pink-500"></div><span className="text-sm font-medium text-slate-700">Girls</span></div><span className="font-bold text-slate-800">{stats.girls}</span></div>
+                            <div className="space-y-3 md:space-y-4">
+                                <div className="flex justify-between items-center p-2.5 md:p-3 bg-blue-50 rounded-lg md:rounded-xl">
+                                    <div className="flex items-center gap-2 md:gap-3">
+                                        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-blue-500"></div>
+                                        <span className="text-xs md:text-sm font-medium text-slate-700">Boys</span>
+                                    </div>
+                                    <span className="font-bold text-sm md:text-base text-slate-800">{stats.boys}</span>
+                                </div>
+                                <div className="flex justify-between items-center p-2.5 md:p-3 bg-pink-50 rounded-lg md:rounded-xl">
+                                    <div className="flex items-center gap-2 md:gap-3">
+                                        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-pink-500"></div>
+                                        <span className="text-xs md:text-sm font-medium text-slate-700">Girls</span>
+                                    </div>
+                                    <span className="font-bold text-sm md:text-base text-slate-800">{stats.girls}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -516,6 +545,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     <div className="pt-4 mt-4 border-t border-slate-100"><button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"><LogOut className="h-5 w-5" /> Logout</button></div>
                 </nav>
             </aside>
+
+            {/* Mobile Bottom Navigation */}
+            <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-200 z-40 flex overflow-x-auto hide-scrollbar items-center px-2 ${isImpersonating ? 'mb-14' : ''}`}>
+                <div className="flex w-full items-center gap-1 min-w-max px-2">
+                    {currentMenuItems.map((item) => (
+                        <button
+                            key={item.name}
+                            onClick={() => setActiveMenu(item.name)}
+                            className={`flex flex-col items-center justify-center gap-1 min-w-[70px] p-2 rounded-xl transition-all ${activeMenu === item.name ? `${theme.text} bg-blue-50` : 'text-slate-400'}`}
+                            style={activeMenu === item.name && theme.custom ? { color: theme.custom.text, backgroundColor: theme.custom.bgLight } : {}}
+                        >
+                            <item.icon className={`h-6 w-6 ${activeMenu === item.name ? 'scale-110' : ''} transition-transform`} />
+                            <span className="text-[10px] font-bold whitespace-nowrap">{item.name}</span>
+                        </button>
+                    ))}
+                    <button
+                        onClick={onLogout}
+                        className="flex flex-col items-center justify-center gap-1 min-w-[70px] p-2 rounded-xl text-red-400 hover:bg-red-50 transition-colors"
+                    >
+                        <LogOut className="h-6 w-6" />
+                        <span className="text-[10px] font-bold whitespace-nowrap">Logout</span>
+                    </button>
+                </div>
+            </nav>
             <main className={`flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative ${subscriptionStatus === 'warning' ? 'mt-9' : ''}`}>
                 <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 md:hidden">
@@ -557,7 +610,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                         </div>
                     </div>
                 </header>
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar pb-24 md:pb-8">
                     {loading && !stats.students ? (
                         <Loading type="skeleton" fullScreen={false} />
                     ) : (

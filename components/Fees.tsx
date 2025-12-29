@@ -358,26 +358,26 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     );
 
     return (
-        <div className="p-8 space-y-8 relative h-full">
+        <div className="p-4 md:p-8 space-y-4 md:space-y-8 relative h-full pb-20 md:pb-0 overflow-y-auto">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Fee Management</h1>
-                    <p className="text-slate-500 text-sm">Track collections, monitor debtors, and process payments.</p>
+                    <h1 className="text-xl md:text-2xl font-bold text-slate-800">Fee Management</h1>
+                    <p className="text-slate-500 text-xs md:text-sm">Track collections, monitor debtors, and process payments.</p>
                 </div>
 
                 {/* Tab Switcher */}
-                <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                <div className="flex w-full md:w-auto bg-white p-1 rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'overview' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'overview' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         Overview & Payments
                     </button>
                     <button
                         onClick={() => setActiveTab('structure')}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'structure' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'structure' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         Fee Structure
                     </button>
@@ -385,60 +385,117 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
             </div>
 
             {activeTab === 'overview' ? (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* Stats Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
-                                    <Wallet className="h-6 w-6" />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-start mb-2 md:mb-4">
+                                <div className="p-2 md:p-3 bg-blue-50 rounded-xl text-blue-600">
+                                    <Wallet className="h-4 w-4 md:h-6 md:w-6" />
                                 </div>
-                                <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">Total Bills</span>
+                                <span className="bg-blue-50 text-blue-700 text-[10px] md:text-xs font-bold px-2 py-1 rounded-full">Total Bills</span>
                             </div>
-                            <p className="text-slate-500 text-sm font-medium">Total Expected</p>
-                            <h3 className="text-2xl font-bold text-slate-800">{formatAmount(totalExpected)}</h3>
+                            <p className="text-slate-500 text-xs md:text-sm font-medium">Total Expected</p>
+                            <h3 className="text-lg md:text-2xl font-bold text-slate-800">{formatAmount(totalExpected)}</h3>
                         </div>
 
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-green-50 rounded-xl text-green-600">
-                                    <Banknote className="h-6 w-6" />
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-start mb-2 md:mb-4">
+                                <div className="p-2 md:p-3 bg-green-50 rounded-xl text-green-600">
+                                    <Banknote className="h-4 w-4 md:h-6 md:w-6" />
                                 </div>
-                                <span className="bg-green-50 text-green-700 text-xs font-bold px-2 py-1 rounded-full">Collected</span>
+                                <span className="bg-green-50 text-green-700 text-[10px] md:text-xs font-bold px-2 py-1 rounded-full">Collected</span>
                             </div>
-                            <p className="text-slate-500 text-sm font-medium">Total Received</p>
-                            <h3 className="text-2xl font-bold text-green-600">{formatAmount(totalCollected)}</h3>
+                            <p className="text-slate-500 text-xs md:text-sm font-medium">Total Received</p>
+                            <h3 className="text-lg md:text-2xl font-bold text-green-600">{formatAmount(totalCollected)}</h3>
                         </div>
 
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-red-50 rounded-xl text-red-600">
-                                    <AlertCircle className="h-6 w-6" />
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 col-span-2 md:col-span-1">
+                            <div className="flex justify-between items-start mb-2 md:mb-4">
+                                <div className="p-2 md:p-3 bg-red-50 rounded-xl text-red-600">
+                                    <AlertCircle className="h-4 w-4 md:h-6 md:w-6" />
                                 </div>
-                                <span className="bg-red-50 text-red-700 text-xs font-bold px-2 py-1 rounded-full">Arrears</span>
+                                <span className="bg-red-50 text-red-700 text-[10px] md:text-xs font-bold px-2 py-1 rounded-full">Arrears</span>
                             </div>
-                            <p className="text-slate-500 text-sm font-medium">Outstanding Debt</p>
-                            <h3 className="text-2xl font-bold text-red-600">{formatAmount(totalOutstanding)}</h3>
+                            <p className="text-slate-500 text-xs md:text-sm font-medium">Outstanding Debt</p>
+                            <h3 className="text-lg md:text-2xl font-bold text-red-600">{formatAmount(totalOutstanding)}</h3>
                         </div>
                     </div>
 
                     {/* Fee Table */}
-                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1">
+                        <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <h3 className="font-bold text-lg text-slate-800">Student Fee List</h3>
-                            <div className="relative">
+                            <div className="relative w-full sm:w-auto">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <input
                                     type="text"
                                     placeholder="Search student or class..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-64 text-sm"
+                                    className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-full sm:w-64 text-sm"
                                 />
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* Mobile Cards View */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {filteredStudents.length > 0 ? (
+                                filteredStudents.map(student => {
+                                    const studentPaid = transactions
+                                        .filter(t => t.studentId === student.id)
+                                        .reduce((sum, t) => sum + t.amount, 0);
+                                    const totalBilled = student.balance + studentPaid;
+
+                                    return (
+                                        <div key={student.id} className="p-4 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-bold text-slate-900">{student.name}</p>
+                                                    <p className="text-xs text-slate-500">Class: {student.class}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    {student.balance > 0 ? (
+                                                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold border border-red-100">
+                                                            <AlertCircle className="h-3 w-3" /> Due: {formatAmount(student.balance)}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold border border-green-100">
+                                                            <CheckCircle className="h-3 w-3" /> Paid
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-2 rounded-lg">
+                                                <div>
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold">Total Bill</p>
+                                                    <p className="font-medium text-slate-800">{formatAmount(totalBilled)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] uppercase text-slate-500 font-bold">Paid So Far</p>
+                                                    <p className="font-medium text-green-600">{formatAmount(studentPaid)}</p>
+                                                </div>
+                                            </div>
+
+                                            {student.balance > 0 && (
+                                                <button
+                                                    onClick={() => openPaymentModal(student)}
+                                                    className="w-full bg-primary-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                                >
+                                                    <CreditCard className="h-4 w-4" /> Record Payment
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="p-8 text-center text-slate-500 text-sm">No students found.</div>
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="overflow-x-auto hidden md:block">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
@@ -518,7 +575,39 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                             </button>
                         </div>
                     </div>
-                    <div className="p-0">
+                    {/* Mobile List View for Fees */}
+                    <div className="md:hidden divide-y divide-slate-100">
+                        {feeStructure.length > 0 ? (
+                            feeStructure.map((fee) => (
+                                <div key={fee.id} className="p-4 flex justify-between items-center group">
+                                    <div>
+                                        <p className="font-bold text-slate-800">{fee.name}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-medium border border-blue-100">
+                                                {fee.target_class || 'All Students'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-slate-900 text-lg">{fee.amount.toFixed(2)}</p>
+                                        <button
+                                            onClick={() => handleDeleteFeeItem(fee.id)}
+                                            className="text-red-400 text-xs mt-1 hover:text-red-600 block ml-auto"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="p-8 text-center text-slate-500 text-sm">
+                                No fee structure defined.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Desktop Table */}
+                    <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-100">
                                 <tr>

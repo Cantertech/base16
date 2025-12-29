@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
-  ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2
+  ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
+  Table as TableIcon, LayoutList
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -55,7 +56,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const itemsPerPage = 10;
   const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mobileViewMode, setMobileViewMode] = useState<'card' | 'table'>('card');
 
   // Bulk Selection & Import Progress State
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -564,78 +567,168 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   );
 
   return (
-    <div className="p-8 space-y-6 relative h-full">
+    <div className="p-4 md:p-8 space-y-4 md:space-y-6 relative h-full overflow-y-auto pb-20 md:pb-0">
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">
             {isTeacher && currentUser?.assignedClass ? `My Class: ${currentUser.assignedClass}` : 'Student Management'}
           </h1>
-          <p className="text-slate-500 text-sm">Manage admissions, view records, and track fees.</p>
+          <p className="text-slate-500 text-xs md:text-sm">Manage admissions, view records, and track fees.</p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto">
           {/* Search */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search students..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-64 text-sm"
+              className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-full sm:w-64 text-sm"
             />
           </div>
 
-          {/* Filter */}
-          {!isTeacher && (
-            <div className="relative">
-              <select
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-                className="pl-4 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none appearance-none bg-white text-sm"
-              >
-                <option value="All">All Classes</option>
-                {classes.length > 0 ? classes.map((c: any) => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                )) : (
-                  ['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))
-                )}
-              </select>
-              <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
-            </div>
-          )}
-
-          {/* Actions */}
-          {selectedStudents.size > 0 && (
+          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1">
+            {/* View Toggle (Mobile Only) */}
             <button
-              onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium text-sm transition-colors"
+              onClick={() => setMobileViewMode(prev => prev === 'card' ? 'table' : 'card')}
+              className="md:hidden flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors whitespace-nowrap"
             >
-              <Trash2 className="h-4 w-4" /> Delete ({selectedStudents.size})
+              {mobileViewMode === 'card' ? <TableIcon className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+              <span className="hidden sm:inline">{mobileViewMode === 'card' ? 'Table View' : 'Card View'}</span>
             </button>
-          )}
 
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors"
-          >
-            <FileSpreadsheet className="h-4 w-4" /> Import CSV
-          </button>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-800 font-medium text-sm shadow-sm transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Add Student
-          </button>
+            {/* Filter */}
+            {!isTeacher && (
+              <div className="relative min-w-[120px]">
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="w-full pl-4 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none appearance-none bg-white text-sm"
+                >
+                  <option value="All">All Classes</option>
+                  {classes.length > 0 ? classes.map((c: any) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  )) : (
+                    ['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))
+                  )}
+                </select>
+                <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+              </div>
+            )}
+
+            {/* Actions */}
+            {selectedStudents.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium text-sm transition-colors whitespace-nowrap"
+              >
+                <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Delete</span> ({selectedStudents.size})
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium text-sm transition-colors whitespace-nowrap"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> <span className="hidden sm:inline">Import</span>
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-800 font-medium text-sm shadow-sm transition-colors whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Main Table Card */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* Main Table Card (Desktop) & Mobile Cards */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1">
+        {/* Mobile View: Cards */}
+        <div className={`md:hidden divide-y divide-slate-100 ${mobileViewMode === 'table' ? 'hidden' : ''}`}>
+          {loading ? (
+            <div className="p-8"><Loading type="skeleton" fullScreen={false} /></div>
+          ) : paginatedStudents.length > 0 ? (
+            paginatedStudents.map((student) => (
+              <div key={student.id} className="p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm border border-slate-200">
+                      {student.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-medium text-slate-900 line-clamp-1">{student.name}</div>
+                      <div className="text-xs text-slate-500">{student.id.substring(0, 8)}...</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setSelectedStudent(student)}
+                      className="text-slate-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStudentToEdit(student);
+                        setIsEditModalOpen(true);
+                      }}
+                      className="text-slate-400 hover:text-orange-600 p-2 rounded-full hover:bg-orange-50"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 text-xs">
+                  <span className="px-2 py-1 rounded-md bg-slate-100 font-medium border border-slate-200">
+                    {student.class}
+                  </span>
+                  <span className={`px-2 py-1 rounded-full font-medium ${student.gender === 'Male' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'
+                    }`}>
+                    {student.gender}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 bg-slate-50 p-2 rounded-lg">
+                  <div>
+                    <span className="block font-bold text-slate-400 uppercase text-[10px]">Parent</span>
+                    {student.parentName}
+                  </div>
+                  <div>
+                    <span className="block font-bold text-slate-400 uppercase text-[10px]">Contact</span>
+                    <a href={`tel:${student.parentPhone}`} className="text-blue-600">{student.parentPhone}</a>
+                  </div>
+                </div>
+
+                {!isTeacher && (
+                  <div className="flex justify-between items-center pt-1">
+                    {student.balance > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600">
+                        <AlertCircle className="h-3 w-3" /> Owes {formatAmount(student.balance)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600">
+                        <CheckCircle className="h-3 w-3" /> Paid
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-slate-500 text-sm">No students found.</div>
+          )}
+        </div>
+
+        {/* Desktop View: Table (or Mobile Table View) */}
+        <div className={`overflow-x-auto ${mobileViewMode === 'card' ? 'hidden md:block' : 'block'}`}>
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
@@ -749,11 +842,11 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         </div>
 
         {/* Pagination */}
-        <div className="bg-white px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-          <span className="text-sm text-slate-500">
+        <div className="bg-white px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <span className="text-sm text-slate-500 order-2 sm:order-1">
             Showing page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 order-1 sm:order-2 w-full sm:w-auto justify-end">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}

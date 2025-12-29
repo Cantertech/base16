@@ -376,7 +376,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         }
 
         return (
-            <div className="p-8 space-y-8 h-full">
+            <div className="p-4 md:p-8 space-y-4 md:space-y-8 h-full pb-20 md:pb-0 overflow-y-auto">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800">Mark Entry</h1>
@@ -425,12 +425,78 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         )}
                     </div>
                     {/* Teacher Grid */}
-                    <div className="overflow-x-auto">
+                    {/* Teacher Grid - Mobile Card View */}
+                    <div className="md:hidden divide-y divide-slate-100">
+                        {classStudents.map(student => {
+                            const savedClass = getExistingScore(student.id, 'classScore');
+                            const savedExam = getExistingScore(student.id, 'examScore');
+                            const pending = pendingChanges[student.id];
+                            const dispClass = pending?.classScore ?? savedClass;
+                            const dispExam = pending?.examScore ?? savedExam;
+                            const total = dispClass + dispExam;
+                            const grade = getGrade(total);
+
+                            return (
+                                <div key={student.id} className="p-4 bg-white space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <p className="font-bold text-slate-900">{student.name}</p>
+                                        <div className="text-right">
+                                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${grade === 'F' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                                }`}>
+                                                {grade}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                            <div>
+                                                <label className="block text-[10px] uppercase text-slate-500 font-bold mb-1">
+                                                    Class ({examConfig.weights?.class || 30}%)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    disabled={isLocked}
+                                                    value={dispClass || ''}
+                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                    className="w-full p-2 text-center border border-slate-300 rounded-lg disabled:bg-slate-100 disabled:text-slate-500 font-bold text-slate-800"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <label className="block text-[10px] uppercase text-slate-500 font-bold mb-1">
+                                                Exam ({examConfig.weights?.exam || 70}%)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                disabled={isLocked}
+                                                value={dispExam || ''}
+                                                onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                className="w-full p-2 text-center border border-slate-300 rounded-lg disabled:bg-slate-100 disabled:text-slate-500 font-bold text-slate-800"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 flex justify-between items-center border-t border-slate-50">
+                                        <span className="text-xs text-slate-400 font-medium">Total Score</span>
+                                        <span className="text-lg font-black text-slate-900">{total}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Teacher Grid - Desktop Table */}
+                    <div className="overflow-x-auto hidden md:block">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-white border-b border-slate-200">
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                    {examConfig.grading_type !== 'COMPETENCY' && (
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                    )}
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
@@ -449,15 +515,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                     return (
                                         <tr key={student.id} className="hover:bg-slate-50">
                                             <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
-                                            <td className="px-6 py-3 text-center">
-                                                <input
-                                                    type="number"
-                                                    disabled={isLocked}
-                                                    value={dispClass || ''}
-                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                    className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
-                                                />
-                                            </td>
+                                            {examConfig.grading_type !== 'COMPETENCY' && (
+                                                <td className="px-6 py-3 text-center">
+                                                    <input
+                                                        type="number"
+                                                        disabled={isLocked}
+                                                        value={dispClass || ''}
+                                                        onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                        className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-6 py-3 text-center">
                                                 <input
                                                     type="number"
@@ -482,7 +550,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
     // --- ADMIN VIEW ---
     return (
-        <div className="p-8 space-y-8 relative h-full">
+        <div className="p-4 md:p-8 space-y-4 md:space-y-8 relative h-full pb-20 md:pb-0 overflow-y-auto">
             {/* Admin Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -491,11 +559,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* Admin Tabs */}
-                <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                    <button onClick={() => setActiveTab('manage')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex gap-2 ${activeTab === 'manage' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <div className="flex w-full md:w-auto bg-white p-1 rounded-lg border border-slate-200 shadow-sm overflow-x-auto">
+                    <button onClick={() => setActiveTab('manage')} className={`flex-1 md:flex-none px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex justify-center items-center gap-2 whitespace-nowrap ${activeTab === 'manage' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Settings className="h-4 w-4" /> Manage Exam
                     </button>
-                    <button onClick={() => setActiveTab('reports')} className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex gap-2 ${activeTab === 'reports' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('reports')} className={`flex-1 md:flex-none px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex justify-center items-center gap-2 whitespace-nowrap ${activeTab === 'reports' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                         <FileText className="h-4 w-4" /> Report Card Centre
                     </button>
                 </div>
@@ -578,15 +646,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             <div className="pt-4 border-t border-slate-100">
                                 <h4 className="text-sm font-bold text-slate-700 mb-3">Assessment Weights</h4>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs text-slate-500 mb-1">Class Score (%)</label>
-                                        <input
-                                            type="number"
-                                            value={examConfig.weights.class}
-                                            onChange={e => setExamConfig({ ...examConfig, weights: { ...examConfig.weights, class: Number(e.target.value) } })}
-                                            className="w-full p-2 border border-slate-300 rounded-lg"
-                                        />
-                                    </div>
+                                    {examConfig.grading_type !== 'COMPETENCY' && (
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">Class Score (%)</label>
+                                            <input
+                                                type="number"
+                                                value={examConfig.weights.class}
+                                                onChange={e => setExamConfig({ ...examConfig, weights: { ...examConfig.weights, class: Number(e.target.value) } })}
+                                                className="w-full p-2 border border-slate-300 rounded-lg"
+                                            />
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-xs text-slate-500 mb-1">Exam Score (%)</label>
                                         <input
@@ -663,12 +733,22 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 value={examConfig.grading_type || 'STANDARD'}
                                 onChange={(e) => {
                                     const type = e.target.value as 'STANDARD' | 'COMPETENCY';
-                                    if (confirm('Changing the grading system will overwrite current manual edits. Continue?')) {
-                                        setExamConfig({
+                                    if (confirm('Changing the grading system will update the assessment weights and save immediately. Continue?')) {
+                                        let newWeights = examConfig.weights;
+                                        // Competency Based = 100% Exam (Theory), 0% Class
+                                        if (type === 'COMPETENCY') {
+                                            newWeights = { class: 0, exam: 100 };
+                                        }
+
+                                        const newConfig = {
                                             ...examConfig,
                                             grading_type: type,
-                                            grading: gradingPresets[type]
-                                        });
+                                            grading: gradingPresets[type],
+                                            weights: newWeights
+                                        };
+
+                                        setExamConfig(newConfig);
+                                        handleSaveConfig(newConfig);
                                     }
                                 }}
                                 className="p-2 border border-slate-300 rounded-lg outline-none bg-slate-50 font-medium text-slate-700"
@@ -678,7 +758,88 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             </select>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* Mobile Grading List */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {examConfig.grading.map((g: any, idx: number) => (
+                                <div key={idx} className="p-4 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">Grade</span>
+                                            <input
+                                                type="text"
+                                                value={g.grade}
+                                                onChange={e => {
+                                                    const newGrading = [...examConfig.grading];
+                                                    newGrading[idx].grade = e.target.value;
+                                                    setExamConfig({ ...examConfig, grading: newGrading });
+                                                }}
+                                                className="w-16 p-1 border border-slate-300 rounded font-bold text-slate-800 text-center"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">Pts</span>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                value={g.points || 0}
+                                                onChange={e => {
+                                                    const newGrading = [...examConfig.grading];
+                                                    newGrading[idx].points = Number(e.target.value);
+                                                    setExamConfig({ ...examConfig, grading: newGrading });
+                                                }}
+                                                className="w-16 p-1 border border-slate-300 rounded text-center"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Min Score</label>
+                                            <input
+                                                type="number"
+                                                value={g.min}
+                                                onChange={e => {
+                                                    const newGrading = [...examConfig.grading];
+                                                    newGrading[idx].min = Number(e.target.value);
+                                                    setExamConfig({ ...examConfig, grading: newGrading });
+                                                }}
+                                                className="w-full p-1 border border-slate-300 rounded text-center"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Max Score</label>
+                                            <input
+                                                type="number"
+                                                value={g.max}
+                                                onChange={e => {
+                                                    const newGrading = [...examConfig.grading];
+                                                    newGrading[idx].max = Number(e.target.value);
+                                                    setExamConfig({ ...examConfig, grading: newGrading });
+                                                }}
+                                                className="w-full p-1 border border-slate-300 rounded text-center"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Remark</label>
+                                        <input
+                                            type="text"
+                                            value={g.remark}
+                                            onChange={e => {
+                                                const newGrading = [...examConfig.grading];
+                                                newGrading[idx].remark = e.target.value;
+                                                setExamConfig({ ...examConfig, grading: newGrading });
+                                            }}
+                                            className="w-full p-1 border border-slate-300 rounded text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Grading Table */}
+                        <div className="overflow-x-auto hidden md:block">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
@@ -772,31 +933,67 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             {activeTab === 'reports' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-                            <h3 className="text-lg font-bold text-slate-800">Student Reports</h3>
-                            <div className="flex gap-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Student Reports</h3>
+                                <p className="text-sm text-slate-500">Generate and print report cards.</p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                                 <select
                                     value={selectedClass}
                                     onChange={e => setSelectedClass(e.target.value)}
-                                    className="p-2 border border-slate-300 rounded-lg outline-none bg-white min-w-[150px]"
+                                    className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-full sm:w-48 focus:ring-2 focus:ring-primary-500"
                                 >
                                     {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
-                                <div className="relative">
+                                <div className="relative w-full sm:w-64">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                     <input
                                         type="text"
                                         placeholder="Search student..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
+                                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            {/* Mobile Student Reports List */}
+                            <div className="md:hidden divide-y divide-slate-100">
+                                {filteredStudents.length > 0 ? (
+                                    filteredStudents.map(student => {
+                                        const studentResults = results.filter(r => r.studentId === student.id);
+                                        return (
+                                            <div key={student.id} className="p-4 flex justify-between items-center bg-white">
+                                                <div>
+                                                    <p className="font-bold text-slate-900">{student.name}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-xs text-slate-500">{student.class}</span>
+                                                        <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                            {studentResults.length} Subjs
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setReportStudent(student)}
+                                                    className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-sm"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="p-8 text-center text-slate-500 text-sm">
+                                        No students found.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Desktop Table View */}
+                            <table className="w-full text-left border-collapse hidden md:table">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Student Name</th>
@@ -853,7 +1050,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         ...schoolInfo,
                         academic_year: examConfig.academic_year,
                         term: examConfig.current_term,
-                        grading: examConfig.grading
+                        grading: examConfig.grading,
+                        grading_type: examConfig.grading_type
                     }}
                 />
             )}
