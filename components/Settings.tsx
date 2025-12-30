@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Lock, CreditCard, Save, Upload, CheckCircle,
-    History, Gift, Copy, X
+    History, Gift, Copy, X, Layout
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -14,12 +14,15 @@ interface SettingsProps {
         name: string;
         role: 'admin' | 'teacher';
     };
+    hiddenMenuItems?: string[];
+    toggleHiddenMenu?: (name: string) => void;
+    availableMenus?: any[];
 }
 
-const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hiddenMenuItems, toggleHiddenMenu, availableMenus }) => {
     const isTeacher = currentUser?.role === 'teacher';
     // If teacher, force security tab default
-    const [activeTab, setActiveTab] = useState<'general' | 'security' | 'billing'>(isTeacher ? 'security' : 'general');
+    const [activeTab, setActiveTab] = useState<'general' | 'security' | 'billing' | 'menu'>(isTeacher ? 'security' : 'general');
     const [loading, setLoading] = useState(false);
 
     // -- Data States --
@@ -218,11 +221,52 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser }) => {
                             <CreditCard className="h-5 w-5" /> Billing & Plans
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('menu')}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'menu' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                        style={activeTab === 'menu' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
+                    >
+                        <Layout className="h-5 w-5" /> Menu Customization
+                    </button>
                 </div>
             </div>
 
             {/* Main Content Area (Right) */}
             <div className="flex-1 overflow-y-auto p-8">
+
+                {/* --- TAB 1: GENERAL --- */}
+                {activeTab === 'menu' && (
+                    <div className="max-w-2xl space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+                            <h2 className="text-2xl font-bold text-slate-800 mb-2">Sidebar Customization</h2>
+                            <p className="text-slate-500 text-sm">Toggle visibility of sidebar items to simplify your dashboard.</p>
+                        </div>
+                        <div className="space-y-3">
+                            {availableMenus?.filter((m: any) => m.name !== 'Dashboard' && m.name !== 'Settings' && m.name !== 'Settings & Profile').map((item: any) => (
+                                <div key={item.name} className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-2 rounded-lg bg-slate-50 ${hiddenMenuItems?.includes(item.name) ? 'opacity-50' : ''}`}>
+                                            <item.icon className={`h-5 w-5 ${hiddenMenuItems?.includes(item.name) ? 'text-slate-400' : 'text-blue-600'}`} />
+                                        </div>
+                                        <div>
+                                            <span className={`font-bold block ${hiddenMenuItems?.includes(item.name) ? 'text-slate-400' : 'text-slate-800'}`}>{item.name}</span>
+                                            <span className="text-xs text-slate-400">{hiddenMenuItems?.includes(item.name) ? 'Hidden from sidebar' : 'Visible'}</span>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={!hiddenMenuItems?.includes(item.name)}
+                                            onChange={() => toggleHiddenMenu && toggleHiddenMenu(item.name)}
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 hover:peer-checked:bg-blue-700"></div>
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* --- TAB 1: GENERAL --- */}
                 {activeTab === 'general' && !isTeacher && (

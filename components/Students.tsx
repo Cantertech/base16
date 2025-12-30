@@ -25,6 +25,8 @@ interface Student {
   dob?: string;
   status?: 'Active' | 'Suspended' | 'Graduated';
   attendance?: number;
+  admission_no?: string;
+  pin?: string;
 }
 
 interface Transaction {
@@ -202,7 +204,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           balance: s.balance,
           dob: s.date_of_birth,
           status: s.status,
-          attendance: 100 // Mock for now
+          attendance: 100, // Mock for now
+          admission_no: s.admission_no,
+          pin: s.pin
         }));
         setStudents(mappedStudents);
         if (!isTeacher) {
@@ -244,7 +248,10 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         parent_phone: studentData.parentPhone,
         date_of_birth: studentData.dob || null,
         status: 'Active',
-        balance: Number(studentData.balance) || 0
+        balance: Number(studentData.balance) || 0,
+        // Unique ID Generation: Year + ClassCode + Timestamp(4) + Random(2)
+        admission_no: `${new Date().getFullYear()}${(studentData.class || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
+        pin: `${Math.floor(Math.random() * 9000 + 1000)}`
       };
 
       const { error } = await supabase
@@ -256,7 +263,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       fetchStudents();
       clearCache(CACHE_KEY_STUDENTS); // Force refresh next time or ensure fetchStudents updates cache
       setIsAddModalOpen(false);
-      alert('Student added successfully!');
+      setIsAddModalOpen(false);
+      alert(`Student added successfully!\n\nGENERATED CREDENTIALS:\nStudent ID: ${newStudent.admission_no}\nPIN: ${newStudent.pin}\n\nPlease share these with the parent.`);
+
 
     } catch (error: any) {
       console.error('Error adding student:', error);
@@ -477,7 +486,10 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
               gender: (parts[2]?.trim().toLowerCase() === 'female' ? 'Female' : 'Male'),
               parent_name: parts[3]?.trim() || 'Parent',
               parent_phone: parts[4]?.trim(),
-              status: 'Active'
+              status: 'Active',
+              // Unique ID: Timestamp + Index ensures uniqueness in batch
+              admission_no: `${new Date().getFullYear()}${(studentClass || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${(Date.now() + i).toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
+              pin: `${Math.floor(Math.random() * 9000 + 1000)}`
             };
 
             // Only update balance if it was explicitly provided in CSV, otherwise keep existing or set default for new
@@ -572,6 +584,90 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     currentPage * itemsPerPage
   );
 
+  // --- Backfill & Export Tools ---
+  const handleBackfillCredentials = async () => {
+    if (!confirm('Generate credentials (ID & PIN) for ALL students who have none? (Optimized Batch Mode)')) return;
+    setLoading(true);
+    try {
+      const { data: allStudents, error: fetchError } = await supabase.from('students').select('*');
+      if (fetchError) throw fetchError;
+
+      const studentsToUpdate = allStudents.filter(s => !s.admission_no || s.admission_no.trim() === '');
+      if (!studentsToUpdate || studentsToUpdate.length === 0) {
+        alert('All students already have credentials.');
+        return;
+      }
+
+      // Prepare updates with Unique IDs (Time + Index)
+      const updates = studentsToUpdate.map((s, index) => ({
+        ...s,
+        admission_no: `${new Date().getFullYear()}${(s.class || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${(Date.now() + index).toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
+        pin: `${Math.floor(Math.random() * 9000 + 1000)}`
+      }));
+
+      // Process in Batches
+      const BATCH_SIZE = 50;
+      let processed = 0;
+      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+        const batch = updates.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('students').upsert(batch);
+        if (error) throw error;
+        processed += batch.length;
+      }
+
+      alert(`Success! Optimally generated credentials for ${processed} students.`);
+      fetchStudents();
+      clearCache(CACHE_KEY_STUDENTS);
+    } catch (err: any) {
+      console.error(err);
+      alert('Error backfilling: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportCredentials = async () => {
+    setLoading(true);
+    try {
+      const { data: freshStudents, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('class', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (!freshStudents) return;
+
+      // Create CSV using Snake Case DB columns
+      const headers = ['Name', 'Class', 'Parent Name', 'Parent Phone', 'Student ID (Login)', 'PIN (Login)'];
+      const rows = freshStudents.map((s: any) => [
+        s.name,
+        s.class,
+        s.parent_name || s.parentName,
+        s.parent_phone || s.parentPhone,
+        s.admission_no || 'Pending',
+        s.pin || 'Pending'
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `student_credentials_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    } catch (err: any) {
+      console.error(err);
+      alert('Export failed: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <div className="p-4 md:p-8 space-y-4 md:space-y-6 relative h-full overflow-y-auto pb-20 md:pb-0">
       {/* Header & Controls */}
@@ -636,6 +732,22 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                 <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Delete</span> ({selectedStudents.size})
               </button>
             )}
+
+            {/* Tools */}
+            <button
+              onClick={handleExportCredentials}
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-100 font-medium text-sm transition-colors whitespace-nowrap"
+              title="Download Login Credentials"
+            >
+              <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export Keys</span>
+            </button>
+            <button
+              onClick={handleBackfillCredentials}
+              className="flex items-center gap-2 px-3 py-2 bg-violet-50 text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-100 font-medium text-sm transition-colors whitespace-nowrap"
+              title="Generate Missing IDs"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> <span className="hidden sm:inline">Generate IDs</span>
+            </button>
 
             <button
               onClick={() => setIsImportModalOpen(true)}

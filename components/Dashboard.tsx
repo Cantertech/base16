@@ -161,6 +161,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'warning' | 'suspended'>('active');
     const [daysOverdue, setDaysOverdue] = useState(0);
 
+    // Sidebar Customization State
+    const [hiddenMenuItems, setHiddenMenuItems] = useState<string[]>([]);
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('orbit_hidden_menus');
+            if (saved) setHiddenMenuItems(JSON.parse(saved));
+        } catch (e) { console.error('Error loading menu prefs', e); }
+    }, []);
+
+    const toggleHiddenMenu = (name: string) => {
+        const newHidden = hiddenMenuItems.includes(name)
+            ? hiddenMenuItems.filter(i => i !== name)
+            : [...hiddenMenuItems, name];
+        setHiddenMenuItems(newHidden);
+        localStorage.setItem('orbit_hidden_menus', JSON.stringify(newHidden));
+    };
+
     useEffect(() => {
         // Use the flag passed from Login.tsx
         if ((currentUser as any).isFirstLogin) {
@@ -350,7 +367,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Settings & Profile', icon: SettingsIcon },
     ];
 
-    const currentMenuItems = currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems;
+    const currentMenuItems = (currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems)
+        .filter(item => !hiddenMenuItems.includes(item.name) || item.name === 'Settings' || item.name === 'Dashboard' || item.name === 'Settings & Profile');
+
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
@@ -378,7 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Attendance': return <Attendance currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
-                case 'Settings & Profile': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
+                case 'Settings & Profile': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={teacherMenuItems} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
             }
         }
@@ -394,7 +413,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
-            case 'Settings': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} />;
+            case 'Settings': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={adminMenuItems} />;
             default: return (
                 <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>
