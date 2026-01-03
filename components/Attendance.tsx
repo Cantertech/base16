@@ -55,6 +55,12 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
     const [viewResults, setViewResults] = useState<{ name: string, status: string, id: string }[]>([]);
     const [viewLoading, setViewLoading] = useState(false);
 
+    // --- Monthly View State ---
+    const [viewMode, setViewMode] = useState<'mark' | 'monthly'>('mark');
+    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [monthlyData, setMonthlyData] = useState<Record<string, Record<number, string>>>({});
+    const [loadingMonthly, setLoadingMonthly] = useState(false);
+
     useEffect(() => {
         console.log("Attendance Effect Triggered:", {
             role: currentUser?.role,
@@ -75,10 +81,14 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
             }
 
             if (selectedClass) {
-                fetchMarkingData();
+                if (viewMode === 'mark') {
+                    fetchMarkingData();
+                } else {
+                    fetchMonthlyAttendance();
+                }
             }
         }
-    }, [currentUser, selectedDate, selectedClass]);
+    }, [currentUser, selectedDate, selectedClass, viewMode, selectedMonth]);
 
     // --- ADMIN LOGIC ---
     const fetchAdminStats = async () => {
@@ -163,6 +173,52 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
             console.error('Error fetching marking data:', error);
         } finally {
             setLoadingMarking(false);
+        }
+    };
+
+    const fetchMonthlyAttendance = async () => {
+        if (!currentUser?.school_id || !selectedClass) return;
+        setLoadingMonthly(true);
+        try {
+            // 1. Get Students (Ensure list is up to date)
+            const { data: studentsData } = await supabase
+                .from('students')
+                .select('id, name, class')
+                .eq('school_id', currentUser.school_id)
+                .eq('class', selectedClass)
+                .order('name');
+
+            if (studentsData) setStudents(studentsData);
+
+            // 2. Get Dates Range
+            const [year, month] = selectedMonth.split('-').map(Number);
+            const startDate = `${selectedMonth}-01`;
+            // Calculate last day of month
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = `${selectedMonth}-${lastDay}`;
+
+            // 3. Get Attendance
+            const { data: attendanceData } = await supabase
+                .from('attendance')
+                .select('student_id, date, status')
+                .eq('school_id', currentUser.school_id)
+                .eq('class', selectedClass)
+                .gte('date', startDate)
+                .lte('date', endDate);
+
+            // 4. Transform to Map: student_id -> day_number -> status
+            const map: Record<string, Record<number, string>> = {};
+            attendanceData?.forEach((r: any) => {
+                if (!map[r.student_id]) map[r.student_id] = {};
+                const day = parseInt(r.date.split('-')[2]); // Extract day part
+                map[r.student_id][day] = r.status;
+            });
+            setMonthlyData(map);
+
+        } catch (error) {
+            console.error('Error fetching monthly data:', error);
+        } finally {
+            setLoadingMonthly(false);
         }
     };
 
@@ -426,247 +482,408 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
     // --- RENDER: TEACHER VIEW (Marking) ---
     const filteredStudents = students.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
+    // Calculate quick stats for the sticky header
+    const presentCount = Object.values(attendanceMap).filter(s => s === 'Present').length;
+    const absentCount = Object.values(attendanceMap).filter(s => s === 'Absent').length;
+    const lateCount = Object.values(attendanceMap).filter(s => s === 'Late').length;
+
+    // Helper for generating days in month
+    const getDaysInMonth = () => {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        return new Date(year, month, 0).getDate();
+    };
+
     return (
+        <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)] w-full flex flex-col bg-slate-50 md:bg-white md:rounded-3xl md:border border-slate-200 md:shadow-sm relative overflow-hidden group">
+            {/* 1. Top Header & Controls */}
+            <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 py-4 md:px-6 z-20 shrink-0">
+                <div className="max-w-7xl mx-auto w-full">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                                Class Attendance
+                            </h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <button
+                                    onClick={() => setViewMode('mark')}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'mark' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                                >
+                                    Daily Marking
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('monthly')}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'monthly' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                                >
+                                    Monthly Register
+                                </button>
+                            </div>
+                        </div>
 
-        <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full flex flex-col pb-20 md:pb-0 overflow-y-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-800">Mark Attendance</h1>
-                    <p className="text-slate-500 text-xs md:text-sm">
-                        {selectedClass ? `Marking for Class: ${selectedClass}` : 'Select a class to mark'}
-                    </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-start md:items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                    {/* Only show selector if teacher has NO assigned class */}
-                    {!currentUser?.assignedClass && (
-                        <select
-                            value={selectedClass}
-                            onChange={e => setSelectedClass(e.target.value)}
-                            className="w-full sm:w-auto p-2 border-b sm:border-b-0 sm:border-r border-slate-200 outline-none bg-transparent font-medium text-slate-700 text-sm"
-                        >
-                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    )}
-                    <div className="flex items-center gap-2 px-2 w-full sm:w-auto">
-                        <Calendar className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={e => setSelectedDate(e.target.value)}
-                            className="w-full sm:w-auto outline-none bg-transparent font-medium text-slate-700 text-sm"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Teacher Stats (Compact Mobile) */}
-            {/* Teacher Stats (Ultra Compact Mobile) */}
-            <div className="flex flex-row items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex flex-col items-center justify-center w-1/3 border-r border-slate-100">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wide">Present</span>
-                    <span className="text-sm font-bold text-green-600">{Object.values(attendanceMap).filter(s => s === 'Present').length}</span>
-                </div>
-                <div className="flex flex-col items-center justify-center w-1/3 border-r border-slate-100">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wide">Absent</span>
-                    <span className="text-sm font-bold text-red-600">{Object.values(attendanceMap).filter(s => s === 'Absent').length}</span>
-                </div>
-                <div className="flex flex-col items-center justify-center w-1/3">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wide">Total</span>
-                    <span className="text-sm font-bold text-slate-800">{students.length}</span>
-                </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Search student..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm"
-                    />
-                </div>
-                <div className="flex flex-row gap-2 w-full sm:w-auto">
-                    <button onClick={() => markAll('Present')} className="flex-1 sm:flex-none px-3 py-2 bg-green-50 text-green-700 font-medium rounded-lg hover:bg-green-100 transition-colors text-xs md:text-sm whitespace-nowrap">
-                        Mark All Present
-                    </button>
-                    <button
-                        onClick={saveAttendance}
-                        disabled={saving}
-                        className="flex-1 sm:flex-none px-4 py-2 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 text-xs md:text-sm whitespace-nowrap"
-                    >
-                        <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Save'}
-                    </button>
-                </div>
-            </div>
-
-            {/* List / Cards */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
-                <div className="p-0 md:p-0">
-
-                    {/* Mobile Grid View */}
-                    <div className="md:hidden grid grid-cols-2 gap-2 p-2">
-                        {loadingMarking ? (
-                            <Loading type="skeleton" fullScreen={false} />
-                        ) : filteredStudents.length > 0 ? (
-                            filteredStudents.map(student => {
-                                const status = attendanceMap[student.id];
-                                return (
-                                    <div key={student.id} className="bg-white border border-slate-200 rounded-xl p-2 shadow-sm hover:shadow-md transition-shadow">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-[10px] border border-slate-200">
-                                                {student.name.charAt(0)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-slate-800 text-xs truncate">{student.name}</p>
-                                                <p className="text-[9px] text-slate-500 truncate">{student.id.substring(0, 8)}</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-1">
-                                            <button
-                                                onClick={() => handleStatusChange(student.id, 'Present')}
-                                                className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all text-[10px] font-medium ${status === 'Present' ? 'bg-green-600 text-white border-green-600' : 'bg-slate-50 text-slate-500 border-slate-100'
-                                                    }`}
-                                            >
-                                                <CheckCircle className="h-3 w-3 mb-0.5" /> Pres
-                                            </button>
-                                            <button
-                                                onClick={() => handleStatusChange(student.id, 'Absent')}
-                                                className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all text-[10px] font-medium ${status === 'Absent' ? 'bg-red-600 text-white border-red-600' : 'bg-slate-50 text-slate-500 border-slate-100'
-                                                    }`}
-                                            >
-                                                <XCircle className="h-3 w-3 mb-0.5" /> Abs
-                                            </button>
-                                            <button
-                                                onClick={() => handleStatusChange(student.id, 'Late')}
-                                                className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all text-[10px] font-medium ${status === 'Late' ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-slate-50 text-slate-500 border-slate-100'
-                                                    }`}
-                                            >
-                                                <Clock className="h-3 w-3 mb-0.5" /> Late
-                                            </button>
-                                        </div>
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            {!currentUser?.assignedClass && (
+                                <div className="relative group w-full md:w-auto">
+                                    <select
+                                        value={selectedClass}
+                                        onChange={e => setSelectedClass(e.target.value)}
+                                        className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-medium transition-all hover:bg-slate-200 cursor-pointer"
+                                    >
+                                        <option value="">Select Class</option>
+                                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <div className="absolute right-3 top-3 pointer-events-none">
+                                        <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
                                     </div>
-                                );
-                            })
-                        ) : (
-                            <div className="text-center text-slate-500 p-8 text-sm">No students found.</div>
-                        )}
-                    </div>
-
-                    {/* Desktop Table View */}
-                    <table className="w-full text-left border-collapse hidden md:table">
-                        <thead className="bg-slate-50 sticky top-0 z-10">
-                            <tr>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Student</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Mark Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {loadingMarking ? (
-                                <tr>
-                                    <td colSpan={2} className="px-6 py-12">
-                                        <Loading type="skeleton" fullScreen={false} />
-                                    </td>
-                                </tr>
-                            ) : filteredStudents.length > 0 ? (
-                                filteredStudents.map(student => {
-                                    const status = attendanceMap[student.id];
-                                    return (
-                                        <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200">
-                                                        {student.name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800">{student.name}</p>
-                                                        <p className="text-xs text-slate-500">{student.id.substring(0, 8)}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex justify-center gap-2">
-                                                    <button onClick={() => handleStatusChange(student.id, 'Present')} className={`flex items-center gap-1 px-4 py-2 rounded-lg border transition-all ${status === 'Present' ? 'bg-green-600 text-white border-green-600 shadow-md transform scale-105' : 'bg-white text-slate-500 hover:bg-green-50'}`}><CheckCircle className="h-4 w-4" /> Present</button>
-                                                    <button onClick={() => handleStatusChange(student.id, 'Absent')} className={`flex items-center gap-1 px-4 py-2 rounded-lg border transition-all ${status === 'Absent' ? 'bg-red-600 text-white border-red-600 shadow-md transform scale-105' : 'bg-white text-slate-500 hover:bg-red-50'}`}><XCircle className="h-4 w-4" /> Absent</button>
-                                                    <button onClick={() => handleStatusChange(student.id, 'Late')} className={`flex items-center gap-1 px-4 py-2 rounded-lg border transition-all ${status === 'Late' ? 'bg-yellow-500 text-white border-yellow-500 shadow-md transform scale-105' : 'bg-white text-slate-500 hover:bg-yellow-50'}`}><Clock className="h-4 w-4" /> Late</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr><td colSpan={2} className="p-8 text-center text-slate-500 font-medium">No students found.</td></tr>
+                                </div>
                             )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            {/* Bottom Verification Section */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-4">
-                <h3 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                    <Search className="h-4 w-4 text-slate-400" /> Verify Attendance Records
-                </h3>
-                <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                    <select
-                        value={viewClass}
-                        onChange={e => setViewClass(e.target.value)}
-                        className="p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary-500 bg-white"
-                    >
-                        <option value="">Select Class to View</option>
-                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <input
-                        type="date"
-                        value={viewDate}
-                        onChange={e => setViewDate(e.target.value)}
-                        className="p-2 text-sm border border-slate-200 rounded-lg outline-none bg-white"
-                    />
-                    <button
-                        onClick={fetchViewResults}
-                        className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900"
-                    >
-                        View Records
-                    </button>
-                </div>
-
-                {viewClass && (
-                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden max-h-60 overflow-y-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-medium sticky top-0">
-                                <tr>
-                                    <th className="px-4 py-2">Student</th>
-                                    <th className="px-4 py-2">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {viewLoading ? (
-                                    <tr><td colSpan={2} className="p-4 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
-                                ) : viewResults.length > 0 ? (
-                                    viewResults.map(r => (
-                                        <tr key={r.id}>
-                                            <td className="px-4 py-2 font-medium text-slate-700">{r.name}</td>
-                                            <td className="px-4 py-2">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'Present' ? 'bg-green-100 text-green-700' :
-                                                    r.status === 'Absent' ? 'bg-red-100 text-red-700' :
-                                                        r.status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-slate-100 text-slate-500'
-                                                    }`}>
-                                                    {r.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
+                            <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 border border-slate-200 w-full md:w-auto">
+                                <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
+                                {viewMode === 'mark' ? (
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={e => setSelectedDate(e.target.value)}
+                                        className="bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 p-0 w-full"
+                                    />
                                 ) : (
-                                    <tr><td colSpan={2} className="p-4 text-center text-slate-400">No records found. Click 'View Records'.</td></tr>
+                                    <input
+                                        type="month"
+                                        value={selectedMonth}
+                                        onChange={e => setSelectedMonth(e.target.value)}
+                                        className="bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 p-0 w-full"
+                                    />
                                 )}
-                            </tbody>
-                        </table>
+                            </div>
+                        </div>
                     </div>
-                )}
+
+                    {/* Quick Stats Bar (Only for Marking Mode) */}
+                    {viewMode === 'mark' && (
+                        <div className="mt-4 grid grid-cols-4 gap-2 md:w-1/2 lg:w-1/3">
+                            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</span>
+                                <span className="block text-lg font-black text-slate-700">{students.length}</span>
+                            </div>
+                            <div className="bg-green-50/50 border border-green-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[10px] font-bold text-green-600 uppercase tracking-wider">Pres</span>
+                                <span className="block text-lg font-black text-green-700">{presentCount}</span>
+                            </div>
+                            <div className="bg-red-50/50 border border-red-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[10px] font-bold text-red-600 uppercase tracking-wider">Abs</span>
+                                <span className="block text-lg font-black text-red-700">{absentCount}</span>
+                            </div>
+                            <div className="bg-yellow-50/50 border border-yellow-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[10px] font-bold text-yellow-600 uppercase tracking-wider">Late</span>
+                                <span className="block text-lg font-black text-yellow-700">{lateCount}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* 2. Scrollable Main Content Area */}
+            <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 pb-32">
+                <div className="max-w-7xl mx-auto space-y-6">
+                    {/* --- VIEW MODE: MARKING --- */}
+                    {viewMode === 'mark' ? (
+                        <>
+                            {/* Search & Bulk Actions */}
+                            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                <div className="relative w-full sm:max-w-xs">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Find student..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 text-sm font-medium transition-all outline-none"
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => markAll('Present')}
+                                    className="w-full sm:w-auto px-4 py-2 bg-emerald-50 text-emerald-600 text-sm font-bold rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100 flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle className="h-4 w-4" /> Mark All Present
+                                </button>
+                            </div>
+
+                            {/* Students List */}
+                            {loadingMarking ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-40 bg-slate-200 animate-pulse rounded-2xl"></div>)}
+                                </div>
+                            ) : filteredStudents.length === 0 ? (
+                                <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
+                                    <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Users className="h-10 w-10 text-slate-300" />
+                                    </div>
+                                    <h3 className="text-lg font-medium text-slate-900">No students found</h3>
+                                    <p className="text-slate-500 max-w-xs mx-auto mt-2 text-sm">Try adjusting your search or select a different class from the dropdown above.</p>
+                                </div>
+                            ) : (
+                                // Card Grid Layout (Unified for Mobile/Desktop for simplicity and aesthetics)
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {filteredStudents.map(student => {
+                                        const status = attendanceMap[student.id];
+                                        return (
+                                            <div key={student.id} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-blue-100 transition-all group duration-300">
+                                                <div className="flex justify-between items-start mb-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg shadow-inner">
+                                                            {student.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-800 text-base leading-tight">{student.name}</h3>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-mono border border-slate-200">
+                                                                    {student.id.substring(0, 6)}
+                                                                </span>
+                                                                {status && (
+                                                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${status === 'Present' ? 'text-green-600' :
+                                                                        status === 'Absent' ? 'text-red-600' : 'text-yellow-600'
+                                                                        }`}>
+                                                                        • {status}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <button
+                                                        onClick={() => handleStatusChange(student.id, 'Present')}
+                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Present'
+                                                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white border-transparent shadow-lg shadow-green-500/30 ring-2 ring-green-100'
+                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                                                            }`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-1 relative z-10">
+                                                            <CheckCircle className={`h-4 w-4 ${status === 'Present' ? 'animate-bounce-short' : ''}`} />
+                                                            <span>Present</span>
+                                                        </div>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handleStatusChange(student.id, 'Late')}
+                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Late'
+                                                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white border-transparent shadow-lg shadow-yellow-500/30 ring-2 ring-yellow-100'
+                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                                                            }`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-1 relative z-10">
+                                                            <Clock className={`h-4 w-4 ${status === 'Late' ? 'animate-pulse' : ''}`} />
+                                                            <span>Late</span>
+                                                        </div>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handleStatusChange(student.id, 'Absent')}
+                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Absent'
+                                                            ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white border-transparent shadow-lg shadow-red-500/30 ring-2 ring-red-100'
+                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                                                            }`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-1 relative z-10">
+                                                            <XCircle className={`h-4 w-4 ${status === 'Absent' ? 'animate-pulse' : ''}`} />
+                                                            <span>Absent</span>
+                                                        </div>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        // --- VIEW MODE: MONTHLY REGISTER ---
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full max-h-[70vh]">
+                            {loadingMonthly ? (
+                                <div className="p-12 flex justify-center"><Loading type="spinner" fullScreen={false} message="Loading monthly register..." /></div>
+                            ) : (
+                                <div className="overflow-auto custom-scrollbar flex-1 relative">
+                                    <table className="border-collapse w-full">
+                                        <thead>
+                                            <tr>
+                                                <th className="sticky left-0 z-20 bg-white border-b border-r border-slate-200 p-3 min-w-[200px] text-left text-xs font-bold text-slate-600 uppercase tracking-wider shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                                                    Student
+                                                </th>
+                                                {Array.from({ length: getDaysInMonth() }).map((_, i) => (
+                                                    <th key={i} className="min-w-[40px] border-b border-slate-200 p-2 text-center text-xs font-medium text-slate-400">
+                                                        {i + 1}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredStudents.map((student, idx) => (
+                                                <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-3 text-sm font-bold text-slate-700 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-slate-400 font-normal w-5">{idx + 1}.</span>
+                                                            {student.name}
+                                                        </div>
+                                                    </td>
+                                                    {Array.from({ length: getDaysInMonth() }).map((_, i) => {
+                                                        const dayStatus = monthlyData[student.id]?.[i + 1];
+                                                        return (
+                                                            <td key={i} className="border-b border-slate-100 p-2 text-center">
+                                                                {dayStatus ? (
+                                                                    <div className="flex justify-center group/tooltip relative">
+                                                                        <div className={`w-3 h-3 rounded-full ${dayStatus === 'Present' ? 'bg-green-500' :
+                                                                            dayStatus === 'Absent' ? 'bg-red-500' :
+                                                                                'bg-yellow-500'
+                                                                            }`}></div>
+                                                                        {/* Tooltip */}
+                                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-30">
+                                                                            {dayStatus}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-200 text-xs">•</span>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                            {filteredStudents.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={getDaysInMonth() + 1} className="p-8 text-center text-slate-400 italic">
+                                                        No students found for this class.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <div className="border-t border-slate-100 p-3 bg-slate-50 text-xs text-slate-400 flex items-center justify-end gap-4">
+                                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500"></span> Present</div>
+                                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500"></span> Absent</div>
+                                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-500"></span> Late</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Expandable Verification Section (Hidden in Monthly Mode to focus on table) */}
+                    {viewMode === 'mark' && (
+                        <div className="pt-8 border-t border-slate-200/50">
+                            <button
+                                onClick={() => {
+                                    const el = document.getElementById('verify-section');
+                                    if (el) el.classList.toggle('hidden');
+                                }}
+                                className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition-all text-left group"
+                            >
+                                <span className="flex items-center gap-2 text-slate-600 font-bold text-sm">
+                                    <Search className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                                    Verify Past Attendance Records
+                                </span>
+                                <ChevronRight className="h-4 w-4 text-slate-400 transform transition-transform group-hover:rotate-90 group-active:translate-y-1" />
+                            </button>
+
+                            <div id="verify-section" className="hidden mt-4 bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-top-4">
+                                <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Verification Mode</h3>
+                                <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                                    <div className="relative group w-full">
+                                        <select
+                                            value={viewClass}
+                                            onChange={e => setViewClass(e.target.value)}
+                                            className="appearance-none w-full p-3 pl-4 pr-10 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
+                                        >
+                                            <option value="">Select Class</option>
+                                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90" />
+                                    </div>
+                                    <input
+                                        type="date"
+                                        value={viewDate}
+                                        onChange={e => setViewDate(e.target.value)}
+                                        className="p-3 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
+                                    />
+                                    <button
+                                        onClick={fetchViewResults}
+                                        className="px-6 py-3 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-all shadow-lg shadow-slate-800/20 whitespace-nowrap"
+                                    >
+                                        View Records
+                                    </button>
+                                </div>
+
+                                {viewClass && (
+                                    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-100 text-xs text-slate-500 uppercase font-bold sticky top-0 z-10">
+                                                <tr>
+                                                    <th className="px-6 py-4">Student</th>
+                                                    <th className="px-6 py-4">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200">
+                                                {viewLoading ? (
+                                                    <tr><td colSpan={2} className="p-8 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
+                                                ) : viewResults.length > 0 ? (
+                                                    viewResults.map((r, idx) => (
+                                                        <tr key={r.id} className="hover:bg-white transition-colors">
+                                                            <td className="px-6 py-4 font-bold text-slate-700">{r.name}</td>
+                                                            <td className="px-6 py-4">
+                                                                <span className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${r.status === 'Present' ? 'bg-green-100 text-green-700' :
+                                                                    r.status === 'Absent' ? 'bg-red-100 text-red-700' :
+                                                                        r.status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
+                                                                            'bg-slate-200 text-slate-500'
+                                                                    }`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${r.status === 'Present' ? 'bg-green-500' : r.status === 'Absent' ? 'bg-red-500' : r.status === 'Late' ? 'bg-yellow-500' : 'bg-slate-400'}`}></span>
+                                                                    {r.status}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400 italic">No records found. Select a class and date, then click 'View Records'.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* 3. Footer - Fixed Save Bar (Only hide in Monthly Mode) */}
+            {viewMode === 'mark' && (
+                <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-30 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+                    <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                        <div className="hidden md:flex items-center gap-2 text-sm text-slate-600 font-medium">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            {Object.keys(attendanceMap).length > 0
+                                ? `${Object.keys(attendanceMap).length} students marked`
+                                : 'Ready to mark'
+                            }
+                        </div>
+                        <button
+                            onClick={saveAttendance}
+                            disabled={saving}
+                            className="w-full md:w-auto md:ml-auto px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5"
+                        >
+                            {saving ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <span>Saving...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-5 w-5" />
+                                    <span>Save Attendance</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
