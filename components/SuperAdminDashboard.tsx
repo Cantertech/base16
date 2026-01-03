@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock } from 'lucide-react';
+import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2 } from 'lucide-react';
 
 interface School {
     id: string;
@@ -21,9 +21,10 @@ interface SchoolDetailModalProps {
     onToggleStatus: (id: string, currentStatus: string) => void;
     onImpersonate: (id: string) => void;
     onResetPassword: (id: string) => void;
+    onDelete: (id: string) => void;
 }
 
-const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword }) => {
+const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete }) => {
     const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
@@ -119,6 +120,14 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 title="Reset Admin Password to 'password123'"
                             >
                                 <Lock className="h-4 w-4" /> Reset Pass
+                            </button>
+                        </div>
+                        <div className="mt-3">
+                            <button
+                                onClick={() => onDelete(school.id)}
+                                className="w-full bg-red-50 text-red-700 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-200"
+                            >
+                                <Trash2 className="h-4 w-4" /> Permanently Delete School
                             </button>
                         </div>
                     </div>
@@ -272,6 +281,33 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
         } catch (error: any) {
             console.error('Error resetting password:', error);
             alert(`Failed to reset password: ${error.message}`);
+        }
+    };
+
+    const deleteSchool = async (schoolId: string) => {
+        const schoolName = pendingSchools.find(s => s.id === schoolId)?.name || activeSchools.find(s => s.id === schoolId)?.name || 'this school';
+
+        if (!confirm(`Are you sure you want to PERMANENTLY DELETE ${schoolName}? This action cannot be undone and will remove all data associated with this school.`)) return;
+
+        const userInput = prompt(`Type "DELETE" to confirm deletion of ${schoolName}:`);
+        if (userInput !== 'DELETE') {
+            return alert('Deletion cancelled. Input did not match.');
+        }
+
+        try {
+            const { error } = await supabase
+                .from('schools')
+                .delete()
+                .eq('id', schoolId);
+
+            if (error) throw error;
+
+            alert('School deleted successfully.');
+            if (selectedSchool?.id === schoolId) setSelectedSchool(null);
+            fetchSchools();
+        } catch (error: any) {
+            alert(`Error deleting school: ${error.message}`);
+            console.error(error);
         }
     };
 
@@ -442,6 +478,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                         onToggleStatus={toggleSchoolStatus}
                         onImpersonate={onImpersonate!}
                         onResetPassword={resetSchoolPassword}
+                        onDelete={deleteSchool}
                     />
                 )
             }
