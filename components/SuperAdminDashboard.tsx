@@ -28,128 +28,131 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
     const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
-        try {
-            // Fetch real-time count of students
-            const { count: students, error: studentError } = await supabase
-                .from('students')
-                .select('*', { count: 'exact', head: true })
-                .eq('school_id', school.id);
+        const fetchStats = async () => {
+            try {
+                // Fetch real-time count of students
+                const { count: students, error: studentError } = await supabase
+                    .from('students')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('school_id', school.id);
 
-            if (studentError) {
-                console.error('Error fetching student count:', studentError);
-                // Explicitly check for network error
-                if (studentError.message && studentError.message.includes('fetch')) {
-                    console.error('Possible Network Error or CORS issue');
+                if (studentError) {
+                    console.error('Error fetching student count:', studentError);
+                    // Explicitly check for network error
+                    if (studentError.message && studentError.message.includes('fetch')) {
+                        console.error('Possible Network Error or CORS issue');
+                    }
+                }
+
+                // Fetch real-time count of teachers
+                const { count: teachers, error: teacherError } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('school_id', school.id)
+                    .eq('role', 'teacher');
+
+                if (teacherError) {
+                    console.error('Error fetching teacher count:', teacherError);
+                }
+
+                setStats({ students: students || 0, teachers: teachers || 0 });
+            } catch (err: any) {
+                console.error('Unexpected error fetching stats:', err);
+                if (err.message && err.message.includes('fetch')) {
+                    console.error('Confirming network error captured in catch block');
                 }
             }
+        };
 
-            // Fetch real-time count of teachers
-            const { count: teachers, error: teacherError } = await supabase
-                .from('profiles')
-                .select('*', { count: 'exact', head: true })
-                .eq('school_id', school.id)
-                .eq('role', 'teacher');
+        fetchStats();
+    }, [school.id]);
 
-            if (teacherError) {
-                console.error('Error fetching teacher count:', teacherError);
-            }
 
-            setStats({ students: students || 0, teachers: teachers || 0 });
-        } catch (err: any) {
-            console.error('Unexpected error fetching stats:', err);
-            if (err.message && err.message.includes('fetch')) {
-                alert('Network Error: Please check your internet connection.');
-            }
-        }
-    };
-    fetchStats();
-}, [school.id]);
-
-return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-800">{school.name}</h2>
-                    <p className="text-sm text-slate-500">School ID: {school.id}</p>
-                </div>
-                <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                    <XCircle className="h-6 w-6 text-slate-400" />
-                </button>
-            </div>
-
-            <div className="p-8 space-y-8 overflow-y-auto">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <p className="text-blue-600 text-xs font-bold uppercase tracking-wider mb-1">Total Students</p>
-                        <p className="text-3xl font-bold text-slate-800">{stats ? stats.students : '...'}</p>
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">{school.name}</h2>
+                        <p className="text-sm text-slate-500">School ID: {school.id}</p>
                     </div>
-                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                        <p className="text-purple-600 text-xs font-bold uppercase tracking-wider mb-1">Total Teachers</p>
-                        <p className="text-3xl font-bold text-slate-800">{stats ? stats.teachers : '...'}</p>
-                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                        <XCircle className="h-6 w-6 text-slate-400" />
+                    </button>
                 </div>
 
-                {/* Subscription Info */}
-                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Calendar className="h-5 w-5 text-slate-500" /> Subscription Status
-                    </h3>
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Status</p>
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${school.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {school.status}
-                            </span>
+                <div className="p-8 space-y-8 overflow-y-auto">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <p className="text-blue-600 text-xs font-bold uppercase tracking-wider mb-1">Total Students</p>
+                            <p className="text-3xl font-bold text-slate-800">{stats ? stats.students : '...'}</p>
                         </div>
-                        <div>
-                            <p className="text-xs text-slate-500 mb-1">Next Payment Due</p>
-                            <p className="font-medium text-slate-900">{school.next_payment_due ? new Date(school.next_payment_due).toLocaleDateString() : 'N/A'}</p>
+                        <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                            <p className="text-purple-600 text-xs font-bold uppercase tracking-wider mb-1">Total Teachers</p>
+                            <p className="text-3xl font-bold text-slate-800">{stats ? stats.teachers : '...'}</p>
                         </div>
                     </div>
 
-                    <div className="mt-6 flex gap-3">
-                        <button
-                            onClick={() => onImpersonate(school.id)}
-                            className="flex-1 bg-slate-800 text-white py-2 rounded-lg font-bold text-sm hover:bg-slate-900 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <LogOut className="h-4 w-4" /> Login as Admin
-                        </button>
-                        <button
-                            onClick={() => onRenew(school.id)}
-                            className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <RefreshCw className="h-4 w-4" /> Extend 30 Days
-                        </button>
-                        <button
-                            onClick={() => onToggleStatus(school.id, school.status)}
-                            className={`flex-1 py-2 rounded-lg font-bold text-sm border transition-colors flex items-center justify-center gap-2 ${school.status === 'active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
-                        >
-                            {school.status === 'active' ? <Lock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-                            {school.status === 'active' ? 'Suspend' : 'Activate'}
-                        </button>
-                        <button
-                            onClick={() => onResetPassword(school.id)}
-                            className="flex-1 bg-orange-100 text-orange-700 py-2 rounded-lg font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
-                            title="Reset Admin Password to 'password123'"
-                        >
-                            <Lock className="h-4 w-4" /> Reset Pass
-                        </button>
-                    </div>
-                    <div className="mt-3">
-                        <button
-                            onClick={() => onDelete(school.id)}
-                            className="w-full bg-red-50 text-red-700 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-200"
-                        >
-                            <Trash2 className="h-4 w-4" /> Permanently Delete School
-                        </button>
+                    {/* Subscription Info */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-slate-500" /> Subscription Status
+                        </h3>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <p className="text-xs text-slate-500 mb-1">Status</p>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${school.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {school.status}
+                                </span>
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-500 mb-1">Next Payment Due</p>
+                                <p className="font-medium text-slate-900">{school.next_payment_due ? new Date(school.next_payment_due).toLocaleDateString() : 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={() => onImpersonate(school.id)}
+                                className="flex-1 bg-slate-800 text-white py-2 rounded-lg font-bold text-sm hover:bg-slate-900 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <LogOut className="h-4 w-4" /> Login as Admin
+                            </button>
+                            <button
+                                onClick={() => onRenew(school.id)}
+                                className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <RefreshCw className="h-4 w-4" /> Extend 30 Days
+                            </button>
+                            <button
+                                onClick={() => onToggleStatus(school.id, school.status)}
+                                className={`flex-1 py-2 rounded-lg font-bold text-sm border transition-colors flex items-center justify-center gap-2 ${school.status === 'active' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
+                            >
+                                {school.status === 'active' ? <Lock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                                {school.status === 'active' ? 'Suspend' : 'Activate'}
+                            </button>
+                            <button
+                                onClick={() => onResetPassword(school.id)}
+                                className="flex-1 bg-orange-100 text-orange-700 py-2 rounded-lg font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
+                                title="Reset Admin Password to 'password123'"
+                            >
+                                <Lock className="h-4 w-4" /> Reset Pass
+                            </button>
+                        </div>
+                        <div className="mt-3">
+                            <button
+                                onClick={() => onDelete(school.id)}
+                                className="w-full bg-red-50 text-red-700 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2 border border-red-200"
+                            >
+                                <Trash2 className="h-4 w-4" /> Permanently Delete School
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
 };
 
 interface SuperAdminDashboardProps {

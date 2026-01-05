@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Lock, CreditCard, Save, Upload, CheckCircle,
-    History, Gift, Copy, X, Layout
+    History, Gift, Copy, X, Layout, Download, Smartphone
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -30,6 +30,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [billingHistory, setBillingHistory] = useState<any[]>([]);
     const [showPlanModal, setShowPlanModal] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null); // PWA Install Prompt
 
 
     // -- Pricing Plans --
@@ -97,7 +98,26 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         fetchSettings();
     }, [currentUser?.school_id]);
 
+    // PWA Install Prompt Listener
+    useEffect(() => {
+        const handler = (e: any) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
     // -- Handlers --
+
+    const handleInstallApp = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            setDeferredPrompt(null);
+        }
+    };
 
     const handleGeneralSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -373,6 +393,32 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                 </button>
                             </div>
                         </form>
+
+                        {/* App Installation Card */}
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                    <Smartphone className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg">Install Base16 App</h3>
+                                    <p className="text-slate-500 text-sm max-w-sm">
+                                        Install the Base16 app on your device for easier access and a better experience.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleInstallApp}
+                                disabled={!deferredPrompt}
+                                className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${deferredPrompt
+                                    ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg hover:shadow-slate-800/30 hover:-translate-y-0.5'
+                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    }`}
+                            >
+                                <Download className="h-5 w-5" />
+                                {deferredPrompt ? 'Install App' : 'App Installed'}
+                            </button>
+                        </div>
 
                         {/* Referral Hub */}
                         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden mt-8">

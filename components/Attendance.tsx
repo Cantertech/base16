@@ -582,8 +582,8 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
             </div>
 
             {/* 2. Scrollable Main Content Area */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 pb-32">
-                <div className="max-w-7xl mx-auto space-y-6">
+            <div className={`flex-1 ${viewMode === 'monthly' ? 'overflow-hidden flex flex-col pb-6' : 'overflow-y-auto pb-32'} px-4 md:px-6 py-6`}>
+                <div className={`${viewMode === 'monthly' ? 'h-full flex flex-col' : 'max-w-7xl mx-auto space-y-6'}`}>
                     {/* --- VIEW MODE: MARKING --- */}
                     {viewMode === 'mark' ? (
                         <>
@@ -621,96 +621,83 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                     <p className="text-slate-500 max-w-xs mx-auto mt-2 text-sm">Try adjusting your search or select a different class from the dropdown above.</p>
                                 </div>
                             ) : (
-                                // Card Grid Layout (Unified for Mobile/Desktop for simplicity and aesthetics)
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {filteredStudents.map(student => {
-                                        const status = attendanceMap[student.id];
-                                        return (
-                                            <div key={student.id} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-blue-100 transition-all group duration-300">
-                                                <div className="flex justify-between items-start mb-5">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center font-bold text-lg shadow-inner">
-                                                            {student.name.charAt(0)}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="font-bold text-slate-800 text-base leading-tight">{student.name}</h3>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-mono border border-slate-200">
-                                                                    {student.id.substring(0, 6)}
-                                                                </span>
-                                                                {status && (
-                                                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${status === 'Present' ? 'text-green-600' :
-                                                                        status === 'Absent' ? 'text-red-600' : 'text-yellow-600'
-                                                                        }`}>
-                                                                        • {status}
-                                                                    </span>
-                                                                )}
+                                // Simplified Table View for Daily Marking
+                                <div className="bg-white rounded-3xl border border-slate-200 overflow-auto shadow-sm">
+                                    <table className="w-full text-left border-collapse min-w-[600px]">
+                                        <thead className="bg-slate-50 border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Student Name</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Mark Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {filteredStudents.map((student, idx) => {
+                                                const status = attendanceMap[student.id];
+                                                return (
+                                                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-slate-400 text-xs font-medium w-4">{idx + 1}.</span>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-700 text-sm">{student.name}</p>
+                                                                    <p className="text-xs text-slate-400 font-mono">{student.id.substring(0, 6)}</p>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <button
-                                                        onClick={() => handleStatusChange(student.id, 'Present')}
-                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Present'
-                                                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white border-transparent shadow-lg shadow-green-500/30 ring-2 ring-green-100'
-                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                                                            }`}
-                                                    >
-                                                        <div className="flex flex-col items-center gap-1 relative z-10">
-                                                            <CheckCircle className={`h-4 w-4 ${status === 'Present' ? 'animate-bounce-short' : ''}`} />
-                                                            <span>Present</span>
-                                                        </div>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => handleStatusChange(student.id, 'Late')}
-                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Late'
-                                                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white border-transparent shadow-lg shadow-yellow-500/30 ring-2 ring-yellow-100'
-                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                                                            }`}
-                                                    >
-                                                        <div className="flex flex-col items-center gap-1 relative z-10">
-                                                            <Clock className={`h-4 w-4 ${status === 'Late' ? 'animate-pulse' : ''}`} />
-                                                            <span>Late</span>
-                                                        </div>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => handleStatusChange(student.id, 'Absent')}
-                                                        className={`relative overflow-hidden py-2.5 rounded-xl text-xs font-bold transition-all border group/btn ${status === 'Absent'
-                                                            ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white border-transparent shadow-lg shadow-red-500/30 ring-2 ring-red-100'
-                                                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                                                            }`}
-                                                    >
-                                                        <div className="flex flex-col items-center gap-1 relative z-10">
-                                                            <XCircle className={`h-4 w-4 ${status === 'Absent' ? 'animate-pulse' : ''}`} />
-                                                            <span>Absent</span>
-                                                        </div>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleStatusChange(student.id, 'Present')}
+                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Present'
+                                                                        ? 'bg-green-100 text-green-700 border-green-200 ring-2 ring-green-500/20'
+                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                                        }`}
+                                                                >
+                                                                    Present
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleStatusChange(student.id, 'Late')}
+                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Late'
+                                                                        ? 'bg-yellow-100 text-yellow-700 border-yellow-200 ring-2 ring-yellow-500/20'
+                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                                        }`}
+                                                                >
+                                                                    Late
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleStatusChange(student.id, 'Absent')}
+                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Absent'
+                                                                        ? 'bg-red-100 text-red-700 border-red-200 ring-2 ring-red-500/20'
+                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                                        }`}
+                                                                >
+                                                                    Absent
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
                         </>
                     ) : (
                         // --- VIEW MODE: MONTHLY REGISTER ---
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full max-h-[70vh]">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full w-full">
                             {loadingMonthly ? (
                                 <div className="p-12 flex justify-center"><Loading type="spinner" fullScreen={false} message="Loading monthly register..." /></div>
                             ) : (
-                                <div className="overflow-auto custom-scrollbar flex-1 relative">
+                                <div className="overflow-auto custom-scrollbar flex-1 relative w-full">
                                     <table className="border-collapse w-full">
                                         <thead>
                                             <tr>
-                                                <th className="sticky left-0 z-20 bg-white border-b border-r border-slate-200 p-3 min-w-[200px] text-left text-xs font-bold text-slate-600 uppercase tracking-wider shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                                                <th className="sticky left-0 top-0 z-40 bg-white border-b border-r border-slate-200 p-3 min-w-[200px] text-left text-xs font-bold text-slate-600 uppercase tracking-wider shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
                                                     Student
                                                 </th>
                                                 {Array.from({ length: getDaysInMonth() }).map((_, i) => (
-                                                    <th key={i} className="min-w-[40px] border-b border-slate-200 p-2 text-center text-xs font-medium text-slate-400">
+                                                    <th key={i} className="sticky top-0 z-30 bg-white min-w-[40px] border-b border-slate-200 p-2 text-center text-xs font-medium text-slate-400">
                                                         {i + 1}
                                                     </th>
                                                 ))}
@@ -767,8 +754,8 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                         </div>
                     )}
 
-                    {/* Expandable Verification Section (Hidden in Monthly Mode to focus on table) */}
-                    {viewMode === 'mark' && (
+                    {/* Expandable Verification Section (Hidden in Monthly Mode and for Teachers) */}
+                    {viewMode === 'mark' && currentUser?.role !== 'teacher' && (
                         <div className="pt-8 border-t border-slate-200/50">
                             <button
                                 onClick={() => {
