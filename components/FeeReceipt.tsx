@@ -169,24 +169,26 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                         </div>
 
                         {/* Header */}
-                        <div className="relative z-10 border-b-2 border-slate-800 pb-6 mb-6 flex justify-between items-start">
-                            <div className="flex items-center gap-4">
+                        <div className="relative z-10 border-b-2 border-slate-800 pb-6 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left w-full md:w-auto">
                                 {data.schoolLogo && (
-                                    <img src={data.schoolLogo} alt="Logo" className="h-20 w-20 object-contain" />
+                                    <img src={data.schoolLogo} alt="Logo" className="h-16 w-16 md:h-20 md:w-20 object-contain mx-auto md:mx-0" />
                                 )}
                                 <div>
-                                    <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">{data.schoolName}</h1>
-                                    <div className="text-sm text-slate-500 space-y-0.5 mt-1">
+                                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 uppercase tracking-tight leading-tight">{data.schoolName}</h1>
+                                    <div className="text-xs md:text-sm text-slate-500 space-y-0.5 mt-1">
                                         {data.schoolAddress && <p>{data.schoolAddress}</p>}
                                         {data.schoolPhone && <p>Tel: {data.schoolPhone}</p>}
                                         {data.schoolEmail && <p>Email: {data.schoolEmail}</p>}
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <h2 className="text-xl font-bold text-slate-800 uppercase mb-1">Official Receipt</h2>
-                                <p className="text-sm text-slate-500">No: <span className="font-mono font-bold text-slate-700">{data.transactionId.slice(0, 8).toUpperCase()}</span></p>
-                                <p className="text-sm text-slate-500">Date: <span className="font-bold text-slate-700">{new Date(data.date).toLocaleDateString()}</span></p>
+                            <div className="text-center md:text-right w-full md:w-auto mt-4 md:mt-0 bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-lg">
+                                <h2 className="text-lg md:text-xl font-bold text-slate-800 uppercase mb-1">Official Receipt</h2>
+                                <div className="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-0">
+                                    <p className="text-sm text-slate-500">No: <span className="font-mono font-bold text-slate-700">{data.transactionId.slice(0, 8).toUpperCase()}</span></p>
+                                    <p className="text-sm text-slate-500">Date: <span className="font-bold text-slate-700">{new Date(data.date).toLocaleDateString()}</span></p>
+                                </div>
                             </div>
                         </div>
 
@@ -194,13 +196,13 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                         <div className="relative z-10 space-y-6">
 
                             {/* Student Details */}
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 grid grid-cols-2 gap-4">
-                                <div>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col sm:flex-row justify-between gap-4">
+                                <div className="text-center sm:text-left">
                                     <p className="text-xs text-slate-500 uppercase font-bold mb-1">Received From</p>
                                     <p className="font-bold text-lg text-slate-800">{data.studentName}</p>
                                     <p className="text-sm text-slate-600">ID: {data.studentId}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-center sm:text-right border-t sm:border-t-0 border-slate-200 pt-2 sm:pt-0 mt-2 sm:mt-0">
                                     <p className="text-xs text-slate-500 uppercase font-bold mb-1">Class / Grade</p>
                                     <p className="font-bold text-lg text-slate-800">{data.studentClass}</p>
                                 </div>
@@ -229,27 +231,26 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
 
                             {/* --- REDESIGNED FOOTER SECTION --- */}
                             <div className="mt-8 pt-6 border-t-2 border-slate-100">
-                                <div className="grid grid-cols-5 gap-8">
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
 
                                     {/* Left Side: Words & Signature */}
-                                    <div className="col-span-3 flex flex-col justify-between">
-                                        <div>
+                                    <div className="md:col-span-3 flex flex-col justify-between order-2 md:order-1">
+                                        <div className="mb-6 md:mb-0 text-center md:text-left">
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Amount in Words</p>
-                                            <div className="text-slate-700 font-serif italic text-lg leading-relaxed">
+                                            <div className="text-slate-700 font-serif italic text-base md:text-lg leading-relaxed bg-slate-50 md:bg-transparent p-2 md:p-0 rounded">
                                                 {currency.code} {data.amount} Only
                                             </div>
                                         </div>
 
-                                        <div className="mt-12 pt-4">
-                                            <div className="border-b border-slate-400 border-dashed w-64 mb-2"></div>
+                                        <div className="mt-8 md:mt-12 pt-4 flex flex-col items-center md:items-start">
+                                            <div className="border-b border-slate-400 border-dashed w-48 md:w-64 mb-2"></div>
                                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authorized Signature</p>
                                         </div>
                                     </div>
 
                                     {/* Right Side: Financial Summary Card */}
-                                    {/* Right Side: Financial Summary */}
-                                    <div className="col-span-2 pl-4">
-                                        <div className="space-y-3 text-right">
+                                    <div className="md:col-span-2 md:pl-4 order-1 md:order-2">
+                                        <div className="bg-slate-50 md:bg-transparent p-4 md:p-0 rounded-xl space-y-3">
                                             <div className="flex justify-between items-end">
                                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Previous Balance</span>
                                                 <span className="font-mono text-sm font-semibold text-slate-500">{formatAmount(data.previousBalance)}</span>
@@ -260,7 +261,7 @@ const FeeReceipt: React.FC<FeeReceiptProps> = ({ data, onClose }) => {
                                                 <span className="font-mono text-lg font-bold text-slate-800">{formatAmount(data.amount)}</span>
                                             </div>
 
-                                            <div className="border-t-2 border-slate-100 my-2"></div>
+                                            <div className="border-t-2 border-slate-200 md:border-slate-100 my-2"></div>
 
                                             <div className="flex justify-between items-end">
                                                 <span className="text-xs font-bold text-red-400 uppercase tracking-widest">Balance Due</span>
