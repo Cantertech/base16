@@ -3,12 +3,13 @@ import {
   Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
-  Table as TableIcon, LayoutList
+  Table as TableIcon, LayoutList, Camera, UploadCloud
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { getCachedData, setCachedData, clearCache } from '../utils/cache';
+import { compressImage } from '../utils/imageCompression';
 
 const CACHE_KEY_STUDENTS = 'orbit_students_data';
 const CACHE_KEY_CLASSES = 'orbit_classes_data';
@@ -27,6 +28,7 @@ interface Student {
   attendance?: number;
   admission_no?: string;
   pin?: string;
+  photo_url?: string;
 }
 
 interface Transaction {
@@ -206,7 +208,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           status: s.status,
           attendance: 100, // Mock for now
           admission_no: s.admission_no,
-          pin: s.pin
+          pin: s.pin,
+          photo_url: s.photo_url
         }));
         setStudents(mappedStudents);
         if (!isTeacher) {
@@ -239,7 +242,11 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
       if (!targetSchoolId) throw new Error('No school associated with user');
 
-      const newStudent = {
+      // Generate credentials
+      const admission_no = studentData.admission_no || `${new Date().getFullYear()}${(studentData.class || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`;
+      const pin = studentData.pin || `${Math.floor(Math.random() * 9000 + 1000)}`;
+
+      const newStudentPayload: any = {
         school_id: targetSchoolId,
         name: studentData.name,
         class: studentData.class,
@@ -249,22 +256,53 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         date_of_birth: studentData.dob || null,
         status: 'Active',
         balance: Number(studentData.balance) || 0,
-        // Unique ID Generation: Year + ClassCode + Timestamp(4) + Random(2)
-        admission_no: `${new Date().getFullYear()}${(studentData.class || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
-        pin: `${Math.floor(Math.random() * 9000 + 1000)}`
+        admission_no,
+        pin
       };
 
-      const { error } = await supabase
+      // 1. Insert student first to get ID
+      const { data: insertedData, error: insertError } = await supabase
         .from('students')
-        .insert([newStudent]);
+        .insert([newStudentPayload])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+      const newStudentId = insertedData.id;
+
+      // 2. Handle Photo Upload if present
+      if (studentData.photoFile) {
+        try {
+          const compressedFile = await compressImage(studentData.photoFile);
+          const fileName = `${newStudentId}_${Date.now()}.jpg`;
+          const filePath = `${newStudentId}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('student-photos')
+            .upload(filePath, compressedFile);
+
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('student-photos')
+              .getPublicUrl(filePath);
+
+            if (publicUrlData.publicUrl) {
+              await supabase
+                .from('students')
+                .update({ photo_url: publicUrlData.publicUrl })
+                .eq('id', newStudentId);
+            }
+          }
+        } catch (uploadErr) {
+          console.error("Photo upload failed", uploadErr);
+          // Don't fail the whole creation, just log
+        }
+      }
 
       fetchStudents();
-      clearCache(CACHE_KEY_STUDENTS); // Force refresh next time or ensure fetchStudents updates cache
+      clearCache(CACHE_KEY_STUDENTS);
       setIsAddModalOpen(false);
-      setIsAddModalOpen(false);
-      alert(`Student added successfully!\n\nGENERATED CREDENTIALS:\nStudent ID: ${newStudent.admission_no}\nPIN: ${newStudent.pin}\n\nPlease share these with the parent.`);
+      alert(`Student added successfully!\n\nGENERATED CREDENTIALS:\nStudent ID: ${admission_no}\nPIN: ${pin}\n\nPlease share these with the parent.`);
 
 
     } catch (error: any) {
@@ -279,17 +317,47 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+
+      const updatePayload: any = {
+        name: updatedData.name,
+        class: updatedData.class,
+        gender: updatedData.gender,
+        parent_name: updatedData.parentName,
+        parent_phone: updatedData.parentPhone,
+        date_of_birth: updatedData.dob || null,
+        balance: Number(updatedData.balance),
+        admission_no: updatedData.admission_no, // Allow editing these if passed
+        pin: updatedData.pin
+      };
+
+      // Handle Photo Upload
+      if (updatedData.photoFile) {
+        try {
+          const compressedFile = await compressImage(updatedData.photoFile);
+          const fileName = `${id}_${Date.now()}.jpg`;
+          const filePath = `${id}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('student-photos')
+            .upload(filePath, compressedFile);
+
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('student-photos')
+              .getPublicUrl(filePath);
+
+            if (publicUrlData.publicUrl) {
+              updatePayload.photo_url = publicUrlData.publicUrl;
+            }
+          }
+        } catch (err) {
+          console.error("Photo upload error", err);
+        }
+      }
+
       const { error } = await supabase
         .from('students')
-        .update({
-          name: updatedData.name,
-          class: updatedData.class,
-          gender: updatedData.gender,
-          parent_name: updatedData.parentName,
-          parent_phone: updatedData.parentPhone,
-          date_of_birth: updatedData.dob || null,
-          balance: Number(updatedData.balance)
-        })
+        .update(updatePayload)
         .eq('id', id);
 
       if (error) throw error;
@@ -777,8 +845,12 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
               <div key={student.id} className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm border border-slate-200">
-                      {student.name.charAt(0)}
+                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm border border-slate-200 overflow-hidden">
+                      {student.photo_url ? (
+                        <img src={student.photo_url} alt={student.name} className="w-full h-full object-cover" />
+                      ) : (
+                        student.name.charAt(0)
+                      )}
                     </div>
                     <div>
                       <div className="font-medium text-slate-900 line-clamp-1">{student.name}</div>
@@ -886,8 +958,12 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm mr-3 border border-slate-200">
-                          {student.name.charAt(0)}
+                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm mr-3 border border-slate-200 overflow-hidden">
+                          {student.photo_url ? (
+                            <img src={student.photo_url} alt={student.name} className="w-full h-full object-cover" />
+                          ) : (
+                            student.name.charAt(0)
+                          )}
                         </div>
                         <div>
                           <div className="font-medium text-slate-900">{student.name}</div>
@@ -1031,8 +1107,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 // --- Sub-component: Student Modal (Add/Edit) ---
 const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initialData, title, isLoading = false }: any) => {
   const { currency } = useCurrency();
-  const [formData, setFormData] = useState({
-    name: '', class: '', gender: 'Male', parentName: '', parentPhone: '', dob: '', balance: 0
+  const [formData, setFormData] = useState<any>({
+    name: '', class: '', gender: 'Male', parentName: '', parentPhone: '', dob: '', balance: 0, admission_no: '', pin: ''
   });
 
   useEffect(() => {
@@ -1044,10 +1120,28 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
         parentName: initialData.parentName,
         parentPhone: initialData.parentPhone,
         dob: initialData.dob || '',
-        balance: initialData.balance
+        balance: initialData.balance,
+        admission_no: initialData.admission_no,
+        pin: initialData.pin,
+        photo_url: initialData.photo_url
       });
+      if (initialData.photo_url) {
+        setPhotoPreview(initialData.photo_url);
+      }
     }
   }, [initialData]);
+
+  // Photo State
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
 
   // Auto-calculate balance for NEW students when class changes
   useEffect(() => {
@@ -1062,7 +1156,8 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    e.preventDefault();
+    onSubmit({ ...formData, photoFile });
   };
 
   return (
@@ -1075,6 +1170,28 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Photo Upload */}
+          <div className="flex justify-center mb-4">
+            <div className="relative group cursor-pointer">
+              <div className="w-24 h-24 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-10 h-10 text-slate-300" />
+                )}
+              </div>
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="w-8 h-8 text-white" />
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onChange={handlePhotoChange}
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
             <input required type="text" className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
@@ -1127,6 +1244,21 @@ const StudentModal = ({ onClose, onSubmit, availableClasses, feeStructure, initi
                   value={formData.parentPhone} onChange={e => setFormData({ ...formData, parentPhone: e.target.value })} placeholder="024..." />
               </div>
             </div>
+            {/* Admin only: Credentials override (optional) */}
+            {initialData && (
+              <div className="mt-4 grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Student ID</label>
+                  <input type="text" className="w-full p-1.5 text-sm bg-white border rounded shadow-sm"
+                    value={formData.admission_no || ''} onChange={e => setFormData({ ...formData, admission_no: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">PIN</label>
+                  <input type="text" className="w-full p-1.5 text-sm bg-white border rounded shadow-sm"
+                    value={formData.pin || ''} onChange={e => setFormData({ ...formData, pin: e.target.value })} />
+                </div>
+              </div>
+            )}
           </div>
           <div className="pt-4 flex justify-end gap-3">
             <button type="button" onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
@@ -1278,9 +1410,13 @@ const StudentProfileDrawer = ({ student, onClose }: { student: Student; onClose:
             <X className="h-5 w-5" />
           </button>
           <div className="absolute -bottom-12 left-8 flex items-end">
-            <div className="h-24 w-24 rounded-full bg-white p-1 shadow-lg">
-              <div className="h-full w-full rounded-full bg-slate-200 flex items-center justify-center text-3xl font-bold text-slate-500">
-                {student.name.charAt(0)}
+            <div className="h-24 w-24 rounded-full bg-white p-1 shadow-lg overflow-hidden">
+              <div className="h-full w-full rounded-full bg-slate-200 flex items-center justify-center text-3xl font-bold text-slate-500 overflow-hidden">
+                {student.photo_url ? (
+                  <img src={student.photo_url} alt={student.name} className="w-full h-full object-cover" />
+                ) : (
+                  student.name.charAt(0)
+                )}
               </div>
             </div>
             <div className="mb-14 ml-4">

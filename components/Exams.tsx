@@ -25,6 +25,7 @@ interface Student {
     name: string;
     class: string;
     attendance: number;
+    photo?: string;
 }
 
 interface ExamsProps {
@@ -171,7 +172,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             id: s.id,
                             name: s.name,
                             class: s.class,
-                            attendance: 100 // Mock
+                            attendance: 100, // Mock
+                            photo: s.photo_url
                         })));
                     }
 

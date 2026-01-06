@@ -22,49 +22,77 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
     setError('');
     setLoading(true);
 
-    // --- SUPER ADMIN BYPASS ---
-    if (email === 'silas' && password === 'silas@222') {
-      onLogin({
-        name: 'Super Admin',
-        role: 'super_admin',
-        photo: null
-      });
-      setLoading(false);
-      return;
+    let loginEmail = email;
+    const loginPass = password;
+
+    // --- SUPER ADMIN AUTH HANDLING ---
+    // Instead of a fake bypass, we map 'silas' to a real email so we get a valid session token.
+    if (email.toLowerCase() === 'silas' && password === 'silas@222') {
+      loginEmail = 'silas@base16.com';
     }
 
     try {
       // 1. Authenticate with Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
+        email: loginEmail,
+        password: loginPass,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Special handling for the 'silas' super admin account if it doesn't exist yet
+        // AUTO-CREATION DISABLED FOR SECURITY
+        /*
+        if (loginEmail === 'silas@base16.com' && authError.message.includes('Invalid login credentials')) {
+           // ... auto creation logic removed ...
+        }
+        */
+        throw authError; // Throw original error if not the special case
+      }
 
       if (authData.user) {
         // 2. Fetch User Profile to get Role and Details
-        // We check the 'profiles' table we created during signup
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*, schools!school_id(name, logo_url, status)')
           .eq('id', authData.user.id)
           .single();
 
+        // Handle missing profile for 'silas' specifically (robustness)
+        if (profileError && loginEmail === 'silas@base16.com') {
+          console.log("Profile missing for Silas, creating...");
+          await supabase.from('profiles').upsert({
+            id: authData.user.id,
+            email: loginEmail,
+            full_name: 'Silas (Super Admin)',
+            role: 'super_admin'
+          });
+          // Recursive call or manual set? Manual set is safer to avoid infinite loops
+          onLogin({
+            id: authData.user.id,
+            name: 'Silas (Super Admin)',
+            role: 'super_admin',
+            email: loginEmail,
+            photo: null,
+            school_id: null,
+            isFirstLogin: false
+          });
+          setLoading(false);
+          return;
+        }
+
         if (profileError) {
-          // Fallback if profile not found (e.g. old user or manual insert)
-          // In a real app, handle this gracefully
           console.error("Profile fetch error:", profileError);
           throw new Error("User profile not found.");
         }
 
         // 3. Verify Role matches the selected tab
-        if (profileData.role !== role) {
+        // Allow super_admin to login regardless of tab selection
+        if (profileData.role !== 'super_admin' && profileData.role !== role) {
           throw new Error(`Invalid credentials for ${role} login.`);
         }
 
         let assignedClass = null;
-        if (role === 'teacher') {
+        if (profileData.role === 'teacher') {
           const { data: teacherData } = await supabase
             .from('teachers')
             .select('assigned_class')
@@ -76,14 +104,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
         }
 
         // 4. Check School Status (for Admins)
-        if (role === 'admin' && profileData.schools?.status !== 'active') {
+        if (profileData.role === 'admin' && profileData.schools?.status !== 'active') {
           throw new Error("Your school account is pending approval. Please complete payment.");
         }
 
         // --- NEW: First Login Check ---
         let isFirstLogin = false;
-        if (role === 'admin' && !profileData.first_login_done) {
-          // Update the flag
+        if (profileData.role === 'admin' && !profileData.first_login_done) {
           const { error: updateError } = await supabase
             .from('profiles')
             .update({ first_login_done: true })
@@ -100,9 +127,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           name: profileData.full_name,
           role: profileData.role,
           email: authData.user.email,
-          photo: null, // Admin photo is null for now, will use initials
+          photo: null,
           school_id: profileData.school_id,
-          schoolLogo: profileData.schools?.logo_url, // Use school logo for the sidebar
+          schoolLogo: profileData.schools?.logo_url,
           schoolName: profileData.schools?.name,
           assignedClass: assignedClass,
           isFirstLogin: isFirstLogin
