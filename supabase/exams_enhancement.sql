@@ -196,9 +196,9 @@ BEGIN
     VALUES (
         target_school_id, 
         'Exam Results Released', 
-        'The results for ' || p_term || ' associated with ' || target_class || ' have been released.', 
+        'The results for ' || p_term || ' associated with ' || target_class || ' have been released. Please check your child''s portal.', 
         'Urgent', 
-        'All Staff', 
+        'Parents', -- Changed from 'All Staff' to 'Parents'
         CURRENT_DATE
     );
     RETURN TRUE;

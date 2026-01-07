@@ -72,7 +72,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     referralCode: school.referral_code || `BW-${Math.floor(Math.random() * 900 + 100)}`, // Generate if missing
                     referralPreference: school.referral_preference || 'CASH',
                     plan: school.subscription_plan || 'Small School', // Default to Small School
-                    nextPaymentDue: school.next_payment_due
+                    nextPaymentDue: school.next_payment_due,
+                    paymentConfig: school.payment_config || {}
                 });
 
                 // If referral code was generated on fly, save it back (lazy init)
@@ -395,30 +396,32 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                         </form>
 
                         {/* App Installation Card */}
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                                    <Smartphone className="h-6 w-6" />
+                        {!window.matchMedia('(display-mode: standalone)').matches && (
+                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <Smartphone className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-lg">Install Base16 App</h3>
+                                        <p className="text-slate-500 text-sm max-w-sm">
+                                            Install the Base16 app on your device for easier access and a better experience.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">Install Base16 App</h3>
-                                    <p className="text-slate-500 text-sm max-w-sm">
-                                        Install the Base16 app on your device for easier access and a better experience.
-                                    </p>
-                                </div>
+                                <button
+                                    onClick={handleInstallApp}
+                                    disabled={!deferredPrompt}
+                                    className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${deferredPrompt
+                                        ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg hover:shadow-slate-800/30 hover:-translate-y-0.5'
+                                        : 'bg-slate-100 text-slate-400 cursor-not-allowed hidden' // Hidden if not installable
+                                        }`}
+                                >
+                                    <Download className="h-5 w-5" />
+                                    {deferredPrompt ? 'Install App' : 'App Installed'}
+                                </button>
                             </div>
-                            <button
-                                onClick={handleInstallApp}
-                                disabled={!deferredPrompt}
-                                className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${deferredPrompt
-                                    ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg hover:shadow-slate-800/30 hover:-translate-y-0.5'
-                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    }`}
-                            >
-                                <Download className="h-5 w-5" />
-                                {deferredPrompt ? 'Install App' : 'App Installed'}
-                            </button>
-                        </div>
+                        )}
 
                         {/* Referral Hub */}
                         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden mt-8">
@@ -526,7 +529,88 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div>
                             <h2 className="text-2xl font-bold text-slate-800">Billing & Plans</h2>
-                            <p className="text-slate-500 text-sm">Manage your subscription.</p>
+                            <p className="text-slate-500 text-sm">Manage your subscription and payment methods.</p>
+                        </div>
+
+                        {/* Payment Configuration (Accept Payments) */}
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                            <div>
+                                <h3 className="font-bold text-slate-800 text-lg">Parent Payment Settings</h3>
+                                <p className="text-slate-500 text-sm">Configure how parents can pay school fees (Offline / Manual Verification).</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Money Number</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. 0244123456 (John Doe)"
+                                        value={config.paymentConfig?.momo_number || ''}
+                                        onChange={e => setConfig({
+                                            ...config,
+                                            paymentConfig: { ...config.paymentConfig, momo_number: e.target.value }
+                                        })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. GCB Bank"
+                                        value={config.paymentConfig?.bank_name || ''}
+                                        onChange={e => setConfig({
+                                            ...config,
+                                            paymentConfig: { ...config.paymentConfig, bank_name: e.target.value }
+                                        })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Account No."
+                                        value={config.paymentConfig?.account_number || ''}
+                                        onChange={e => setConfig({
+                                            ...config,
+                                            paymentConfig: { ...config.paymentConfig, account_number: e.target.value }
+                                        })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Instructions</label>
+                                    <textarea
+                                        rows={3}
+                                        placeholder="e.g. Please use Child Name as Reference. Dial *170#..."
+                                        value={config.paymentConfig?.instructions || ''}
+                                        onChange={e => setConfig({
+                                            ...config,
+                                            paymentConfig: { ...config.paymentConfig, instructions: e.target.value }
+                                        })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        const { error } = await supabase.from('schools')
+                                            .update({ payment_config: config.paymentConfig })
+                                            .eq('id', currentUser?.school_id);
+                                        setLoading(false);
+                                        if (error) alert('Failed to save payment settings: ' + error.message);
+                                        else alert('Payment settings saved successfully!');
+                                    }}
+                                    disabled={loading}
+                                    className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                >
+                                    {loading ? 'Saving...' : 'Save Configuration'}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
