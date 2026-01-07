@@ -1,4 +1,4 @@
--- EXAMS ENHANCEMENT: Report Status & Release Logic - VERSION 3
+-- EXAMS ENHANCEMENT: Report Status & Release Logic - VERSION 4
 
 -- 1A. CONFIGURATION TABLE (New)
 -- Controls whether mark entry is open and what the current term is.
@@ -72,7 +72,9 @@ RETURNS TABLE (
     total numeric,
     class text,
     created_at timestamptz,
-    grade text 
+    grade text,
+    term text,
+    academic_year text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -99,7 +101,9 @@ BEGIN
             WHEN er.total >= 60 THEN 'C'
             WHEN er.total >= 50 THEN 'D'
             ELSE 'E'
-        END as grade
+        END as grade,
+        er.term,
+        er.academic_year
     FROM public.exam_results er
     LEFT JOIN public.exam_report_status ers 
         ON er.school_id = ers.school_id 
@@ -158,8 +162,6 @@ BEGIN
     DO UPDATE SET status = 'Released', released_at = NOW();
     
     -- Simulate notification by inserting into internal notices
-    -- Changed audience to 'All Staff' to comply with constraint CHECK (audience IN ('All Staff', 'Teaching Staff', 'Admins Only'))
-    -- Corrected priority to 'Urgent' to comply with constraint CHECK (priority IN ('Normal', 'Urgent'))
     INSERT INTO public.notices (school_id, title, message, priority, audience, date)
     VALUES (
         target_school_id, 

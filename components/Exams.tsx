@@ -48,6 +48,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [results, setResults] = useState<Result[]>([]);
     const [submissionOverview, setSubmissionOverview] = useState<any[]>([]);
 
+    // --- RELEASE STATUS STATE ---
+    const [releasedClasses, setReleasedClasses] = useState<string[]>([]);
+
     // Config Data
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
     const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
@@ -214,10 +217,23 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         })));
                     }
 
-                    // 5. Fetch Submission Overview (Admin)
+                    // 5a. Fetch Submission Overview (Admin)
                     if (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') {
                         const { data: subs } = await supabase.rpc('get_exam_submission_overview', { target_school_id: schoolId });
                         if (subs) setSubmissionOverview(subs);
+
+                        // 5b. Fetch Released Classes Status
+                        const { data: releasedData } = await supabase
+                            .from('exam_report_status')
+                            .select('class_name')
+                            .eq('school_id', schoolId)
+                            .eq('status', 'Released')
+                            .eq('term', currentTerm); // Check for current term specifically
+
+                        if (releasedData) {
+                            // Normalize to handle potential case/whitespace issues from DB
+                            setReleasedClasses(releasedData.map(r => r.class_name.trim().toLowerCase()));
+                        }
                     }
                 }
             }
@@ -316,6 +332,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             });
 
             if (error) throw error;
+
+            // Optimistically update released state
+            setReleasedClasses(prev => [...prev, className.trim().toLowerCase()]);
+
             alert(`Results for ${className} have been released successfully!`);
 
         } catch (e: any) {
@@ -538,26 +558,26 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 </div>
 
                 {/* Flow Tabs */}
-                <div className="flex p-1 bg-slate-100 rounded-lg">
+                <div className="flex p-1 bg-slate-100 rounded-lg w-full md:w-auto overflow-x-auto no-scrollbar">
                     <button
                         onClick={() => setActiveTab('setup')}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'setup' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'setup' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <Settings className="w-4 h-4" /> 1. Configuration
+                        <Settings className="w-4 h-4" /> <span className="hidden sm:inline">1. Configuration</span><span className="sm:hidden">Setup</span>
                     </button>
-                    <div className="w-px bg-slate-300 my-2 mx-1"></div>
+                    <div className="w-px bg-slate-300 my-2 mx-1 hidden sm:block"></div>
                     <button
                         onClick={() => setActiveTab('monitoring')}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'monitoring' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'monitoring' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <ClipboardCheck className="w-4 h-4" /> 2. Mark Entry
+                        <ClipboardCheck className="w-4 h-4" /> <span className="hidden sm:inline">2. Mark Entry</span><span className="sm:hidden">Entry</span>
                     </button>
-                    <div className="w-px bg-slate-300 my-2 mx-1"></div>
+                    <div className="w-px bg-slate-300 my-2 mx-1 hidden sm:block"></div>
                     <button
                         onClick={() => setActiveTab('publishing')}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'publishing' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'publishing' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <Send className="w-4 h-4" /> 3. Publish & Reports
+                        <Send className="w-4 h-4" /> <span className="hidden sm:inline">3. Publish & Reports</span><span className="sm:hidden">Publish</span>
                     </button>
                 </div>
             </div>
@@ -876,43 +896,54 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Class Reports</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {availableClasses.map(cls => (
-                                <div key={cls} className="p-4 border border-slate-200 rounded-lg hover:border-primary-300 transition-all bg-slate-50 hover:bg-white group">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <h4 className="font-bold text-slate-900">{cls}</h4>
-                                        <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">
-                                            {students.filter(s => s.class === cls).length} Students
-                                        </span>
+                            {availableClasses.map(cls => {
+                                const isReleased = releasedClasses.includes(cls.trim().toLowerCase());
+                                return (
+                                    <div key={cls} className="p-4 border border-slate-200 rounded-lg hover:border-primary-300 transition-all bg-slate-50 hover:bg-white group">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <h4 className="font-bold text-slate-900">{cls}</h4>
+                                            <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">
+                                                {students.filter(s => s.class === cls).length} Students
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setViewingClassList(cls);
+                                                    setSelectedClass(cls);
+                                                }}
+                                                className="flex-1 py-2 text-xs font-bold text-primary-700 bg-primary-50 rounded hover:bg-primary-100 transition-colors"
+                                            >
+                                                View Reports
+                                            </button>
+                                            <button
+                                                onClick={() => publishResults(cls)}
+                                                disabled={isPublishing === cls || isReleased}
+                                                className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isPublishing === cls
+                                                    ? 'bg-slate-500 cursor-not-allowed'
+                                                    : isReleased
+                                                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                                        : 'bg-slate-800 hover:bg-slate-900'
+                                                    }`}
+                                            >
+                                                {isPublishing === cls ? (
+                                                    <>
+                                                        <Loader2 className="w-3 h-3 animate-spin" /> Publishing...
+                                                    </>
+                                                ) : isReleased ? (
+                                                    <>
+                                                        <CheckCircle className="w-3 h-3" /> Released
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Send className="w-3 h-3" /> Release
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setViewingClassList(cls);
-                                                setSelectedClass(cls);
-                                            }}
-                                            className="flex-1 py-2 text-xs font-bold text-primary-700 bg-primary-50 rounded hover:bg-primary-100 transition-colors"
-                                        >
-                                            View Reports
-                                        </button>
-                                        <button
-                                            onClick={() => publishResults(cls)}
-                                            disabled={isPublishing === cls}
-                                            className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isPublishing === cls ? 'bg-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'
-                                                }`}
-                                        >
-                                            {isPublishing === cls ? (
-                                                <>
-                                                    <Loader2 className="w-3 h-3 animate-spin" /> Publishing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Send className="w-3 h-3" /> Release
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
 
