@@ -320,6 +320,27 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
             if (error) throw error;
 
+            // --- AUTO-UPDATE STUDENT BALANCES ---
+            // Now that the fee is added to the structure, apply it to the students' current balances.
+            if (feeData.applyToAll) {
+                await supabase.rpc('add_fee_to_students', {
+                    p_school_id: targetSchoolId,
+                    p_amount: Number(feeData.amount),
+                    p_target_class: null
+                });
+            } else {
+                if (feeData.selectedClasses && feeData.selectedClasses.length > 0) {
+                    // Update each class in parallel
+                    await Promise.all(feeData.selectedClasses.map((cls: string) =>
+                        supabase.rpc('add_fee_to_students', {
+                            p_school_id: targetSchoolId,
+                            p_amount: Number(feeData.amount),
+                            p_target_class: cls
+                        })
+                    ));
+                }
+            }
+
             clearCache(CACHE_KEY_FEES_DATA);
             fetchData(true);
             setIsAddFeeModalOpen(false);
