@@ -3,7 +3,7 @@ import {
   Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
-  Table as TableIcon, LayoutList, Camera, UploadCloud
+  Table as TableIcon, LayoutList, Camera, UploadCloud, Lock
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -1457,6 +1457,27 @@ const StudentProfileDrawer = ({ student, onClose }: { student: Student; onClose:
               <a href={`tel:${student.parentPhone}`} className="font-medium text-blue-600 hover:underline flex items-center gap-1">
                 <Phone className="h-3 w-3" /> {student.parentPhone}
               </a>
+            </div>
+          </div>
+
+          {/* Portal Credentials */}
+          <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Lock className="h-3 w-3" /> Portal Access
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase mb-1">Student ID (Login)</p>
+                <p className="font-mono font-bold text-lg text-slate-800 tracking-wider">
+                  {student.admission_no || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase mb-1">Access PIN</p>
+                <p className="font-mono font-bold text-lg text-slate-800 tracking-wider">
+                  {student.pin || 'N/A'}
+                </p>
+              </div>
             </div>
           </div>
 
