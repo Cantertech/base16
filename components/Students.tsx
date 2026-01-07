@@ -160,7 +160,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         .from('students')
         .select('*')
         .eq('school_id', currentUser?.school_id)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true });
 
       if (isTeacher && currentUser?.id) {
         // Fetch assignments first

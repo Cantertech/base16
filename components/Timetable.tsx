@@ -20,6 +20,7 @@ interface TimetableEntry {
     end_time: string;
     type: 'Lesson' | 'Break' | 'Assembly' | 'Other';
     room_number?: string;
+    activity_name?: string; // For "Other" type
     // Joins
     classes?: { name: string };
     subjects?: { name: string };
@@ -53,7 +54,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
         type: 'Lesson',
         subject_id: '',
         teacher_id: '',
-        room_number: ''
+        room_number: '',
+        activity_name: ''
     });
 
     useEffect(() => {
@@ -174,7 +176,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                 type: formData.type,
                 subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null,
                 teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null,
-                room_number: formData.room_number
+                room_number: formData.room_number,
+                activity_name: formData.type === 'Other' ? formData.activity_name : null
             };
 
             if (editingEntry) {
@@ -208,7 +211,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             type: 'Lesson',
             subject_id: '',
             teacher_id: '',
-            room_number: ''
+            room_number: '',
+            activity_name: ''
         });
         setIsModalOpen(true);
     };
@@ -222,7 +226,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             type: entry.type as any,
             subject_id: entry.subject_id || '',
             teacher_id: entry.teacher_id || '',
-            room_number: entry.room_number || ''
+            room_number: entry.room_number || '',
+            activity_name: entry.activity_name || ''
         });
         setIsModalOpen(true);
     };
@@ -340,7 +345,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                         key={entry.id}
                                         className={`p-4 rounded-xl border shadow-sm relative group transition-all ${entry.type === 'Break' ? 'bg-orange-50/50 border-orange-100' :
                                             entry.type === 'Assembly' ? 'bg-purple-50/50 border-purple-100' :
-                                                'bg-white border-slate-200'
+                                                entry.type === 'Other' ? 'bg-blue-50/50 border-blue-100' :
+                                                    'bg-white border-slate-200'
                                             }`}
                                     >
                                         <div className="flex justify-between items-start mb-3">
@@ -383,9 +389,10 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-2">
-                                                <span className={`text-base font-bold ${entry.type === 'Break' ? 'text-orange-600' : 'text-purple-600'
+                                                <span className={`text-base font-bold ${entry.type === 'Break' ? 'text-orange-600' :
+                                                    entry.type === 'Assembly' ? 'text-purple-600' : 'text-blue-600'
                                                     }`}>
-                                                    {entry.type}
+                                                    {entry.type === 'Other' && entry.activity_name ? entry.activity_name : entry.type}
                                                 </span>
                                             </div>
                                         )}
@@ -418,7 +425,8 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                                 key={entry.id}
                                                 className={`p-3 rounded-lg border shadow-sm relative group transition-all hover:shadow-md ${entry.type === 'Break' ? 'bg-orange-50 border-orange-200' :
                                                     entry.type === 'Assembly' ? 'bg-purple-50 border-purple-200' :
-                                                        'bg-white border-slate-200'
+                                                        entry.type === 'Other' ? 'bg-blue-50 border-blue-200' :
+                                                            'bg-white border-slate-200'
                                                     }`}
                                             >
                                                 {/* Time Badge */}
@@ -456,9 +464,10 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                                     </div>
                                                 ) : (
                                                     <div className="text-center py-2">
-                                                        <span className={`text-sm font-bold ${entry.type === 'Break' ? 'text-orange-600' : 'text-purple-600'
+                                                        <span className={`text-sm font-bold ${entry.type === 'Break' ? 'text-orange-600' :
+                                                            entry.type === 'Assembly' ? 'text-purple-600' : 'text-blue-600'
                                                             }`}>
-                                                            {entry.type}
+                                                            {entry.type === 'Other' && entry.activity_name ? entry.activity_name : entry.type}
                                                         </span>
                                                     </div>
                                                 )}
@@ -549,6 +558,21 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                     />
                                 </div>
                             </div>
+
+                            {/* Activity Name Input for 'Other' type */}
+                            {formData.type === 'Other' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Activity Name</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="e.g. Club Meeting, Sports, Study Hall"
+                                        value={formData.activity_name}
+                                        onChange={e => setFormData({ ...formData, activity_name: e.target.value })}
+                                        className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-primary-500"
+                                    />
+                                </div>
+                            )}
 
                             {formData.type === 'Lesson' && (
                                 <>
