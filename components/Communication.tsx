@@ -113,25 +113,36 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
     const [selectedStudent, setSelectedStudent] = useState<any>(null);
     const [searchingStudent, setSearchingStudent] = useState(false);
     const [studentSearchResults, setStudentSearchResults] = useState<any[]>([]);
+    const [schoolName, setSchoolName] = useState('');
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
     // Fetch Classes
     useEffect(() => {
-        const fetchClasses = async () => {
+        const fetchClassesAndSchool = async () => {
             if (!currentUser?.school_id) return;
-            const { data } = await supabase
+
+            // Fetch Classes
+            const { data: classData } = await supabase
                 .from('students')
                 .select('class')
                 .eq('school_id', currentUser.school_id);
 
-            if (data) {
-                const uniqueClasses = [...new Set(data.map((d: any) => d.class))].filter(Boolean).sort();
+            if (classData) {
+                const uniqueClasses = [...new Set(classData.map((d: any) => d.class))].filter(Boolean).sort();
                 setClasses(uniqueClasses);
                 if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0]);
             }
+
+            // Fetch School Name if not in currentUser
+            if (currentUser.school_name) {
+                setSchoolName(currentUser.school_name);
+            } else {
+                const { data: schoolData } = await supabase.from('schools').select('name').eq('id', currentUser.school_id).single();
+                if (schoolData) setSchoolName(schoolData.name);
+            }
         };
-        fetchClasses();
+        fetchClassesAndSchool();
     }, [currentUser?.school_id]);
 
     // Student Search Effect
@@ -310,10 +321,12 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             }
 
             // 3. Send SMS via Edge Function using 'recipients' payload
+            const finalMessage = schoolName ? `${schoolName}\n${message}` : message;
+
             const { data, error } = await supabase.functions.invoke('send-sms', {
                 body: {
                     recipients: recipientsData,
-                    message: message,
+                    message: finalMessage,
                     hubtelKeys: {
                         clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
                         clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,

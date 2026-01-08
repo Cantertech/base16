@@ -100,7 +100,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         current_term: "First Term",
         academic_year: new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
         status: 'SETUP', // SETUP, OPEN, LOCKED
-        mark_entry_enabled: false,
+        mark_entry_enabled: true,
         target_classes: [] as string[],
         target_subjects: [] as string[],
         weights: { class: 30, exam: 70 },
@@ -349,8 +349,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
     // --- Mark Entry Logic (Teacher) ---
     const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore', value: string) => {
-        // Updated check: rely on the flag
-        if (!examConfig.mark_entry_enabled && currentUser?.role !== 'admin') return;
+        // Restriction removed: Entry is always open
+        // if (!examConfig.mark_entry_enabled && currentUser?.role !== 'admin') return;
 
         let numValue = Number(value);
         const maxClass = examConfig.weights?.class || 30;
@@ -451,15 +451,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             {examConfig.exam_name} • {examConfig.current_term}
                         </p>
                     </div>
-                    {isLocked ? (
-                        <div className="bg-red-100 text-red-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold text-sm">
-                            <Lock className="h-4 w-4" /> Marks Entry Closed
-                        </div>
-                    ) : (
-                        <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold text-sm">
-                            <Unlock className="h-4 w-4" /> Marks Entry Open
-                        </div>
-                    )}
+                    {/* Always Open Indicator */}
+                    <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg flex items-center gap-2 font-bold text-sm">
+                        <Unlock className="h-4 w-4" /> Marks Entry Open
+                    </div>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -481,11 +476,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 </select>
                             </div>
                         </div>
-                        {!isLocked && (
-                            <button onClick={saveMarks} disabled={Object.keys(pendingChanges).length === 0} className="flex items-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-green-700 shadow-md transition-all disabled:opacity-50">
-                                <Save className="h-4 w-4" /> Save Changes
-                            </button>
-                        )}
+                        <button onClick={saveMarks} disabled={Object.keys(pendingChanges).length === 0} className="flex items-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-green-700 shadow-md transition-all disabled:opacity-50">
+                            <Save className="h-4 w-4" /> Save Changes
+                        </button>
                     </div>
                     {/* Teacher Grid */}
                     <div className="overflow-x-auto hidden md:block">
@@ -518,7 +511,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                                 <td className="px-6 py-3 text-center">
                                                     <input
                                                         type="number"
-                                                        disabled={isLocked}
+                                                        // disabled={isLocked}
                                                         value={dispClass || ''}
                                                         onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
                                                         className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
@@ -528,7 +521,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                             <td className="px-6 py-3 text-center">
                                                 <input
                                                     type="number"
-                                                    disabled={isLocked}
+                                                    // disabled={isLocked}
                                                     value={dispExam || ''}
                                                     onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
                                                     className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
@@ -814,30 +807,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             {/* Step 2: Monitoring & Entry Status */}
             {activeTab === 'monitoring' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    {/* Control Panel */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800 mb-1">Entry Status Control</h3>
-                            <p className="text-sm text-slate-500">Master switch for teachers to enter marks.</p>
-                        </div>
-                        <div className="flex gap-3">
-                            {examConfig.mark_entry_enabled ? (
-                                <button
-                                    onClick={() => toggleMarkEntry(false)}
-                                    className="flex items-center gap-2 px-6 py-3 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200 border border-red-200 transition-all"
-                                >
-                                    <StopCircle className="h-5 w-5" /> Close Entry
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => toggleMarkEntry(true)}
-                                    className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-md transition-all"
-                                >
-                                    <PlayCircle className="h-5 w-5" /> Open Entry
-                                </button>
-                            )}
-                        </div>
-                    </div>
+
+                    {/* Control Panel REMOVED as per request - Entry Always Open */}
 
                     {/* Teacher Submission Table */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
