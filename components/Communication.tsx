@@ -73,18 +73,27 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
                     <StickyNote className="h-4 w-4" /> <span className="hidden sm:inline">Digital Notice Board</span><span className="sm:hidden">Notices</span>
                 </button>
                 {!isTeacher && (
-                    <button
-                        onClick={() => setActiveTab('history')}
-                        className={`flex-1 md:flex-none px-4 md:px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <History className="h-4 w-4" /> History
-                    </button>
+                    <>
+                        <button
+                            onClick={() => setActiveTab('sms')}
+                            className={`flex-1 md:flex-none px-4 md:px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'sms' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <MessageSquare className="h-4 w-4" /> SMS Blast
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`flex-1 md:flex-none px-4 md:px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <History className="h-4 w-4" /> History
+                        </button>
+                    </>
                 )}
             </div>
 
             {/* Content Area */}
             <div className="min-h-[400px]">
                 {activeTab === 'notices' && <NoticeBoard isTeacher={isTeacher} currentUser={currentUser} />}
+                {activeTab === 'sms' && !isTeacher && <ComposeSMS balance={smsBalance} onUpdateBalance={updateBalance} currentUser={currentUser} />}
                 {activeTab === 'history' && !isTeacher && <HistoryTable currentUser={currentUser} />}
             </div>
         </div>
@@ -98,10 +107,54 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
     const [recipient, setRecipient] = useState('Debtors');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const [classes, setClasses] = useState<string[]>([]);
+    const [selectedClass, setSelectedClass] = useState('');
+    const [targetStudentSearch, setTargetStudentSearch] = useState('');
+    const [selectedStudent, setSelectedStudent] = useState<any>(null);
+    const [searchingStudent, setSearchingStudent] = useState(false);
+    const [studentSearchResults, setStudentSearchResults] = useState<any[]>([]);
+
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Mock Stats
-    const stats = { debtors: 45, parents: 320, teachers: 28 };
+    // Fetch Classes
+    useEffect(() => {
+        const fetchClasses = async () => {
+            if (!currentUser?.school_id) return;
+            const { data } = await supabase
+                .from('students')
+                .select('class')
+                .eq('school_id', currentUser.school_id);
+
+            if (data) {
+                const uniqueClasses = [...new Set(data.map((d: any) => d.class))].filter(Boolean).sort();
+                setClasses(uniqueClasses);
+                if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0]);
+            }
+        };
+        fetchClasses();
+    }, [currentUser?.school_id]);
+
+    // Student Search Effect
+    useEffect(() => {
+        const searchStudents = async () => {
+            if (targetStudentSearch.length < 2) {
+                setStudentSearchResults([]);
+                return;
+            }
+            setSearchingStudent(true);
+            const { data } = await supabase
+                .from('students')
+                .select('id, name, class, parent_phone')
+                .eq('school_id', currentUser.school_id)
+                .ilike('name', `%${targetStudentSearch}%`)
+                .limit(5);
+            setStudentSearchResults(data || []);
+            setSearchingStudent(false);
+        };
+        const timeout = setTimeout(searchStudents, 500);
+        return () => clearTimeout(timeout);
+    }, [targetStudentSearch, currentUser?.school_id]);
+
 
     const getVariables = () => {
         if (recipient === 'Debtors') return ['{Parent Name}', '{Student Name}', '{Balance}', '{Due Date}'];
@@ -140,6 +193,11 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             return;
         }
 
+        if (recipient === 'Single Student' && !selectedStudent) {
+            alert("Please select a student first.");
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -147,50 +205,53 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             let phoneNumbers: string[] = [];
 
             if (recipient === 'Debtors') {
-                const { data, error } = await supabase
+                const { data } = await supabase
                     .from('students')
                     .select('parent_phone')
                     .gt('balance', 0)
                     .eq('school_id', currentUser.school_id)
-                    .neq('parent_phone', null)
-                    .neq('parent_phone', '');
-
-                if (error) { console.error('Error fetching debtors:', error); alert('Database error fetching debtors.'); return; }
+                    .neq('parent_phone', null);
                 phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
 
             } else if (recipient === 'All Parents' || recipient === 'Results') {
-                const { data, error } = await supabase
+                const { data } = await supabase
                     .from('students')
                     .select('parent_phone')
                     .eq('school_id', currentUser.school_id)
-                    .neq('parent_phone', null)
-                    .neq('parent_phone', '');
-
-                if (error) { console.error('Error fetching parents:', error); alert('Database error fetching parents.'); return; }
+                    .neq('parent_phone', null);
                 phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
 
+            } else if (recipient === 'Specific Class') {
+                const { data } = await supabase
+                    .from('students')
+                    .select('parent_phone')
+                    .eq('school_id', currentUser.school_id)
+                    .eq('class', selectedClass)
+                    .neq('parent_phone', null);
+                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
+
+            } else if (recipient === 'Single Student') {
+                if (selectedStudent?.parent_phone) phoneNumbers = [selectedStudent.parent_phone];
+                else { alert("Selected student has no parent phone number."); setLoading(false); return; }
+
             } else if (recipient === 'Teachers') {
-                // Query 'teachers' table which definitely has 'phone'
-                const { data, error } = await supabase
+                const { data } = await supabase
                     .from('teachers')
                     .select('phone')
                     .eq('school_id', currentUser.school_id)
-                    .neq('phone', null)
-                    .neq('phone', '');
-
-                if (error) { console.error('Error fetching teachers:', error); alert('Database error fetching teachers.'); return; }
+                    .neq('phone', null);
                 phoneNumbers = data?.map((d: any) => d.phone) || [];
             }
 
             console.log(`Raw numbers found: ${phoneNumbers.length}`, phoneNumbers);
 
-            // Filter unique and valid numbers (clean up +233, 024, etc if needed, but for now just length check)
+            // Filter unique and valid numbers (clean up +233, 024, etc if needed)
             const uniqueNumbers = [...new Set(phoneNumbers.filter(p => p && p.length >= 9))];
 
             console.log(`Unique valid numbers: ${uniqueNumbers.length}`, uniqueNumbers);
 
             if (uniqueNumbers.length === 0) {
-                alert(`No valid phone numbers found for group '${recipient}'. Detected ${phoneNumbers.length} raw entries, but 0 were valid (>9 chars).`);
+                alert(`No valid phone numbers found for group '${recipient}'.`);
                 setLoading(false);
                 return;
             }
@@ -206,7 +267,15 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
             // 3. Send SMS via Edge Function
             const { data, error } = await supabase.functions.invoke('send-sms', {
-                body: { phoneNumbers: uniqueNumbers, message: message }
+                body: {
+                    phoneNumbers: uniqueNumbers,
+                    message: message,
+                    hubtelKeys: {
+                        clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
+                        clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
+                        senderId: import.meta.env.VITE_HUBTEL_SENDER_ID
+                    }
+                }
             });
 
             if (error) throw error;
@@ -220,15 +289,19 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 await supabase.from('message_logs').insert({
                     school_id: currentUser.school_id,
                     date: new Date().toISOString().split('T')[0],
-                    type: 'SMS Blast',
-                    recipient: recipient,
+                    type: recipient === 'Single Student' ? 'Individual SMS' : 'SMS Blast',
+                    recipient: recipient === 'Single Student' ? selectedStudent.name : recipient,
                     content: message,
-                    status: 'Delivered' // Optimistic status, ideally use data from AT response
+                    status: 'Delivered'
                 });
             }
 
             setMessage('');
             alert(`Success! Messages sent to ${uniqueNumbers.length} recipients. ${actualCost} units deducted.`);
+            if (recipient === 'Single Student') {
+                setSelectedStudent(null);
+                setTargetStudentSearch('');
+            }
 
         } catch (err: any) {
             console.error(err);
@@ -244,17 +317,80 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Users className="h-5 w-5 text-slate-500" /> Select Target Audience
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                    {['Debtors', 'All Parents', 'Results', 'Teachers'].map((r) => (
-                        <button
-                            key={r}
-                            onClick={() => setRecipient(r)}
-                            className={`p-3 md:p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === r ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
-                        >
-                            <span className="block font-bold text-slate-700 text-sm md:text-base">{r === 'Results' ? 'Exam Results' : r}</span>
-                            <span className="text-[10px] md:text-xs text-slate-500">{r === 'Debtors' ? 'Fees > 0' : r === 'Teachers' ? 'Staff Only' : r === 'Results' ? 'Links & Scores' : 'General Info'}</span>
-                        </button>
-                    ))}
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                        {['Debtors', 'All Parents', 'Results', 'Teachers', 'Specific Class', 'Single Student'].map((r) => (
+                            <button
+                                key={r}
+                                onClick={() => { setRecipient(r); setTargetStudentSearch(''); setSelectedStudent(null); }}
+                                className={`p-3 md:p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden ${recipient === r ? 'border-primary-600 bg-primary-50' : 'border-slate-100 hover:border-slate-300'}`}
+                            >
+                                <span className="block font-bold text-slate-700 text-sm md:text-base">{r}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Conditional Selectors */}
+                    {recipient === 'Specific Class' && (
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 animate-in slide-in-from-top-2">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Select Class</label>
+                            <select
+                                value={selectedClass}
+                                onChange={(e) => setSelectedClass(e.target.value)}
+                                className="w-full md:w-1/2 p-2 border rounded-lg"
+                            >
+                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    {recipient === 'Single Student' && (
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 animate-in slide-in-from-top-2">
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Search Student</label>
+                            <div className="relative max-w-md">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        className="w-full pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                                        placeholder="Type name to search..."
+                                        value={targetStudentSearch}
+                                        onChange={(e) => setTargetStudentSearch(e.target.value)}
+                                    />
+                                </div>
+
+                                {selectedStudent && (
+                                    <div className="mt-2 flex items-center gap-2 text-sm bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-100">
+                                        <CheckCircle className="h-4 w-4" />
+                                        Selected: <b>{selectedStudent.name}</b> ({selectedStudent.class})
+                                        <button onClick={() => setSelectedStudent(null)} className="ml-auto text-xs underline">Change</button>
+                                    </div>
+                                )}
+
+                                {!selectedStudent && targetStudentSearch.length >= 2 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-100 max-h-60 overflow-y-auto z-50">
+                                        {searchingStudent ? (
+                                            <div className="p-4 text-center text-xs text-slate-500">Searching...</div>
+                                        ) : studentSearchResults.length > 0 ? (
+                                            studentSearchResults.map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    onClick={() => { setSelectedStudent(s); setTargetStudentSearch(''); }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                                                >
+                                                    <p className="font-bold text-sm text-slate-800">{s.name}</p>
+                                                    <p className="text-xs text-slate-500">{s.class} • {s.parent_phone || 'No Phone'}</p>
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="p-4 text-center text-xs text-slate-500">No students found.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             </div>
 

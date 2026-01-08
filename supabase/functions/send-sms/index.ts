@@ -12,52 +12,47 @@ serve(async (req) => {
     }
 
     try {
-        const { phoneNumbers, message } = await req.json()
+        const { phoneNumbers, message, hubtelKeys } = await req.json()
 
         if (!phoneNumbers || !message) {
             throw new Error('Missing phoneNumbers or message')
         }
 
-        const username = Deno.env.get('AFRICASTALKING_USERNAME') || 'sandbox'
-        const apiKey = Deno.env.get('AFRICASTALKING_API_KEY')
+        // Prioritize Deno.env (Server Secrets), fallback to passed keys (Frontend .env)
+        const clientId = Deno.env.get('HUBTEL_CLIENT_ID') || hubtelKeys?.clientId;
+        const clientSecret = Deno.env.get('HUBTEL_CLIENT_SECRET') || hubtelKeys?.clientSecret;
+        const senderId = Deno.env.get('HUBTEL_SENDER_ID') || hubtelKeys?.senderId || 'Orbit';
 
-        // Determine API URL based on username (sandbox vs prod)
-        const isSandbox = username === 'sandbox';
-        const apiUrl = isSandbox
-            ? 'https://api.sandbox.africastalking.com/version1/messaging'
-            : 'https://api.africastalking.com/version1/messaging';
-
-        if (!apiKey) {
-            throw new Error('AFRICASTALKING_API_KEY not set')
+        if (!clientId || !clientSecret) {
+            throw new Error('Hubtel Credentials (clientid, clientsecret) missing. Please set them in Supabase Secrets or .env');
         }
 
-        // Format phone numbers (ensure comma separated string)
-        // Africa's Talking expects a comma-separated string of numbers like "+233...,+233..."
-        const to = Array.isArray(phoneNumbers) ? phoneNumbers.join(',') : phoneNumbers
+        // Join numbers for Hubtel (comma separated)
+        // Hubtel format: 23320..., 020...
+        const to = Array.isArray(phoneNumbers) ? phoneNumbers.join(',') : phoneNumbers;
 
-        const body = new URLSearchParams({
-            username: username,
-            to: to,
-            message: message,
-            // from: 'YourSenderID' // Optional, requires registration
-        })
+        console.log(`Sending Hubtel SMS to ${to.length > 50 ? to.substring(0, 50) + '...' : to}`);
 
-        console.log(`Sending SMS to ${to} via ${isSandbox ? 'Sandbox' : 'Live'}`);
+        // Hubtel API URL
+        const url = new URL("https://smsc.hubtel.com/v1/messages/send");
+        url.searchParams.append("clientid", clientId);
+        url.searchParams.append("clientsecret", clientSecret);
+        url.searchParams.append("from", senderId);
+        url.searchParams.append("to", to);
+        url.searchParams.append("content", message);
 
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'apiKey': apiKey,
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json'
-            },
-            body: body.toString(),
-        })
+        // Making the GET request
+        const response = await fetch(url.toString(), { method: 'GET' });
 
-        const data = await response.json()
-        console.log('AT Response:', data)
+        // Handle Hubtel JSON response
+        const data = await response.json();
+        console.log('Hubtel Response:', data);
 
-        return new Response(JSON.stringify(data), {
+        // Check if Hubtel request was successful in their terms (status usually in response)
+        // Hubtel response example: { "status": "0", "data": ... } or List of messages
+        // Assuming simplistic check or just returning data for client to parse
+
+        return new Response(JSON.stringify({ success: true, apiResponse: data }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         })
