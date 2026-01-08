@@ -201,63 +201,107 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
         setLoading(true);
 
         try {
-            // 1. Fetch Recipients
-            let phoneNumbers: string[] = [];
+            // 1. Fetch Recipients with Data for Personalization
+            let recipientsData: any[] = [];
+
+            const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
 
             if (recipient === 'Debtors') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone')
+                    .select('parent_phone, parent_name, name, balance')
                     .gt('balance', 0)
                     .eq('school_id', currentUser.school_id)
                     .neq('parent_phone', null);
-                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
+
+                recipientsData = data?.map((d: any) => ({
+                    phone: cleanPhone(d.parent_phone),
+                    vars: {
+                        '{Parent Name}': d.parent_name || 'Parent',
+                        '{Student Name}': d.name || 'Student',
+                        '{Balance}': d.balance,
+                        '{Due Date}': 'Month End'
+                    }
+                })) || [];
 
             } else if (recipient === 'All Parents' || recipient === 'Results') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone')
+                    .select('parent_phone, parent_name, name')
                     .eq('school_id', currentUser.school_id)
                     .neq('parent_phone', null);
-                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
+
+                recipientsData = data?.map((d: any) => ({
+                    phone: cleanPhone(d.parent_phone),
+                    vars: {
+                        '{Parent Name}': d.parent_name || 'Parent',
+                        '{Student Name}': d.name || 'Student',
+                        '{Total Score}': 'CHECK PORTAL',
+                        '{Link}': 'https://base16.sixzones.com/portal'
+                    }
+                })) || [];
 
             } else if (recipient === 'Specific Class') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone')
+                    .select('parent_phone, parent_name, name')
                     .eq('school_id', currentUser.school_id)
                     .eq('class', selectedClass)
                     .neq('parent_phone', null);
-                phoneNumbers = data?.map((d: any) => d.parent_phone) || [];
+
+                recipientsData = data?.map((d: any) => ({
+                    phone: cleanPhone(d.parent_phone),
+                    vars: {
+                        '{Parent Name}': d.parent_name || 'Parent',
+                        '{Student Name}': d.name || 'Student'
+                    }
+                })) || [];
 
             } else if (recipient === 'Single Student') {
-                if (selectedStudent?.parent_phone) phoneNumbers = [selectedStudent.parent_phone];
-                else { alert("Selected student has no parent phone number."); setLoading(false); return; }
+                if (selectedStudent?.id) {
+                    // We fetch specifically to ensure we have all fields even if search result was partial
+                    const { data } = await supabase.from('students').select('*').eq('id', selectedStudent.id).single();
+                    if (data && data.parent_phone) {
+                        recipientsData = [{
+                            phone: cleanPhone(data.parent_phone),
+                            vars: {
+                                '{Parent Name}': data.parent_name || 'Parent',
+                                '{Student Name}': data.name,
+                                '{Balance}': data.balance,
+                                '{Link}': 'https://base16.sixzones.com/portal'
+                            }
+                        }];
+                    } else {
+                        alert("Selected student has no parent data."); setLoading(false); return;
+                    }
+                }
 
             } else if (recipient === 'Teachers') {
                 const { data } = await supabase
                     .from('teachers')
-                    .select('phone')
+                    .select('phone, name')
                     .eq('school_id', currentUser.school_id)
                     .neq('phone', null);
-                phoneNumbers = data?.map((d: any) => d.phone) || [];
+
+                recipientsData = data?.map((d: any) => ({
+                    phone: cleanPhone(d.phone),
+                    vars: {
+                        '{Parent Name}': d.name,
+                        '{Student Name}': 'N/A'
+                    }
+                })) || [];
             }
 
-            console.log(`Raw numbers found: ${phoneNumbers.length}`, phoneNumbers);
+            // Filter valid numbers
+            recipientsData = recipientsData.filter(r => r.phone && r.phone.length >= 9);
 
-            // Filter unique and valid numbers (clean up +233, 024, etc if needed)
-            const uniqueNumbers = [...new Set(phoneNumbers.filter(p => p && p.length >= 9))];
-
-            console.log(`Unique valid numbers: ${uniqueNumbers.length}`, uniqueNumbers);
-
-            if (uniqueNumbers.length === 0) {
-                alert(`No valid phone numbers found for group '${recipient}'.`);
+            if (recipientsData.length === 0) {
+                alert(`No valid recipients found.`);
                 setLoading(false);
                 return;
             }
 
-            // 2. Cost Calculation
-            const actualCost = uniqueNumbers.length;
+            const actualCost = recipientsData.length;
 
             if (balance < actualCost) {
                 alert(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
@@ -265,10 +309,10 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 return;
             }
 
-            // 3. Send SMS via Edge Function
+            // 3. Send SMS via Edge Function using 'recipients' payload
             const { data, error } = await supabase.functions.invoke('send-sms', {
                 body: {
-                    phoneNumbers: uniqueNumbers,
+                    recipients: recipientsData,
                     message: message,
                     hubtelKeys: {
                         clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
@@ -280,7 +324,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
             if (error) throw error;
 
-            console.log('SMS Sent:', data);
+            console.log('SMS Sent Response:', data);
 
             // 4. Update Balance & Log
             await onUpdateBalance(balance - actualCost);
@@ -290,14 +334,14 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     school_id: currentUser.school_id,
                     date: new Date().toISOString().split('T')[0],
                     type: recipient === 'Single Student' ? 'Individual SMS' : 'SMS Blast',
-                    recipient: recipient === 'Single Student' ? selectedStudent.name : recipient,
+                    recipient: recipient === 'Single Student' ? (selectedStudent?.name || 'Student') : recipient,
                     content: message,
                     status: 'Delivered'
                 });
             }
 
             setMessage('');
-            alert(`Success! Messages sent to ${uniqueNumbers.length} recipients. ${actualCost} units deducted.`);
+            alert(`Success! Messages queued for ${recipientsData.length} recipients. accounts.`);
             if (recipient === 'Single Student') {
                 setSelectedStudent(null);
                 setTargetStudentSearch('');
