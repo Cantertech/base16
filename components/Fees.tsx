@@ -384,7 +384,7 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
         if (filterStatus === 'paid') matchesStatus = s.balance <= 0;
 
         return matchesSearch && matchesStatus;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
 
     return (
         <div className="p-4 md:p-8 space-y-4 md:space-y-8 relative h-full pb-20 md:pb-0 overflow-y-auto">

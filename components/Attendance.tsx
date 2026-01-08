@@ -480,7 +480,9 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
     }
 
     // --- RENDER: TEACHER VIEW (Marking) ---
-    const filteredStudents = students.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredStudents = students
+        .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
     // Calculate quick stats for the sticky header
     const presentCount = Object.values(attendanceMap).filter(s => s === 'Present').length;

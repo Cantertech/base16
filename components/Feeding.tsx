@@ -201,7 +201,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
             return matchesSearch && isPresent && !isPaid;
         }
         return matchesSearch;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
 
     return (
         <div className="p-4 md:p-8 space-y-6 h-full flex flex-col pb-20 md:pb-0 overflow-y-auto">
