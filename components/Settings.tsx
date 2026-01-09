@@ -30,7 +30,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [billingHistory, setBillingHistory] = useState<any[]>([]);
     const [showPlanModal, setShowPlanModal] = useState(false);
-    const [showPlanModal, setShowPlanModal] = useState(false);
+
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null); // PWA Install Prompt
 
     // -- Billing & SMS State --
