@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS public.exam_submissions (
 
 
 -- 2. DROP conflicting functions
-DROP FUNCTION IF EXISTS get_exam_submission_overview(uuid);
+DROP FUNCTION IF EXISTS get_exam_submission_overview(uuid) CASCADE;
 DROP FUNCTION IF EXISTS submit_exam_marks(uuid, text, text);
 
 -- 3. Create Submission Overview Function (Correct Parameter Name: p_school_id)
