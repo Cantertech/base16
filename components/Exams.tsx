@@ -72,6 +72,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [viewingClassList, setViewingClassList] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState<string | null>(null);
     const [viewingSubmission, setViewingSubmission] = useState<any>(null);
+    const [studentRank, setStudentRank] = useState<{ position: number, total: number } | null>(null);
 
 
     // --- Config Logic ---
@@ -135,6 +136,27 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             }
         }
     }, [selectedClass, myAssignments, examConfig]);
+
+    // Fetch Rank Effect
+    useEffect(() => {
+        if (reportStudent && currentUser?.school_id) {
+            const fetchRank = async () => {
+                const { data, error } = await supabase.rpc('get_student_class_rank', {
+                    p_school_id: currentUser.school_id,
+                    p_class: reportStudent.class,
+                    p_term: examConfig.current_term,
+                    p_year: examConfig.academic_year,
+                    p_student_id: reportStudent.id
+                });
+                if (data) {
+                    setStudentRank({ position: data.position, total: data.total_students });
+                }
+            };
+            fetchRank();
+        } else {
+            setStudentRank(null);
+        }
+    }, [reportStudent, currentUser?.school_id, examConfig.current_term, examConfig.academic_year]);
 
     const fetchData = async () => {
         try {
@@ -1110,6 +1132,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 grading: examConfig.grading // Ensure grading is explicitly passed if needed
                             }}
                             onClose={() => setReportStudent(null)}
+                            position={studentRank}
+                            schoolId={currentUser?.school_id}
                         />
                     )}
                 </div>

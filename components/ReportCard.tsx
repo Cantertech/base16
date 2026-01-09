@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
-import { X, Printer, Building2 } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { X, Printer, Building2, Save } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
+import { supabase } from '../utils/supabaseClient';
 
 interface Result {
     subject: string;
@@ -37,14 +38,83 @@ interface ReportCardProps {
     results: Result[];
     onClose: () => void;
     schoolConfig?: SchoolConfig;
+    position?: { position: number; total: number } | null;
+    schoolId?: string;
 }
 
-const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, schoolConfig }) => {
+const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, schoolConfig, position, schoolId }) => {
     const componentRef = useRef<HTMLDivElement>(null);
+
+    // Helper to guess next class
+    const getNextClass = (currentClass: string) => {
+        const c = currentClass.trim();
+        // Handle common patterns
+        if (c.match(/Basic\s*(\d+)/i)) {
+            const num = parseInt(c.match(/(\d+)/)![0]);
+            return c.replace(num.toString(), (num + 1).toString());
+        }
+        if (c.match(/JHS\s*(\d+)/i)) {
+            const num = parseInt(c.match(/(\d+)/)![0]);
+            if (num >= 3) return "Graduated";
+            return c.replace(num.toString(), (num + 1).toString());
+        }
+        if (c.match(/KG\s*1/i)) return c.replace('1', '2');
+        if (c.match(/KG\s*2/i)) return "Basic 1";
+        if (c.match(/Nursery\s*1/i)) return c.replace('1', '2');
+        if (c.match(/Nursery\s*2/i)) return "KG 1";
+        // Default fallback
+        return `Next Class`;
+    };
 
     // Editable State
     const [teacherRemark, setTeacherRemark] = useState("A disciplined and hardworking student. Keep it up!");
     const [principalRemark, setPrincipalRemark] = useState("Promoted to the next class.");
+    const [promotionStatus, setPromotionStatus] = useState(`Promoted to ${getNextClass(student.class)}`);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Fetch Saved Report Data
+    useEffect(() => {
+        if (schoolId && schoolConfig?.term && schoolConfig?.academic_year) {
+            const loadSaved = async () => {
+                const { data } = await supabase.from('student_report_cards')
+                    .select('*')
+                    .eq('school_id', schoolId)
+                    .eq('student_id', student.id)
+                    .eq('term', schoolConfig.term)
+                    .eq('academic_year', schoolConfig.academic_year)
+                    .single();
+                if (data) {
+                    if (data.teacher_remark) setTeacherRemark(data.teacher_remark);
+                    if (data.principal_remark) setPrincipalRemark(data.principal_remark);
+                    if (data.promotion_status) setPromotionStatus(data.promotion_status);
+                }
+            };
+            loadSaved();
+        }
+    }, [schoolId, student.id, schoolConfig]);
+
+    const handleSave = async () => {
+        if (!schoolId) return;
+        setIsSaving(true);
+        const { error } = await supabase.rpc('save_student_report', {
+            p_school_id: schoolId,
+            p_student_id: student.id,
+            p_class: student.class,
+            p_term: schoolConfig?.term || '',
+            p_year: schoolConfig?.academic_year || '',
+            p_teacher_remark: teacherRemark,
+            p_principal_remark: principalRemark,
+            p_promotion_status: promotionStatus,
+            p_position: position?.position || 0,
+            p_total_students: position?.total || 0
+        });
+        setIsSaving(false);
+        if (!error) {
+            // Optional: Toast or feedback
+        } else {
+            console.error('Save failed', error);
+        }
+    };
 
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
@@ -108,6 +178,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <p className="text-xs text-slate-400 mr-4 hidden md:block">
                             <span className="font-bold text-yellow-400">Tip:</span> You can edit the remarks below before printing.
                         </p>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-colors disabled:opacity-50"
+                        >
+                            <Save className="h-3 w-3 md:h-4 md:w-4" /> <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
+                        </button>
                         <button
                             onClick={() => handlePrint()}
                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-colors"
@@ -179,6 +256,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Attendance</p>
                                     <p className="text-base md:text-lg font-medium text-slate-700">{student.attendance}%</p>
                                 </div>
+                                <div>
+                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Position</p>
+                                    <p className="text-base md:text-lg font-bold text-blue-900">
+                                        {position ? `${position.position} / ${position.total}` : '-'}
+                                    </p>
+                                </div>
                             </div>
                             <div className="h-24 w-24 md:h-32 md:w-32 bg-white rounded-lg border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
                                 {student.photo ? (
@@ -207,8 +290,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                             <div className="flex justify-between items-start mb-2">
                                                 <h3 className="font-bold text-slate-800 text-sm">{result.subject}</h3>
                                                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${grade === 'A' || grade === 'EE1' ? 'bg-green-100 text-green-700' :
-                                                        grade === 'F' || grade === 'BE2' ? 'bg-red-100 text-red-700' :
-                                                            'bg-blue-100 text-blue-700'
+                                                    grade === 'F' || grade === 'BE2' ? 'bg-red-100 text-red-700' :
+                                                        'bg-blue-100 text-blue-700'
                                                     }`}>
                                                     {grade}
                                                 </span>
@@ -270,7 +353,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                                 <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center text-slate-600 border-r border-slate-200 print:border-black">{result.examScore}</td>
                                                 <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-bold text-blue-700 bg-blue-50 border-r border-slate-200 print:bg-transparent print:text-black print:border-black">{result.total}</td>
                                                 <td className={`px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-bold border-r border-slate-200 print:border-black print:text-black ${grade === 'A' || grade === 'B' || grade?.startsWith('EE') ? 'text-green-600' :
-                                                        grade === 'F' || grade?.startsWith('BE') ? 'text-red-600' : 'text-slate-700'
+                                                    grade === 'F' || grade?.startsWith('BE') ? 'text-red-600' : 'text-slate-700'
                                                     } `}>{grade}</td>
                                                 {hasPointsSystem && <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-medium text-slate-700 border-r border-slate-200 print:border-black">{points}</td>}
                                                 <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm text-slate-600 italic print:text-black">{remark}</td>
@@ -308,6 +391,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     onChange={(e) => setPrincipalRemark(e.target.value)}
                                     rows={2}
                                 />
+
+                                <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                    <p className="font-bold text-xs md:text-sm uppercase text-slate-500 mb-1">Final Decision / Promotion:</p>
+                                    <input
+                                        type="text"
+                                        value={promotionStatus}
+                                        onChange={(e) => setPromotionStatus(e.target.value)}
+                                        className="w-full font-bold text-slate-900 bg-transparent outline-none border-b border-slate-300 focus:border-blue-500 pb-1"
+                                    />
+                                </div>
                             </div>
                             <div className="flex flex-col justify-end items-center mt-4 md:mt-0">
                                 <div className="w-48 border-b-2 border-slate-900 mb-2"></div>
