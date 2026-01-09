@@ -220,7 +220,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
                     // 5a. Fetch Submission Overview (Admin)
                     if (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') {
-                        const { data: subs } = await supabase.rpc('get_exam_submission_overview', { target_school_id: schoolId });
+                        const { data: subs } = await supabase.rpc('get_exam_submission_overview', { p_school_id: schoolId });
                         if (subs) setSubmissionOverview(subs);
 
                         // 5b. Fetch Released Classes Status
