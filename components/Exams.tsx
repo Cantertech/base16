@@ -71,6 +71,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     // --- New State for Report Flow ---
     const [viewingClassList, setViewingClassList] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState<string | null>(null);
+    const [viewingSubmission, setViewingSubmission] = useState<any>(null);
 
 
     // --- Config Logic ---
@@ -437,6 +438,30 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         s.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const handleSubmitMarks = async () => {
+        if (!selectedClass || !selectedSubject) return alert("Select Class and Subject");
+        if (!confirm(`Submit marks for ${selectedSubject} (${selectedClass})? This signals you are done.`)) return;
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
+            const schoolId = currentUser?.school_id || profile?.school_id;
+
+            const { error } = await supabase.rpc('submit_exam_marks', {
+                p_school_id: schoolId,
+                p_class: selectedClass,
+                p_subject: selectedSubject
+            });
+
+            if (error) throw error;
+            alert("Marks submitted successfully to Admin.");
+        } catch (e: any) {
+            console.error(e);
+            alert("Submission failed: " + e.message);
+        }
+    };
+
     // --- TEACHER VIEW ---
     if (currentUser?.role === 'teacher') {
 
@@ -471,9 +496,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 </select>
                             </div>
                         </div>
-                        <button onClick={saveMarks} disabled={Object.keys(pendingChanges).length === 0} className="flex items-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-green-700 shadow-md transition-all disabled:opacity-50">
-                            <Save className="h-4 w-4" /> Save Changes
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={saveMarks} disabled={Object.keys(pendingChanges).length === 0} className="flex items-center gap-2 bg-slate-700 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800 shadow-md transition-all disabled:opacity-50">
+                                <Save className="h-4 w-4" /> Save Draft
+                            </button>
+                            <button onClick={handleSubmitMarks} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-green-700 shadow-md transition-all">
+                                <CheckCircle className="h-4 w-4" /> Submit to Admin
+                            </button>
+                        </div>
                     </div>
                     {/* Teacher Grid */}
                     <div className="overflow-x-auto hidden md:block">
@@ -833,8 +863,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                         </tr>
                                     ) : (
                                         submissionOverview.map((sub, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50">
-                                                <td className="px-6 py-3 font-medium text-slate-900">{sub.class_name}</td>
+                                            <tr key={idx} className="hover:bg-slate-50 cursor-pointer group" onClick={() => setViewingSubmission(sub)}>
+                                                <td className="px-6 py-3 font-medium text-slate-900 group-hover:text-primary-600 transition-colors">{sub.class_name}</td>
                                                 <td className="px-6 py-3 text-slate-600">{sub.subject_name}</td>
                                                 <td className="px-6 py-3 text-slate-600">{sub.teacher_name || 'Unassigned'}</td>
                                                 <td className="px-6 py-3">
@@ -853,6 +883,59 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             </table>
                         </div>
                     </div>
+
+                    {/* Admin Review Grid (Conditionally Rendered) */}
+                    {viewingSubmission && (
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                    <FileText className="w-4 h-4" /> Reviewing: {viewingSubmission.subject_name} ({viewingSubmission.class_name})
+                                </h3>
+                                <button onClick={() => setViewingSubmission(null)} className="p-1 hover:bg-slate-200 rounded-full"><X className="w-5 h-5" /></button>
+                            </div>
+                            <div className="overflow-x-auto p-4">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-white border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {/* Filter students for the viewed class */}
+                                        {students.filter(s => s.class === viewingSubmission.class_name).map(student => {
+                                            // Helper to get score for this SPECIFIC subject/class even if state selectedClass differs
+                                            const res = results.find(r =>
+                                                r.studentId === student.id &&
+                                                r.class === viewingSubmission.class_name &&
+                                                r.subject === viewingSubmission.subject_name
+                                            );
+                                            const classSc = res?.classScore || 0;
+                                            const examSc = res?.examScore || 0;
+                                            const total = classSc + examSc;
+
+                                            // Grade Check
+                                            const grade = examConfig.grading ? (examConfig.grading.find((g: any) => total >= g.min && total <= g.max)?.grade || 'F') : 'F';
+
+                                            return (
+                                                <tr key={student.id} className="hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
+                                                    <td className="px-6 py-3 text-center">{classSc}</td>
+                                                    <td className="px-6 py-3 text-center">{examSc}</td>
+                                                    <td className="px-6 py-3 text-center font-bold">{total}</td>
+                                                    <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {students.filter(s => s.class === viewingSubmission.class_name).length === 0 && <tr><td colSpan={5} className="p-4 text-center">No students found</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
