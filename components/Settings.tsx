@@ -44,7 +44,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const plans = [
         {
             name: "Foundation Package",
-            price: "4 - 5",
+            price: "4",
             limit: "Per Student / Term",
             features: [
                 "School Management (Records, Classes)",
@@ -60,12 +60,12 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             limit: "Per Student / Term",
             isPopular: true,
             features: [
-                "Everything in Foundation",
-                "Student Learning App (Quizzes)",
-                "Automatic Marking & Analytics",
-                "Parent Performance Insights",
-                "Teacher Productivity Tools",
-                "SMS Benefits (Included Fair Usage)"
+                "✅ FREE School Management System",
+                "✅ FREE Bulk SMS (Fair Usage)",
+                "🎓 Student Learning App (Quizzes & BECE)",
+                "🤖 Automatic Marking & Analytics",
+                "📊 Parent Performance Insights App",
+                "💰 Ideal to pass on as a Learning Fee"
             ]
         }
     ];
@@ -854,7 +854,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                         </div>
                                     )}
                                     <h4 className="font-bold text-lg text-slate-800 mb-1">{plan.name}</h4>
-                                    <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500">/mo</span></p>
+                                    <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500"> / student / term</span></p>
 
                                     <ul className="space-y-2 mb-6 flex-1">
                                         {plan.features.map((feat, i) => (

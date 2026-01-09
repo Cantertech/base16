@@ -6,7 +6,7 @@ const Pricing: React.FC = () => {
   const plans = [
     {
       name: "Foundation Package",
-      price: "4 - 5",
+      price: "4",
       period: "per student / term",
       description: "Best for schools that want reliable administration and parent communication.",
       color: "bg-green-50 text-green-900",
@@ -23,17 +23,17 @@ const Pricing: React.FC = () => {
       name: "Performance Package",
       price: "20",
       period: "per student / term",
-      description: "For schools that want better results, happier parents, and less teacher workload.",
+      description: "Includes Student Learning App & Parent Insights. School Management System becomes FREE.",
       isPopular: true,
       color: "bg-blue-900 text-white",
       btnColor: "bg-white text-blue-900 hover:bg-blue-50",
       features: [
-        "Everything in Foundation",
-        "Student Learning App (Quizzes)",
-        "Automatic Marking & Analytics",
-        "Parent Performance Insights",
-        "Teacher Productivity Tools",
-        "SMS Benefits (Included Fair Usage)"
+        "✅ FREE School Management System",
+        "✅ FREE Bulk SMS (Fair Usage)",
+        "🎓 Student Learning App (Quizzes & BECE)",
+        "🤖 Automatic Marking & Analytics",
+        "📊 Parent Performance Insights App",
+        "💰 Ideal to pass on as a Learning Fee"
       ]
     }
   ];
@@ -54,8 +54,8 @@ const Pricing: React.FC = () => {
             <div
               key={index}
               className={`relative rounded-3xl p-8 md:p-10 transition-all duration-300 ${plan.isPopular
-                  ? 'bg-blue-900 text-white shadow-2xl ring-4 ring-blue-500/20 transform md:-translate-y-4'
-                  : 'bg-white text-slate-900 border border-slate-200 shadow-xl'
+                ? 'bg-blue-900 text-white shadow-2xl ring-4 ring-blue-500/20 transform md:-translate-y-4'
+                : 'bg-white text-slate-900 border border-slate-200 shadow-xl'
                 }`}
             >
               {plan.isPopular && (
