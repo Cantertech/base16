@@ -71,6 +71,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const [principalRemark, setPrincipalRemark] = useState("Promoted to the next class.");
     const [promotionStatus, setPromotionStatus] = useState(`Promoted to ${getNextClass(student.class)}`);
     const [isSaving, setIsSaving] = useState(false);
+    const [attendanceStats, setAttendanceStats] = useState<{ present: number, total: number } | null>(null);
+
+    // Fetch Detailed Attendance
+    useEffect(() => {
+        const fetchAtt = async () => {
+            const { data } = await supabase.rpc('get_student_attendance_summary', { p_student_id: student.id });
+            if (data) setAttendanceStats(data);
+        };
+        fetchAtt();
+    }, [student.id]);
 
     // Fetch Saved Report Data
     useEffect(() => {
@@ -125,8 +135,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     // Helper to calculate grade if not provided
     const calculateGrade = (score: number) => {
-        if (schoolConfig?.grading) {
-            const grade = schoolConfig.grading.find(g => score >= g.min && score <= g.max);
+        if (schoolConfig?.grading && Array.isArray(schoolConfig.grading)) {
+            const grade = schoolConfig.grading.find(g => Number(score) >= Number(g.min) && Number(score) <= Number(g.max));
             return grade ? grade.grade : 'F';
         }
         // Default grading
@@ -138,8 +148,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     };
 
     const calculateRemark = (score: number) => {
-        if (schoolConfig?.grading) {
-            const grade = schoolConfig.grading.find(g => score >= g.min && score <= g.max);
+        if (schoolConfig?.grading && Array.isArray(schoolConfig.grading)) {
+            const grade = schoolConfig.grading.find(g => Number(score) >= Number(g.min) && Number(score) <= Number(g.max));
             return grade ? grade.remark : 'Fail';
         }
         if (score >= 80) return 'Excellent';
@@ -150,8 +160,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     };
 
     const calculatePoints = (score: number) => {
-        if (schoolConfig?.grading) {
-            const grade = schoolConfig.grading.find(g => score >= g.min && score <= g.max);
+        if (schoolConfig?.grading && Array.isArray(schoolConfig.grading)) {
+            const grade = schoolConfig.grading.find(g => Number(score) >= Number(g.min) && Number(score) <= Number(g.max));
             return grade?.points ?? 0;
         }
         return 0; // Default if no system
@@ -254,7 +264,9 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </div>
                                 <div>
                                     <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Attendance</p>
-                                    <p className="text-base md:text-lg font-medium text-slate-700">{student.attendance}%</p>
+                                    <p className="text-base md:text-lg font-medium text-slate-700">
+                                        {attendanceStats ? `${attendanceStats.present} / ${attendanceStats.total}` : `${student.attendance}%`}
+                                    </p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Position</p>
