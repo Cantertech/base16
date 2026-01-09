@@ -506,7 +506,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         </div>
                     </div>
                     {/* Teacher Grid */}
-                    <div className="overflow-x-auto hidden md:block">
+                    {/* Teacher Grid (Desktop) */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-white border-b border-slate-200">
                                 <tr>
@@ -536,7 +537,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                                 <td className="px-6 py-3 text-center">
                                                     <input
                                                         type="number"
-                                                        // disabled={isLocked}
                                                         value={dispClass || ''}
                                                         onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
                                                         className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
@@ -546,7 +546,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                             <td className="px-6 py-3 text-center">
                                                 <input
                                                     type="number"
-                                                    // disabled={isLocked}
                                                     value={dispExam || ''}
                                                     onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
                                                     className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
@@ -559,6 +558,56 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden divide-y divide-slate-100">
+                        {classStudents.map(student => {
+                            const savedClass = getExistingScore(student.id, 'classScore');
+                            const savedExam = getExistingScore(student.id, 'examScore');
+                            const pending = pendingChanges[student.id];
+                            const dispClass = pending?.classScore ?? savedClass;
+                            const dispExam = pending?.examScore ?? savedExam;
+                            const total = dispClass + dispExam;
+                            const grade = getGrade(total);
+
+                            return (
+                                <div key={student.id} className="p-4 bg-white">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <span className="font-bold text-slate-800 text-sm">{student.name}</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">Total: {total}</span>
+                                            <span className={`text-[10px] font-bold mt-1 uppercase ${grade === 'F' ? 'text-red-500' : 'text-green-600'}`}>Grade: {grade}</span>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
+                                                <input
+                                                    type="number"
+                                                    value={dispClass || ''}
+                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                    className="w-full p-3 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-lg focus:border-primary-500 outline-none"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
+                                            <input
+                                                type="number"
+                                                value={dispExam || ''}
+                                                onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                className="w-full p-3 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-lg focus:border-primary-500 outline-none"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {classStudents.length === 0 && <div className="p-8 text-center text-slate-400 italic text-sm">No students in this class yet.</div>}
                     </div>
                 </div>
             </div>
