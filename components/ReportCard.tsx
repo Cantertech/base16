@@ -104,25 +104,32 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     }, [schoolId, student.id, schoolConfig]);
 
     const handleSave = async () => {
-        if (!schoolId) return;
+        if (!schoolId) {
+            alert("Cannot save: Missing School ID. Please refresh.");
+            return;
+        }
         setIsSaving(true);
-        const { error } = await supabase.rpc('save_student_report', {
-            p_school_id: schoolId,
-            p_student_id: student.id,
-            p_class: student.class,
-            p_term: schoolConfig?.term || '',
-            p_year: schoolConfig?.academic_year || '',
-            p_teacher_remark: teacherRemark,
-            p_principal_remark: principalRemark,
-            p_promotion_status: promotionStatus,
-            p_position: position?.position || 0,
-            p_total_students: position?.total || 0
-        });
-        setIsSaving(false);
-        if (!error) {
-            // Optional: Toast or feedback
-        } else {
-            console.error('Save failed', error);
+        try {
+            const { error } = await supabase.rpc('save_student_report', {
+                p_school_id: schoolId,
+                p_student_id: student.id,
+                p_class: student.class,
+                p_term: schoolConfig?.term || '',
+                p_year: schoolConfig?.academic_year || '',
+                p_teacher_remark: teacherRemark,
+                p_principal_remark: principalRemark,
+                p_promotion_status: promotionStatus,
+                p_position: position?.position || 0,
+                p_total_students: position?.total || 0
+            });
+
+            if (error) throw error;
+            alert("Report card details saved successfully!");
+        } catch (err: any) {
+            console.error('Save failed', err);
+            alert(`Failed to save report: ${err.message}`);
+        } finally {
+            setIsSaving(false);
         }
     };
 

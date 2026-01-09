@@ -16,18 +16,27 @@ BEGIN
     SELECT 
         c.name::TEXT,
         s.name::TEXT,
-        COALESCE(p.name, 'Unassigned')::TEXT,
+        -- Find Teacher: Specific Subject Teacher -> Class Teacher -> 'Unassigned'
+        COALESCE(
+            (SELECT p.full_name FROM teacher_assignments ta 
+             JOIN profiles p ON ta.teacher_id = p.id 
+             WHERE ta.class_id = c.id AND ta.subject_id = s.id LIMIT 1),
+            (SELECT p.full_name FROM teacher_assignments ta 
+             JOIN profiles p ON ta.teacher_id = p.id 
+             WHERE ta.class_id = c.id AND ta.is_class_teacher = true LIMIT 1),
+            'Unassigned'
+        )::TEXT as teacher_name,
         COALESCE(es.status, 'Pending')::TEXT,
         es.submitted_at
-    FROM teacher_assignments ta
-    JOIN classes c ON ta.class_id = c.id
-    JOIN subjects s ON ta.subject_id = s.id
-    LEFT JOIN profiles p ON ta.teacher_id = p.id
+    FROM classes c
+    CROSS JOIN subjects s
     LEFT JOIN exam_submissions es ON 
         es.school_id = p_school_id AND 
         es.class = c.name AND 
         es.subject = s.name
-    WHERE c.school_id = p_school_id;
+    WHERE c.school_id = p_school_id
+      AND s.school_id = p_school_id
+    ORDER BY c.name, s.name;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
