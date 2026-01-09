@@ -30,7 +30,14 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [billingHistory, setBillingHistory] = useState<any[]>([]);
     const [showPlanModal, setShowPlanModal] = useState(false);
+    const [showPlanModal, setShowPlanModal] = useState(false);
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null); // PWA Install Prompt
+
+    // -- Billing & SMS State --
+    const [billingTab, setBillingTab] = useState<'overview' | 'sms' | 'settings'>('overview');
+    const [smsData, setSmsData] = useState({ balance: 0, transactions: [] as any[] });
+    const [smsCalc, setSmsCalc] = useState({ amount: '', qty: '' });
+    const [showInvoice, setShowInvoice] = useState<any>(null);
 
 
     // -- Pricing Plans --
@@ -93,6 +100,13 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
             if (billingData) {
                 setBillingHistory(billingData);
+            }
+
+            // Fetch SMS Data
+            const { data: smsTransactions } = await supabase.from('sms_transactions').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false });
+            if (school) {
+                const balance = school.sms_balance || 0;
+                setSmsData({ balance, transactions: smsTransactions || [] });
             }
         };
 
@@ -526,191 +540,284 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
                 {/* --- TAB 3: BILLING --- */}
                 {activeTab === 'billing' && !isTeacher && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">Billing & Plans</h2>
-                            <p className="text-slate-500 text-sm">Manage your subscription and payment methods.</p>
-                        </div>
-
-                        {/* Payment Configuration (Accept Payments) */}
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
-                                <h3 className="font-bold text-slate-800 text-lg">Parent Payment Settings</h3>
-                                <p className="text-slate-500 text-sm">Configure how parents can pay school fees (Offline / Manual Verification).</p>
+                                <h2 className="text-2xl font-bold text-slate-800">Billing & Credits</h2>
+                                <p className="text-slate-500 text-sm">Manage subscription, SMS credits, and payment methods.</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Money Number</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. 0244123456 (John Doe)"
-                                        value={config.paymentConfig?.momo_number || ''}
-                                        onChange={e => setConfig({
-                                            ...config,
-                                            paymentConfig: { ...config.paymentConfig, momo_number: e.target.value }
-                                        })}
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. GCB Bank"
-                                        value={config.paymentConfig?.bank_name || ''}
-                                        onChange={e => setConfig({
-                                            ...config,
-                                            paymentConfig: { ...config.paymentConfig, bank_name: e.target.value }
-                                        })}
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Account No."
-                                        value={config.paymentConfig?.account_number || ''}
-                                        onChange={e => setConfig({
-                                            ...config,
-                                            paymentConfig: { ...config.paymentConfig, account_number: e.target.value }
-                                        })}
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                    />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Instructions</label>
-                                    <textarea
-                                        rows={3}
-                                        placeholder="e.g. Please use Child Name as Reference. Dial *170#..."
-                                        value={config.paymentConfig?.instructions || ''}
-                                        onChange={e => setConfig({
-                                            ...config,
-                                            paymentConfig: { ...config.paymentConfig, instructions: e.target.value }
-                                        })}
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={async () => {
-                                        setLoading(true);
-                                        const { error } = await supabase.from('schools')
-                                            .update({ payment_config: config.paymentConfig })
-                                            .eq('id', currentUser?.school_id);
-                                        setLoading(false);
-                                        if (error) alert('Failed to save payment settings: ' + error.message);
-                                        else alert('Payment settings saved successfully!');
-                                    }}
-                                    disabled={loading}
-                                    className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 transition-colors disabled:opacity-50"
-                                >
-                                    {loading ? 'Saving...' : 'Save Configuration'}
+                            {/* Sub Navigation */}
+                            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                <button onClick={() => setBillingTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'overview' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Overview</button>
+                                <button onClick={() => setBillingTab('sms')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${billingTab === 'sms' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-500 hover:text-primary-600'}`}>
+                                    <Smartphone className="w-4 h-4" /> SMS Credits
                                 </button>
+                                <button onClick={() => setBillingTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'settings' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Settings</button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Subscription Card */}
-                            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <CreditCard className="h-32 w-32 transform rotate-12" />
-                                </div>
-                                <div className="relative z-10">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Current Plan</p>
-                                            <h3 className="text-2xl font-bold mt-1">{currentPlan.name}</h3>
-                                            <p className="text-slate-400 text-xs mt-1">{currentPlan.limit}</p>
+                        {/* SUB-TAB: OVERVIEW */}
+                        {billingTab === 'overview' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Subscription Card */}
+                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                                        <CreditCard className="h-32 w-32 transform rotate-12" />
+                                    </div>
+                                    <div className="relative z-10">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Current Plan</p>
+                                                <h3 className="text-2xl font-bold mt-1">{currentPlan.name}</h3>
+                                                <p className="text-slate-400 text-xs mt-1">{currentPlan.limit}</p>
+                                            </div>
+                                            <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-bold border border-green-500/30">Active</span>
                                         </div>
-                                        <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-bold border border-green-500/30">
-                                            Active
-                                        </span>
+                                        <div className="space-y-4 mb-8">
+                                            <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                                <span className="text-slate-300">Amount</span>
+                                                <span className="font-bold">GH¢ {currentPlan.price} / mo</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm border-b border-white/10 pb-2">
+                                                <span className="text-slate-300">Next Billing</span>
+                                                <span className="font-bold">{config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setShowPlanModal(true)} className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors">Manage Subscription</button>
+                                    </div>
+                                </div>
+
+                                {/* Payment History */}
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden col-span-1 md:col-span-2">
+                                    <div className="p-6 border-b border-slate-100 flex items-center gap-2">
+                                        <History className="h-5 w-5 text-slate-500" />
+                                        <h3 className="font-bold text-slate-800">Subscription History</h3>
+                                    </div>
+                                    <div className="hidden md:block overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-50 border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {billingHistory.map((item: any) => (
+                                                    <tr key={item.id} className="hover:bg-slate-50">
+                                                        <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
+                                                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
+                                                        <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                                                <CheckCircle className="h-3 w-3" /> {item.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {billingHistory.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-400">No history available</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB: SMS CREDITS */}
+                        {billingTab === 'sms' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Buy Credits */}
+                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-lg">Purchase SMS Credits</h3>
+                                        <p className="text-slate-500 text-sm">Top up your balance to send messages. <br /><span className="text-primary-600 font-bold">Rate: GH¢ 0.035 / SMS</span></p>
                                     </div>
 
-                                    <div className="space-y-4 mb-8">
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-300">Amount</span>
-                                            <span className="font-bold">GH¢ {currentPlan.price} / mo</span>
+                                    <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">I want to buy (Quantity)</label>
+                                            <input
+                                                type="number"
+                                                value={smsCalc.qty}
+                                                onChange={e => {
+                                                    const q = Number(e.target.value);
+                                                    setSmsCalc({ qty: e.target.value, amount: (q * 0.035).toFixed(2) });
+                                                }}
+                                                placeholder="e.g. 1000 SMS"
+                                                className="w-full p-3 font-bold text-lg border border-slate-300 rounded-lg outline-none focus:border-primary-500"
+                                            />
                                         </div>
-                                        <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                            <span className="text-slate-300">Next Billing</span>
-                                            <span className="font-bold">{config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}</span>
+                                        <div className="flex items-center justify-center text-slate-400">
+                                            <Layout className="w-4 h-4 rotate-90" /> {/* Exchange Icon Replacement */}
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">I want to pay (Amount GH¢)</label>
+                                            <input
+                                                type="number"
+                                                value={smsCalc.amount}
+                                                onChange={e => {
+                                                    const a = Number(e.target.value);
+                                                    setSmsCalc({ amount: e.target.value, qty: Math.floor(a / 0.035).toString() });
+                                                }}
+                                                placeholder="e.g. 50.00"
+                                                className="w-full p-3 font-bold text-lg border border-slate-300 rounded-lg outline-none focus:border-primary-500"
+                                            />
                                         </div>
                                     </div>
 
                                     <button
-                                        onClick={() => setShowPlanModal(true)}
-                                        className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
+                                        disabled={!smsCalc.qty || Number(smsCalc.qty) <= 0 || loading}
+                                        onClick={async () => {
+                                            if (!confirm(`Confirm purchase of ${smsCalc.qty} SMS for GH¢ ${smsCalc.amount}?`)) return;
+                                            setLoading(true);
+                                            try {
+                                                const { data, error } = await supabase.rpc('request_sms_purchase', {
+                                                    p_school_id: currentUser?.school_id,
+                                                    p_quantity: Number(smsCalc.qty),
+                                                    p_amount: Number(smsCalc.amount)
+                                                });
+                                                if (error) throw error;
+                                                setShowInvoice({
+                                                    ref: data,
+                                                    amount: smsCalc.amount,
+                                                    qty: smsCalc.qty
+                                                });
+                                                setSmsCalc({ amount: '', qty: '' });
+                                                // Refresh
+                                                const { data: txs } = await supabase.from('sms_transactions').select('*').eq('school_id', currentUser?.school_id).order('created_at', { ascending: false });
+                                                if (txs) setSmsData(prev => ({ ...prev, transactions: txs }));
+
+                                            } catch (e: any) {
+                                                alert("Error: " + e.message);
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary-200 hover:bg-primary-700 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
                                     >
-                                        Manage Subscription
+                                        {loading ? <Smartphone className="animate-pulse" /> : <CreditCard className="w-5 h-5" />} Buy Credits
+                                    </button>
+                                </div>
+
+                                {/* Balance & History */}
+                                <div className="space-y-6">
+                                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                                            <Smartphone className="h-32 w-32" />
+                                        </div>
+                                        <div className="relative z-10">
+                                            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider mb-2">Available Credits</p>
+                                            <h3 className="text-4xl font-black">{smsData.balance.toLocaleString()}</h3>
+                                            <p className="text-blue-200 text-sm mt-1">SMS Remaining</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-64 overflow-y-auto">
+                                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                                            <h3 className="font-bold text-slate-700 text-sm">Purchase History</h3>
+                                        </div>
+                                        <div className="divide-y divide-slate-100">
+                                            {smsData.transactions.map((tx, i) => (
+                                                <div key={i} className="p-4 flex justify-between items-center text-sm">
+                                                    <div>
+                                                        <p className="font-bold text-slate-800">{tx.quantity} Credits</p>
+                                                        <span className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-slate-900">GH¢ {tx.amount.toFixed(2)}</p>
+                                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${tx.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{tx.status}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {smsData.transactions.length === 0 && <div className="p-6 text-center text-slate-400 text-sm">No purchases yet.</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB: SETTINGS */}
+                        {billingTab === 'settings' && (
+                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg">Parent Payment Settings</h3>
+                                    <p className="text-slate-500 text-sm">Configure how parents can pay school fees.</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Money Number</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. 0244123456 (John Doe)"
+                                            value={config.paymentConfig?.momo_number || ''}
+                                            onChange={e => setConfig({
+                                                ...config,
+                                                paymentConfig: { ...config.paymentConfig, momo_number: e.target.value }
+                                            })}
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. GCB Bank"
+                                            value={config.paymentConfig?.bank_name || ''}
+                                            onChange={e => setConfig({
+                                                ...config,
+                                                paymentConfig: { ...config.paymentConfig, bank_name: e.target.value }
+                                            })}
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Account No."
+                                            value={config.paymentConfig?.account_number || ''}
+                                            onChange={e => setConfig({
+                                                ...config,
+                                                paymentConfig: { ...config.paymentConfig, account_number: e.target.value }
+                                            })}
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Payment Instructions</label>
+                                        <textarea
+                                            rows={3}
+                                            placeholder="e.g. Please use Child Name as Reference. Dial *170#..."
+                                            value={config.paymentConfig?.instructions || ''}
+                                            onChange={e => setConfig({
+                                                ...config,
+                                                paymentConfig: { ...config.paymentConfig, instructions: e.target.value }
+                                            })}
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={async () => {
+                                            setLoading(true);
+                                            const { error } = await supabase.from('schools')
+                                                .update({ payment_config: config.paymentConfig })
+                                                .eq('id', currentUser?.school_id);
+                                            setLoading(false);
+                                            if (error) alert('Failed to save settings: ' + error.message);
+                                            else alert('Settings saved successfully!');
+                                        }}
+                                        disabled={loading}
+                                        className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                    >
+                                        {loading ? 'Saving...' : 'Save Configuration'}
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Payment History (Full Width in Grid) */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden col-span-1 md:col-span-2">
-                                <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-                                    <History className="h-5 w-5 text-slate-500" />
-                                    <h3 className="font-bold text-slate-800">Payment History</h3>
-                                </div>
-                                {/* Mobile Billing History View */}
-                                <div className="md:hidden divide-y divide-slate-100">
-                                    {billingHistory.length > 0 ? (
-                                        billingHistory.map((item: any) => (
-                                            <div key={item.id} className="p-4 flex justify-between items-center bg-white">
-                                                <div>
-                                                    <p className="font-bold text-slate-800 text-sm mb-1">{item.description}</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-slate-500">{item.date}</span>
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                                            }`}>
-                                                            <CheckCircle className="h-3 w-3" /> {item.status}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <span className="font-bold text-slate-900">GH¢ {item.amount.toFixed(2)}</span>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="p-6 text-center text-slate-500 text-sm font-medium italic">
-                                            No payment history found.
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Desktop Billing History Table */}
-                                <div className="hidden md:block overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className="bg-slate-50 border-b border-slate-100">
-                                            <tr>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {billingHistory.map((item: any) => (
-                                                <tr key={item.id} className="hover:bg-slate-50">
-                                                    <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                                                    <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
-                                                    <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                                                            <CheckCircle className="h-3 w-3" /> {item.status}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
@@ -759,6 +866,43 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                         <div className="mt-6 p-4 bg-slate-50 rounded-xl text-center">
                             <p className="text-sm text-slate-500">Need a custom enterprise plan? <button className="text-primary-600 font-bold hover:underline">Contact Sales</button></p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Invoice Modal */}
+            {showInvoice && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+                        <div className="text-center mb-6">
+                            <div className="bg-green-100 text-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800">Order Placed!</h3>
+                            <p className="text-slate-500 text-sm">Please complete payment to verify.</p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3 mb-6">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Service</span>
+                                <span className="font-bold text-slate-800">{showInvoice.qty} SMS Credits</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Amount Due</span>
+                                <span className="font-bold text-primary-600 text-lg">GH¢ {Number(showInvoice.amount).toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div className="text-center space-y-2 mb-6">
+                            <p className="text-xs font-bold text-slate-500 uppercase">Payment Instructions</p>
+                            <p className="text-sm text-slate-600">Send <b>GH¢ {Number(showInvoice.amount).toFixed(2)}</b> to:</p>
+                            <p className="text-2xl font-black text-slate-800 tracking-wider">050 256 0760</p>
+                            <p className="text-xs text-slate-400 bg-yellow-50 text-yellow-700 p-2 rounded">Credits are verified within 20 minutes of payment.</p>
+                        </div>
+
+                        <button onClick={() => setShowInvoice(null)} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors">
+                            Okay, I've sent it
+                        </button>
                     </div>
                 </div>
             )}

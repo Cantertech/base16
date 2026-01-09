@@ -45,9 +45,13 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
     const isTeacher = currentUser.role === 'teacher';
 
     useEffect(() => {
-        // Fetch SMS Balance (Mock or Real)
-        setSmsBalance(1250);
-    }, []);
+        const fetchBalance = async () => {
+            if (!currentUser?.school_id) return;
+            const { data } = await supabase.from('schools').select('sms_balance').eq('id', currentUser.school_id).single();
+            if (data) setSmsBalance(data.sms_balance || 0);
+        };
+        fetchBalance();
+    }, [currentUser?.school_id]);
 
     const updateBalance = (newBalance: number) => {
         setSmsBalance(newBalance);
@@ -340,7 +344,12 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             console.log('SMS Sent Response:', data);
 
             // 4. Update Balance & Log
-            await onUpdateBalance(balance - actualCost);
+            await onUpdateBalance(balance - recipientsData.length); // Use recipientsData.length for actual count
+
+            // Deduct from DB
+            if (currentUser?.school_id) {
+                await supabase.rpc('deduct_sms_credits', { p_school_id: currentUser.school_id, p_count: recipientsData.length });
+            }
 
             if (currentUser?.school_id) {
                 await supabase.from('message_logs').insert({
@@ -370,6 +379,24 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            {/* Balance Indicator */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">SMS Balance</p>
+                        <h3 className="text-3xl font-black mt-1">{balance.toLocaleString()}</h3>
+                        <p className="text-slate-400 text-xs">credits remaining</p>
+                    </div>
+                    <div className="absolute right-0 top-0 p-4 opacity-10"><MessageSquare className="w-24 h-24" /></div>
+                </div>
+                <div className="bg-white border border-slate-200 p-6 rounded-xl flex flex-col justify-center items-start shadow-sm hover:border-primary-300 transition-colors">
+                    <p className="font-bold text-slate-800 mb-1">Running low?</p>
+                    <p className="text-slate-500 text-xs mb-3">Top up your SMS credits to keep communicating.</p>
+                    <div className="text-xs font-bold text-primary-600 bg-primary-50 px-3 py-2 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors" onClick={() => window.location.hash = '#settings'}>
+                        Go to Settings &gt; Billing &gt; SMS Credits
+                    </div>
+                </div>
+            </div>
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Users className="h-5 w-5 text-slate-500" /> Select Target Audience
