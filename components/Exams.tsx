@@ -53,7 +53,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
     // Config Data
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+
     const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+    const [allSubjects, setAllSubjects] = useState<string[]>([]); // Master list of subjects
 
     // Teacher Assignments State
     const [myAssignments, setMyAssignments] = useState<any[]>([]);
@@ -127,15 +129,19 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 const isClassTeacher = classAssignment.some(a => a.isClassTeacher);
 
                 if (isClassTeacher) {
-                    // Class teacher sees all subjects configured for the exam
-                    setAvailableSubjects(examConfig.target_subjects || []);
+                    // Class teacher sees subjects configured for exam, OR all subjects if not restricted
+                    if (examConfig.target_subjects && examConfig.target_subjects.length > 0) {
+                        setAvailableSubjects(examConfig.target_subjects);
+                    } else {
+                        setAvailableSubjects(allSubjects);
+                    }
                 } else {
                     const assignedSubjects = classAssignment.map(a => a.subjectName).filter(Boolean);
                     setAvailableSubjects(assignedSubjects);
                 }
             }
         }
-    }, [selectedClass, myAssignments, examConfig]);
+    }, [selectedClass, myAssignments, examConfig, allSubjects]);
 
     // Fetch Rank Effect
     useEffect(() => {
@@ -202,7 +208,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     if (classesData) setAvailableClasses(classesData.map(c => c.name));
 
                     const { data: subjectsData } = await supabase.from('subjects').select('name').eq('school_id', schoolId).order('name');
-                    if (subjectsData) setAvailableSubjects(subjectsData.map(s => s.name));
+                    if (subjectsData) {
+                        const subs = subjectsData.map(s => s.name);
+                        setAvailableSubjects(subs);
+                        setAllSubjects(subs);
+                    }
 
                     // 3. Fetch Students
                     const { data: studentsData } = await supabase.from('students').select('*').eq('school_id', schoolId);
