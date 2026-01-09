@@ -43,17 +43,30 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     // -- Pricing Plans --
     const plans = [
         {
-            name: "Small School",
-            price: "200",
-            limit: "Up to 400 Students",
-            features: ["Student & Parent Database", "Basic Fee Tracking", "Terminal Report Cards", "SMS Reminders", "Email Support"]
+            name: "Foundation Package",
+            price: "4 - 5",
+            limit: "Per Student / Term",
+            features: [
+                "School Management (Records, Classes)",
+                "Results & Academics (Report Cards)",
+                "Parent Access (Online Portal)",
+                "Communication (Bulk SMS Pay-as-you-go)",
+                "Secure Cloud Storage"
+            ]
         },
         {
-            name: "Growth",
-            price: "500",
-            limit: "Unlimited Students",
+            name: "Performance Package",
+            price: "20",
+            limit: "Per Student / Term",
             isPopular: true,
-            features: ["Everything in Small School", "Advanced Financial Reports", "Staff Payroll Management", "Priority Phone Support", "Free 500 SMS Credits / Term", "Offline Sync Mode"]
+            features: [
+                "Everything in Foundation",
+                "Student Learning App (Quizzes)",
+                "Automatic Marking & Analytics",
+                "Parent Performance Insights",
+                "Teacher Productivity Tools",
+                "SMS Benefits (Included Fair Usage)"
+            ]
         }
     ];
 
