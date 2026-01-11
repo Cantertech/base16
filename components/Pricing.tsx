@@ -123,7 +123,7 @@ const Pricing: React.FC = () => {
             </div>
             <div className="mt-8 pt-8 border-t border-slate-100">
               <p className="text-slate-500 font-medium">
-                One-time setup & training fee of <span className="font-bold text-slate-900">GH¢ 400</span> applies to all new schools.
+                Enjoy <span className="font-bold text-green-600">Free Setup & Training</span> for all new schools.
               </p>
             </div>
           </div>

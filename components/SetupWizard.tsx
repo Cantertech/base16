@@ -167,11 +167,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     purple: 'bg-purple-700'
   };
 
-  // Calculations for Step 4
-  const setupFee = 400;
-  const discount = referralStatus === 'valid' ? 100 : 0;
-  const subscriptionFee = 200;
-  const totalDue = setupFee - discount + subscriptionFee;
+  // Calculations for Step 4 removed as process is now free
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
@@ -387,59 +383,29 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
             </div>
           )}
 
-          {/* STEP 4: BILLING & PENDING STATUS (NEW) */}
+          {/* STEP 4: REGISTRATION COMPLETE & PENDING APPROVAL */}
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-                <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-green-800 mb-2">Account Created Successfully!</h3>
-                <p className="text-green-700">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
+                <div className="bg-green-100 text-green-600 h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle className="h-10 w-10" />
+                </div>
+                <h3 className="text-2xl font-bold text-green-900 mb-3">Registration Successful!</h3>
+                <p className="text-green-800 text-lg mb-6">
                   Your school account has been created and is currently <b>Pending Approval</b>.
                 </p>
-              </div>
-
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-slate-500" />
-                  <h3 className="font-bold text-slate-800">Complete Payment to Activate</h3>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">One-time Setup Fee</span>
-                    <div className="text-right">
-                      {referralStatus === 'valid' && (
-                        <span className="block text-xs text-red-400 line-through">GH¢ {setupFee.toFixed(2)}</span>
-                      )}
-                      <span className="font-bold text-slate-800">GH¢ {(setupFee - discount).toFixed(2)}</span>
-                    </div>
-                  </div>
-                  {referralStatus === 'valid' && (
-                    <div className="flex justify-between items-center text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
-                      <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> Referral Discount</span>
-                      <span className="font-bold">- GH¢ {discount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">First Month Subscription (Small School)</span>
-                    <span className="font-bold text-slate-800">GH¢ {subscriptionFee.toFixed(2)}</span>
-                  </div>
-                  <div className="h-px bg-slate-100 my-2"></div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-800">Total Due Today</span>
-                    <span className="font-bold text-2xl text-primary-700">GH¢ {totalDue.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="bg-slate-50 p-6 border-t border-slate-100">
-                  <h4 className="font-bold text-slate-800 mb-2">Payment Instructions:</h4>
-                  <p className="text-sm text-slate-600 mb-4">
-                    Please send the total amount to the following Mobile Money number:
+                <div className="bg-white rounded-lg p-6 border border-green-100 shadow-sm text-left">
+                  <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-primary-600" /> What happens next?
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed">
+                    Our team will review your application. We will contact you shortly <b>within 24 hours</b> to assist you with the onboarding process.
                   </p>
-                  <div className="bg-white border border-slate-200 p-3 rounded-lg font-mono text-center font-bold text-lg mb-4">
-                    0502560760
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <p className="text-sm text-slate-500">
+                      While you wait, you can prepare your student data for import. Access is completely free.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 text-center">
-                    Use your School Name as the Reference. Your account will be activated within 24 hours of payment confirmation.
-                  </p>
                 </div>
               </div>
             </div>
