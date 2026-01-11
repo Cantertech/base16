@@ -655,47 +655,6 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   // --- Backfill & Export Tools ---
 
 
-  const handleExportCredentials = async () => {
-    setLoading(true);
-    try {
-      const { data: freshStudents, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('class', { ascending: true })
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      if (!freshStudents) return;
-
-      // Create CSV using Snake Case DB columns
-      const headers = ['Name', 'Class', 'Parent Name', 'Parent Phone', 'Student ID (Login)', 'PIN (Login)'];
-      const rows = freshStudents.map((s: any) => [
-        s.name,
-        s.class,
-        s.parent_name || s.parentName,
-        s.parent_phone || s.parentPhone,
-        s.admission_no || 'Pending',
-        s.pin || 'Pending'
-      ]);
-
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `student_credentials_${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-    } catch (err: any) {
-      console.error(err);
-      alert('Export failed: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
 
   return (
     <div className="p-4 md:p-8 space-y-4 md:space-y-6 relative h-full overflow-y-auto pb-20 md:pb-0">
@@ -763,13 +722,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             )}
 
             {/* Tools */}
-            <button
-              onClick={handleExportCredentials}
-              className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-100 font-medium text-sm transition-colors whitespace-nowrap"
-              title="Download Login Credentials"
-            >
-              <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export Keys</span>
-            </button>
+
 
 
             <button
