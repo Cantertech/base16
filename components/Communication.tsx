@@ -172,9 +172,10 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
 
     const getVariables = () => {
-        if (recipient === 'Debtors') return ['{Parent Name}', '{Student Name}', '{Balance}', '{Due Date}'];
-        if (recipient === 'Results') return ['{Parent Name}', '{Student Name}', '{Total Score}', '{Position}', '{Link}'];
-        return ['{Parent Name}', '{Student Name}'];
+        const baseVars = ['{Parent Name}', '{Student Name}', '{Student ID}', '{PIN}', '{Link}'];
+        if (recipient === 'Debtors') return [...baseVars, '{Balance}', '{Due Date}'];
+        if (recipient === 'Results') return [...baseVars, '{Total Score}', '{Position}'];
+        return baseVars;
     };
 
     const insertVariable = (variable: string) => {
@@ -198,6 +199,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
     const applyTemplate = (type: string) => {
         if (type === 'fee') setMessage(`Dear {Parent Name}, kindly pay the outstanding ${currency.code} {Balance} for {Student Name} immediately to avoid any inconvenience.`);
         if (type === 'result') setMessage("Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}");
+        if (type === 'portal') setMessage("Dear {Parent Name}, you can now view {Student Name}'s full report card online. \nLink: {Link}\nStudent ID: {Student ID}\nPIN: {PIN}\n\nPlease keep these credentials safe.");
         if (type === 'emergency') setMessage("NOTICE: School will be closed tomorrow due to heavy rains. Please stay safe.");
     };
 
@@ -220,11 +222,12 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
             let recipientsData: any[] = [];
 
             const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
+            const PORTAL_LINK = 'https://base16.sixzones.com/login'; // Changed to login
 
             if (recipient === 'Debtors') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone, parent_name, name, balance')
+                    .select('parent_phone, parent_name, name, balance, admission_no, id, pin')
                     .gt('balance', 0)
                     .eq('school_id', currentUser.school_id)
                     .neq('parent_phone', null);
@@ -234,15 +237,18 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     vars: {
                         '{Parent Name}': d.parent_name || 'Parent',
                         '{Student Name}': d.name || 'Student',
+                        '{Student ID}': d.admission_no || d.id?.substring(0, 8).toUpperCase(),
+                        '{PIN}': d.pin || 'N/A',
                         '{Balance}': d.balance,
-                        '{Due Date}': 'Month End'
+                        '{Due Date}': 'Month End',
+                        '{Link}': PORTAL_LINK
                     }
                 })) || [];
 
             } else if (recipient === 'All Parents' || recipient === 'Results') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone, parent_name, name')
+                    .select('parent_phone, parent_name, name, admission_no, id, pin')
                     .eq('school_id', currentUser.school_id)
                     .neq('parent_phone', null);
 
@@ -251,15 +257,17 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     vars: {
                         '{Parent Name}': d.parent_name || 'Parent',
                         '{Student Name}': d.name || 'Student',
+                        '{Student ID}': d.admission_no || d.id?.substring(0, 8).toUpperCase(),
+                        '{PIN}': d.pin || 'N/A',
                         '{Total Score}': 'CHECK PORTAL',
-                        '{Link}': 'https://base16.sixzones.com/portal'
+                        '{Link}': PORTAL_LINK
                     }
                 })) || [];
 
             } else if (recipient === 'Specific Class') {
                 const { data } = await supabase
                     .from('students')
-                    .select('parent_phone, parent_name, name')
+                    .select('parent_phone, parent_name, name, admission_no, id, pin')
                     .eq('school_id', currentUser.school_id)
                     .eq('class', selectedClass)
                     .neq('parent_phone', null);
@@ -268,7 +276,10 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     phone: cleanPhone(d.parent_phone),
                     vars: {
                         '{Parent Name}': d.parent_name || 'Parent',
-                        '{Student Name}': d.name || 'Student'
+                        '{Student Name}': d.name || 'Student',
+                        '{Student ID}': d.admission_no || d.id?.substring(0, 8).toUpperCase(),
+                        '{PIN}': d.pin || 'N/A',
+                        '{Link}': PORTAL_LINK
                     }
                 })) || [];
 
@@ -282,8 +293,10 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                             vars: {
                                 '{Parent Name}': data.parent_name || 'Parent',
                                 '{Student Name}': data.name,
+                                '{Student ID}': data.admission_no || data.id?.substring(0, 8).toUpperCase(),
+                                '{PIN}': data.pin || 'N/A',
                                 '{Balance}': data.balance,
-                                '{Link}': 'https://base16.sixzones.com/portal'
+                                '{Link}': PORTAL_LINK
                             }
                         }];
                     } else {
@@ -302,7 +315,10 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     phone: cleanPhone(d.phone),
                     vars: {
                         '{Parent Name}': d.name,
-                        '{Student Name}': 'N/A'
+                        '{Student Name}': 'N/A',
+                        '{Student ID}': 'N/A',
+                        '{PIN}': 'N/A',
+                        '{Link}': PORTAL_LINK
                     }
                 })) || [];
             }
@@ -486,7 +502,8 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                     <div className="flex flex-wrap gap-2">
                         <button onClick={() => applyTemplate('fee')} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-medium text-slate-600 transition-colors">Fee Template</button>
                         <button onClick={() => applyTemplate('result')} className="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-medium text-slate-600 transition-colors">Results Template</button>
-                        <button onClick={() => applyTemplate('emergency')} className="px-3 py-1 bg-red-50 hover:bg-red-100 rounded-full text-xs font-medium text-red-600 transition-colors">Emergency</button>
+                        <button onClick={() => applyTemplate('portal')} className="px-3 py-1 bg-blue-50 hover:bg-blue-100 rounded-full text-xs font-medium text-blue-600 transition-colors border border-blue-100">Portal Credentials</button>
+                        <button onClick={() => applyTemplate('emergency')} className="px-3 py-1 bg-red-50 hover:bg-red-100 rounded-full text-xs font-medium text-red-600 transition-colors border border-red-100">Emergency</button>
                     </div>
                 </div>
 
