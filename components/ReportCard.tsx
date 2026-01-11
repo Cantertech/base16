@@ -84,14 +84,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     // Fetch Saved Report Data
     useEffect(() => {
-        if (schoolId && schoolConfig?.term && schoolConfig?.academic_year) {
+        const term = schoolConfig?.current_term || schoolConfig?.term;
+        const year = schoolConfig?.academic_year;
+
+        if (schoolId && term && year) {
             const loadSaved = async () => {
                 const { data } = await supabase.from('student_report_cards')
                     .select('*')
                     .eq('school_id', schoolId)
                     .eq('student_id', student.id)
-                    .eq('term', schoolConfig.term)
-                    .eq('academic_year', schoolConfig.academic_year)
+                    .eq('term', term)
+                    .eq('academic_year', year)
                     .single();
                 if (data) {
                     if (data.teacher_remark) setTeacherRemark(data.teacher_remark);
@@ -110,11 +113,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         }
         setIsSaving(true);
         try {
+            const term = schoolConfig?.current_term || schoolConfig?.term || '';
             const { error } = await supabase.rpc('save_student_report', {
                 p_school_id: schoolId,
                 p_student_id: student.id,
                 p_class: student.class,
-                p_term: schoolConfig?.term || '',
+                p_term: term,
                 p_year: schoolConfig?.academic_year || '',
                 p_teacher_remark: teacherRemark,
                 p_principal_remark: principalRemark,
@@ -254,176 +258,187 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             </div>
                         </div>
 
-                        {/* Student Details */}
-                        <div className="bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-200 mb-6 md:mb-8 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-4 print-color-adjust-exact">
-                            <div className="grid grid-cols-2 gap-x-8 md:gap-x-12 gap-y-3 md:gap-y-4 w-full sm:w-auto">
-                                <div className="col-span-2 sm:col-span-1">
-                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Student Name</p>
-                                    <p className="text-lg md:text-xl font-bold text-slate-900 truncate">{student.name}</p>
-                                </div>
-                                <div className="col-span-2 sm:col-span-1">
-                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Student ID</p>
-                                    <p className="text-base md:text-lg font-medium text-slate-700 font-mono">{student.id.substring(0, 8).toUpperCase()}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Class</p>
-                                    <p className="text-base md:text-lg font-medium text-slate-700">{student.class}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Attendance</p>
-                                    <p className="text-base md:text-lg font-medium text-slate-700">
-                                        {attendanceStats ? `${attendanceStats.present} / ${attendanceStats.total}` : `${student.attendance}%`}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5 md:mb-1">Position</p>
-                                    <p className="text-base md:text-lg font-bold text-blue-900">
-                                        {position ? `${position.position} / ${position.total}` : '-'}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="h-24 w-24 md:h-32 md:w-32 bg-white rounded-lg border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                        {/* Student Details (Compact) */}
+                        <div className="bg-slate-50 rounded-xl p-2 md:p-5 border border-slate-200 mb-6 flex flex-row items-center gap-2 md:gap-6 print-color-adjust-exact">
+
+                            {/* Photo (Left) */}
+                            <div className="h-14 w-14 md:h-24 md:w-24 bg-white rounded-lg border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
                                 {student.photo ? (
                                     <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
                                 ) : (
-                                    <div className="text-center p-2">
-                                        <div className="h-12 w-12 md:h-16 md:w-16 bg-slate-100 rounded-full mx-auto mb-1 md:mb-2 flex items-center justify-center">
-                                            <span className="text-xl md:text-2xl font-bold text-slate-400">{student.name.charAt(0)}</span>
+                                    <div className="text-center p-0.5 md:p-1">
+                                        <div className="h-6 w-6 md:h-10 md:w-10 bg-slate-100 rounded-full mx-auto mb-0.5 md:mb-1 flex items-center justify-center">
+                                            <span className="text-xs md:text-lg font-bold text-slate-400">{student.name.charAt(0)}</span>
                                         </div>
-                                        <p className="text-[8px] md:text-[10px] text-slate-400 uppercase font-bold">Student Photo</p>
+                                        <p className="text-[5px] md:text-[8px] text-slate-400 uppercase font-bold hidden md:block">Photo</p>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Details (Middle) */}
+                            <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-y-1 md:gap-x-4 md:gap-y-2">
+                                <div className="md:col-span-2">
+                                    <p className="text-[8px] md:text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Name</p>
+                                    <p className="text-xs md:text-xl font-bold text-slate-900 truncate leading-tight">{student.name}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 md:contents">
+                                    <div>
+                                        <p className="text-[8px] md:text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">ID</p>
+                                        <p className="text-[10px] md:text-base font-medium text-slate-700 font-mono leading-tight">{student.id.substring(0, 8).toUpperCase()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] md:text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Class</p>
+                                        <p className="text-[10px] md:text-base font-medium text-slate-700 leading-tight">{student.class}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Stats (Right - Position & Attendance) */}
+                            <div className="flex flex-col gap-1 md:gap-4 text-right min-w-[70px] md:min-w-[100px] border-l border-slate-200 pl-2 md:pl-6 shrink-0">
+                                <div>
+                                    <p className="text-[8px] md:text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Pos.</p>
+                                    <p className="text-sm md:text-2xl font-black text-blue-900 leading-none">
+                                        {position ? (
+                                            <>
+                                                {(() => {
+                                                    const n = position.position;
+                                                    const s = ["th", "st", "nd", "rd"];
+                                                    const v = n % 100;
+                                                    const suffix = (s[(v - 20) % 10] || s[v] || s[0]);
+                                                    return <span>{n}<sup className="text-[8px] md:text-xs font-bold opacity-70 ml-0.5">{suffix}</sup></span>;
+                                                })()}
+                                            </>
+                                        ) : '-'}
+                                        <span className="text-[8px] md:text-lg text-slate-400 font-normal ml-0.5 md:ml-1">/ {position?.total || '-'}</span>
+                                    </p>
+                                </div>
+
                             </div>
                         </div>
 
                         {/* Results Table */}
                         <div className="flex-1">
-                            {/* Mobile Results List (Screen Only) */}
-                            <div className="md:hidden space-y-3 mb-8 print:hidden">
-                                {results.map((result, index) => {
-                                    const grade = calculateGrade(result.total);
-                                    const isCompetency = schoolConfig?.grading_type === 'COMPETENCY';
 
-                                    return (
-                                        <div key={index} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h3 className="font-bold text-slate-800 text-sm">{result.subject}</h3>
-                                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${grade === 'A' || grade === 'EE1' ? 'bg-green-100 text-green-700' :
-                                                    grade === 'F' || grade === 'BE2' ? 'bg-red-100 text-red-700' :
-                                                        'bg-blue-100 text-blue-700'
-                                                    }`}>
-                                                    {grade}
-                                                </span>
-                                            </div>
 
-                                            <div className="grid grid-cols-3 gap-2 text-xs mb-2">
-                                                {!isCompetency && (
-                                                    <div className="bg-white p-2 rounded border border-slate-100 text-center">
-                                                        <span className="block text-slate-400 text-[10px] uppercase font-bold">Class</span>
-                                                        <span className="font-mono font-medium">{result.classScore}</span>
-                                                    </div>
-                                                )}
-                                                <div className={`bg-white p-2 rounded border border-slate-100 text-center ${isCompetency ? 'col-span-1' : ''}`}>
-                                                    <span className="block text-slate-400 text-[10px] uppercase font-bold">Exam</span>
-                                                    <span className="font-mono font-medium">{result.examScore}</span>
-                                                </div>
-                                                <div className="bg-blue-50 p-2 rounded border border-blue-100 text-center">
-                                                    <span className="block text-blue-400 text-[10px] uppercase font-bold">Total</span>
-                                                    <span className="font-black text-blue-800">{result.total}</span>
-                                                </div>
-                                            </div>
-
-                                            {result.remarks && (
-                                                <p className="text-xs text-slate-500 italic border-t border-slate-100 pt-2 mt-2">
-                                                    "{result.remarks}"
-                                                </p>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Desktop/Print Results Table */}
-                            <table className="w-full border-collapse mb-8 hidden md:table print:table min-w-full">
+                            {/* Desktop/Print Results Table (Responsive) */}
+                            <table className="w-full border-collapse mb-8 table print:table min-w-full">
                                 <thead>
                                     <tr className="bg-slate-900 text-white print:bg-transparent print:text-black print:border-b-2 print:border-black">
-                                        <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-bold uppercase tracking-wider rounded-tl-lg print:rounded-none">Subject</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-left text-[10px] md:text-sm font-bold uppercase tracking-wider rounded-tl-lg print:rounded-none">Subject</th>
                                         {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                            <th className="px-2 py-2 md:px-4 md:py-3 text-center text-xs md:text-sm font-bold uppercase tracking-wider w-16 md:w-24">Class (30%)</th>
+                                            <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">Class (30%)</th>
                                         )}
-                                        <th className="px-2 py-2 md:px-4 md:py-3 text-center text-xs md:text-sm font-bold uppercase tracking-wider w-16 md:w-24">Exam {schoolConfig?.grading_type === 'COMPETENCY' ? '(100%)' : '(70%)'}</th>
-                                        <th className="px-2 py-2 md:px-4 md:py-3 text-center text-xs md:text-sm font-bold uppercase tracking-wider w-16 md:w-24 bg-blue-800 print:bg-transparent print:text-black">Total (100%)</th>
-                                        <th className="px-2 py-2 md:px-4 md:py-3 text-center text-xs md:text-sm font-bold uppercase tracking-wider w-12 md:w-20">Grade</th>
-                                        {hasPointsSystem && <th className="px-2 py-2 md:px-4 md:py-3 text-center text-xs md:text-sm font-bold uppercase tracking-wider w-12 md:w-20">Points</th>}
-                                        <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-bold uppercase tracking-wider w-32 md:w-48 rounded-tr-lg print:rounded-none">Remarks</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">Exam {schoolConfig?.grading_type === 'COMPETENCY' ? '(100%)' : '(70%)'}</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24 bg-blue-800 print:bg-transparent print:text-black">Total (100%)</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-8 md:w-20">Grade</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-left text-[10px] md:text-sm font-bold uppercase tracking-wider w-24 md:w-48 rounded-tr-lg print:rounded-none">Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 border border-slate-200 print:border-black">
                                     {results.map((result, index) => {
                                         const grade = calculateGrade(result.total);
                                         const remark = calculateRemark(result.total);
-                                        const points = calculatePoints(result.total);
+                                        // Points calculation removed as requested
                                         return (
                                             <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50 print:bg-white'} print:border-b print:border-slate-200`}>
-                                                <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm font-bold text-slate-800 border-r border-slate-200 print:border-black">{result.subject}</td>
+                                                <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm font-bold text-slate-800 border-r border-slate-200 print:border-black">{result.subject}</td>
                                                 {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                                    <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center text-slate-600 border-r border-slate-200 print:border-black">{result.classScore}</td>
+                                                    <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm text-center text-slate-600 border-r border-slate-200 print:border-black">{result.classScore}</td>
                                                 )}
-                                                <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center text-slate-600 border-r border-slate-200 print:border-black">{result.examScore}</td>
-                                                <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-bold text-blue-700 bg-blue-50 border-r border-slate-200 print:bg-transparent print:text-black print:border-black">{result.total}</td>
-                                                <td className={`px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-bold border-r border-slate-200 print:border-black print:text-black ${grade === 'A' || grade === 'B' || grade?.startsWith('EE') ? 'text-green-600' :
+                                                <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm text-center text-slate-600 border-r border-slate-200 print:border-black">{result.examScore}</td>
+                                                <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm text-center font-bold text-blue-700 bg-blue-50 border-r border-slate-200 print:bg-transparent print:text-black print:border-black">{result.total}</td>
+                                                <td className={`px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm text-center font-bold border-r border-slate-200 print:border-black print:text-black ${grade === 'A' || grade === 'B' || grade?.startsWith('EE') ? 'text-green-600' :
                                                     grade === 'F' || grade?.startsWith('BE') ? 'text-red-600' : 'text-slate-700'
                                                     } `}>{grade}</td>
-                                                {hasPointsSystem && <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm text-center font-medium text-slate-700 border-r border-slate-200 print:border-black">{points}</td>}
-                                                <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm text-slate-600 italic print:text-black">{remark}</td>
+                                                <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm text-slate-600 italic print:text-black">{remark}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                                 <tfoot>
                                     <tr className="bg-slate-100 border-t-2 border-slate-300 print:bg-transparent print:border-black">
-                                        <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm font-bold text-slate-900 text-right uppercase" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Averages</td>
-                                        <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm font-black text-center text-slate-900 bg-slate-200 print:bg-transparent print:border print:border-black">{overallAverage}</td>
-                                        <td colSpan={1}></td>
-                                        {hasPointsSystem && <td className="px-2 py-2 md:px-4 md:py-3 text-xs md:text-sm font-black text-center text-blue-800 bg-blue-100 print:bg-transparent print:text-black">GPA: {gpa}</td>}
-                                        <td colSpan={1}></td>
+                                        <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm font-bold text-slate-900 text-right uppercase" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Averages</td>
+                                        <td className="px-1 py-2 md:px-4 md:py-3 text-[10px] md:text-sm font-black text-center text-slate-900 bg-slate-200 print:bg-transparent print:border print:border-black">{overallAverage}</td>
+                                        <td colSpan={2}></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
 
                         {/* Editable Remarks & Signatures */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 mt-auto">
-                            <div>
-                                <p className="font-bold text-xs md:text-sm uppercase text-slate-500 mb-2">Class Teacher's Remarks:</p>
-                                <textarea
-                                    className="w-full font-serif italic border-b border-slate-300 pb-1 mb-6 text-slate-800 resize-none overflow-hidden bg-transparent outline-none focus:border-blue-500 transition-colors text-sm md:text-base"
-                                    value={teacherRemark}
-                                    onChange={(e) => setTeacherRemark(e.target.value)}
-                                    rows={2}
-                                />
+                        {/* Footer / Remarks Section (Professional & Compact) */}
+                        <div className="mt-auto pt-4 md:pt-6 border-t border-slate-200">
 
-                                <p className="font-bold text-xs md:text-sm uppercase text-slate-500 mb-2">Principal's Remarks:</p>
-                                <textarea
-                                    className="w-full font-serif italic border-b border-slate-300 pb-1 text-slate-800 resize-none overflow-hidden bg-transparent outline-none focus:border-blue-500 transition-colors text-sm md:text-base"
-                                    value={principalRemark}
-                                    onChange={(e) => setPrincipalRemark(e.target.value)}
-                                    rows={2}
-                                />
-
-                                <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                                    <p className="font-bold text-xs md:text-sm uppercase text-slate-500 mb-1">Final Decision / Promotion:</p>
-                                    <input
-                                        type="text"
-                                        value={promotionStatus}
-                                        onChange={(e) => setPromotionStatus(e.target.value)}
-                                        className="w-full font-bold text-slate-900 bg-transparent outline-none border-b border-slate-300 focus:border-blue-500 pb-1"
-                                    />
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4">
+                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Attendance</p>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                        {attendanceStats ? `${attendanceStats.present} of ${attendanceStats.total}` : '-'}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">No. on Roll</p>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                        {position?.total || '-'}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Term</p>
+                                    <p className="font-bold text-slate-900 text-sm truncate">
+                                        {schoolConfig?.current_term || schoolConfig?.term || 'First Term'}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Next Term</p>
+                                    <p className="font-bold text-slate-900 text-sm truncate">
+                                        {schoolConfig?.next_term_reopens ? new Date(schoolConfig.next_term_reopens).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="flex flex-col justify-end items-center mt-4 md:mt-0">
-                                <div className="w-48 border-b-2 border-slate-900 mb-2"></div>
-                                <p className="font-bold uppercase text-[10px] md:text-xs text-slate-900">Principal's Signature & Stamp</p>
+
+                            {/* Remarks Section */}
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Promoted To / Final Decision</p>
+                                        <input
+                                            type="text"
+                                            value={promotionStatus}
+                                            onChange={(e) => setPromotionStatus(e.target.value)}
+                                            className="w-full bg-blue-50/50 border-b border-blue-200 focus:border-blue-500 px-2 py-1 outline-none text-sm font-bold text-blue-900 transition-colors rounded-t-sm"
+                                            placeholder="Enter status..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Class Teacher's Remarks</p>
+                                        <input
+                                            type="text"
+                                            value={teacherRemark}
+                                            onChange={(e) => setTeacherRemark(e.target.value)}
+                                            className="w-full bg-slate-50/50 border-b border-slate-200 focus:border-slate-400 px-2 py-1 outline-none text-sm italic text-slate-700 transition-colors rounded-t-sm"
+                                            placeholder="Enter remarks..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row gap-4 items-end">
+                                    <div className="flex-1 w-full">
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Headmistress Recommendation</p>
+                                        <input
+                                            type="text"
+                                            value={principalRemark}
+                                            onChange={(e) => setPrincipalRemark(e.target.value)}
+                                            className="w-full bg-slate-50/50 border-b border-slate-200 focus:border-slate-400 px-2 py-1 outline-none text-sm italic text-slate-700 transition-colors rounded-t-sm"
+                                            placeholder="Enter recommendation..."
+                                        />
+                                    </div>
+
+                                    <div className="w-full md:w-48 shrink-0 pt-2 flex flex-col items-center md:items-end">
+                                        <div className="h-8 md:h-10 w-32 md:w-40 border-b border-slate-300 mb-1"></div>
+                                        <p className="text-[8px] text-slate-400 uppercase font-bold tracking-wider">Signature</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

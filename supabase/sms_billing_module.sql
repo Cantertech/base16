@@ -60,3 +60,4 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION deduct_sms_credits TO authenticated;
+0243952102

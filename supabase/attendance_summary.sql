@@ -4,13 +4,13 @@ DECLARE
     v_present BIGINT;
     v_total BIGINT;
 BEGIN
-    -- Total days marked for this student
-    SELECT COUNT(*) INTO v_total
+    -- Total distinct days marked for this student
+    SELECT COUNT(DISTINCT date) INTO v_total
     FROM attendance
     WHERE student_id = p_student_id;
 
-    -- Total days Present
-    SELECT COUNT(*) INTO v_present
+    -- Total distinct days Present
+    SELECT COUNT(DISTINCT date) INTO v_present
     FROM attendance
     WHERE student_id = p_student_id
       AND status = 'Present';

@@ -102,6 +102,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const defaultExamConfig = {
         exam_name: "End of Term 1 Exam",
         current_term: "First Term",
+        next_term_reopens: "", // New Field for Reopening Date
         academic_year: new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
         status: 'SETUP', // SETUP, OPEN, LOCKED
         mark_entry_enabled: true,
@@ -196,10 +197,25 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         }
                     }
 
-                    // 1b. Fetch Exam Config Table (New Source of Truth for Toggle)
+                    // 1b. Fetch Exam Config Table (Source of Truth for Toggle & synced fields)
                     const { data: configData } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).single();
+
+                    let effectiveTerm = schoolData?.exam_config?.current_term || 'First Term';
+                    let effectiveYear = schoolData?.exam_config?.academic_year || new Date().getFullYear() + "/" + (new Date().getFullYear() + 1);
+                    let effectiveEnabled = schoolData?.exam_config?.mark_entry_enabled || false;
+
                     if (configData) {
-                        setExamConfig(prev => ({ ...prev, mark_entry_enabled: configData.mark_entry_enabled }));
+                        // Start with what was likely synced, but trust the TABLE for these specific fields if present
+                        if (configData.current_term) effectiveTerm = configData.current_term;
+                        if (configData.academic_year) effectiveYear = configData.academic_year;
+                        effectiveEnabled = configData.mark_entry_enabled;
+
+                        setExamConfig(prev => ({
+                            ...prev,
+                            mark_entry_enabled: effectiveEnabled,
+                            current_term: effectiveTerm,
+                            academic_year: effectiveYear
+                        }));
                     }
 
 
@@ -226,16 +242,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         })));
                     }
 
-                    // 4. Fetch Results (Filtered by current term/year)
-                    const currentTerm = (schoolData?.exam_config?.current_term) || 'First Term';
-                    const currentYear = (schoolData?.exam_config?.academic_year) || '2024/2025';
-
+                    // 4. Fetch Results (Filtered by EFFECTIVE term/year)
                     const { data: resultsData } = await supabase
                         .from('exam_results')
                         .select('*, students(name)')
                         .eq('school_id', schoolId)
-                        .eq('term', currentTerm)
-                        .eq('academic_year', currentYear);
+                        .eq('term', effectiveTerm)
+                        .eq('academic_year', effectiveYear);
 
                     if (resultsData) {
                         setResults(resultsData.map((r: any) => ({
@@ -262,7 +275,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             .select('class_name')
                             .eq('school_id', schoolId)
                             .eq('status', 'Released')
-                            .eq('term', currentTerm); // Check for current term specifically
+                            .eq('term', effectiveTerm); // Check for current term specifically
 
                         if (releasedData) {
                             // Normalize to handle potential case/whitespace issues from DB
@@ -312,19 +325,21 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             const schoolId = currentUser?.school_id || profile?.school_id;
             if (!schoolId) return;
 
-            const { error } = await supabase
-                .from('schools')
-                .update({ exam_config: newConfig })
-                .eq('id', schoolId);
+            // Use RPC to save to both schools table (JSON) and exam_config table (Columns)
+            const { error } = await supabase.rpc('save_exam_config', {
+                p_school_id: schoolId,
+                p_config: newConfig
+            });
 
             if (error) throw error;
 
             setExamConfig(newConfig);
-            fetchData(); // Reload data to ensure we see results for the new config
-            alert('Exam configuration updated successfully!');
+            // We don't need to full reload since we just set the state, but filtering might need update
+            // fetchData(); 
+            alert('Exam configuration saved successfully!');
         } catch (error: any) {
             console.error('Error saving config:', error);
-            alert('Failed to save configuration.');
+            alert(`Failed to save configuration: ${error.message}`);
         }
     };
 
@@ -481,7 +496,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
             const schoolId = currentUser?.school_id || profile?.school_id;
 
-            const { error } = await supabase.rpc('submit_exam_marks', {
+            const { error } = await supabase.rpc('submit_exam_marks_v2', {
                 p_school_id: schoolId,
                 p_class: selectedClass,
                 p_subject: selectedSubject
@@ -538,111 +553,119 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             </button>
                         </div>
                     </div>
-                    {/* Teacher Grid */}
-                    {/* Teacher Grid (Desktop) */}
-                    <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-white border-b border-slate-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                    {examConfig.grading_type !== 'COMPETENCY' && (
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
-                                    )}
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {classStudents.map(student => {
-                                    const savedClass = getExistingScore(student.id, 'classScore');
-                                    const savedExam = getExistingScore(student.id, 'examScore');
-                                    const pending = pendingChanges[student.id];
-                                    const dispClass = pending?.classScore ?? savedClass;
-                                    const dispExam = pending?.examScore ?? savedExam;
-                                    const total = dispClass + dispExam;
-                                    const grade = getGrade(total);
+                </div>
 
-                                    return (
-                                        <tr key={student.id} className="hover:bg-slate-50">
-                                            <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
-                                            {examConfig.grading_type !== 'COMPETENCY' && (
+                {(!selectedClass || !selectedSubject) ? (
+                    <div className="p-12 text-center text-slate-500 bg-white border border-slate-200 rounded-xl shadow-sm mt-4 flex flex-col items-center justify-center gap-3">
+                        <BookOpen className="w-12 h-12 text-slate-300" />
+                        <p className="text-lg font-medium">Please select a Class and Subject to start entering marks.</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Teacher Grid (Desktop) */}
+                        <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-white border-b border-slate-200">
+                                    <tr>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
+                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                        )}
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {classStudents.map(student => {
+                                        const savedClass = getExistingScore(student.id, 'classScore');
+                                        const savedExam = getExistingScore(student.id, 'examScore');
+                                        const pending = pendingChanges[student.id];
+                                        const dispClass = pending?.classScore ?? savedClass;
+                                        const dispExam = pending?.examScore ?? savedExam;
+                                        const total = dispClass + dispExam;
+                                        const grade = getGrade(total);
+                                        return (
+                                            <tr key={student.id} className="hover:bg-slate-50">
+                                                <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
+                                                {examConfig.grading_type !== 'COMPETENCY' && (
+                                                    <td className="px-6 py-3 text-center">
+                                                        <input
+                                                            type="number"
+                                                            value={dispClass || ''}
+                                                            onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                            className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-3 text-center">
+                                                    <input
+                                                        type="number"
+                                                        value={dispExam || ''}
+                                                        onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                        className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-3 text-center font-bold">{total}</td>
+                                                <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
+                        </div>
+
+                        {/* Mobile Card View */}
+                        <div className="md:hidden divide-y divide-slate-100 bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm">
+                            {classStudents.map(student => {
+                                const savedClass = getExistingScore(student.id, 'classScore');
+                                const savedExam = getExistingScore(student.id, 'examScore');
+                                const pending = pendingChanges[student.id];
+                                const dispClass = pending?.classScore ?? savedClass;
+                                const dispExam = pending?.examScore ?? savedExam;
+                                const total = dispClass + dispExam;
+                                const grade = getGrade(total);
+                                return (
+                                    <div key={student.id} className="p-4 bg-white">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <span className="font-bold text-slate-800 text-sm">{student.name}</span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">Total: {total}</span>
+                                                <span className={`text-[10px] font-bold mt-1 uppercase ${grade === 'F' ? 'text-red-500' : 'text-green-600'}`}>Grade: {grade}</span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {examConfig.grading_type !== 'COMPETENCY' && (
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
                                                     <input
                                                         type="number"
                                                         value={dispClass || ''}
                                                         onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                        className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
+                                                        className="w-full p-3 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-lg focus:border-primary-500 outline-none"
+                                                        placeholder="0"
                                                     />
-                                                </td>
+                                                </div>
                                             )}
-                                            <td className="px-6 py-3 text-center">
+                                            <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
                                                 <input
                                                     type="number"
                                                     value={dispExam || ''}
                                                     onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                    className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-3 text-center font-bold">{total}</td>
-                                            <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Mobile Card View */}
-                    <div className="md:hidden divide-y divide-slate-100">
-                        {classStudents.map(student => {
-                            const savedClass = getExistingScore(student.id, 'classScore');
-                            const savedExam = getExistingScore(student.id, 'examScore');
-                            const pending = pendingChanges[student.id];
-                            const dispClass = pending?.classScore ?? savedClass;
-                            const dispExam = pending?.examScore ?? savedExam;
-                            const total = dispClass + dispExam;
-                            const grade = getGrade(total);
-
-                            return (
-                                <div key={student.id} className="p-4 bg-white">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <span className="font-bold text-slate-800 text-sm">{student.name}</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">Total: {total}</span>
-                                            <span className={`text-[10px] font-bold mt-1 uppercase ${grade === 'F' ? 'text-red-500' : 'text-green-600'}`}>Grade: {grade}</span>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {examConfig.grading_type !== 'COMPETENCY' && (
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
-                                                <input
-                                                    type="number"
-                                                    value={dispClass || ''}
-                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
                                                     className="w-full p-3 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-lg focus:border-primary-500 outline-none"
                                                     placeholder="0"
                                                 />
                                             </div>
-                                        )}
-                                        <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
-                                            <input
-                                                type="number"
-                                                value={dispExam || ''}
-                                                onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                className="w-full p-3 border border-slate-200 rounded-lg text-center font-bold text-slate-800 text-lg focus:border-primary-500 outline-none"
-                                                placeholder="0"
-                                            />
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                        {classStudents.length === 0 && <div className="p-8 text-center text-slate-400 italic text-sm">No students in this class yet.</div>}
-                    </div>
-                </div>
+                                );
+                            })}
+                            {classStudents.length === 0 && <div className="p-8 text-center text-slate-400 italic text-sm">No students in this class yet.</div>}
+                        </div>
+                    </>
+                )}
             </div>
         );
     }
@@ -717,6 +740,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                         placeholder="Year"
                                     />
                                 </div>
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Next Term Reopens</label>
+                                <input
+                                    type="date"
+                                    value={examConfig.next_term_reopens || ''}
+                                    onChange={e => setExamConfig({ ...examConfig, next_term_reopens: e.target.value })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                />
                             </div>
                         </div>
 
