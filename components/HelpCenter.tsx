@@ -153,7 +153,8 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
                   school_id: currentUser.school_id,
                   user_id: currentUser.id,
                   message: featureRequest,
-                  status: 'Open'
+                  status: 'Open',
+                  type: 'Feature Request'
                });
 
             if (error) throw error;

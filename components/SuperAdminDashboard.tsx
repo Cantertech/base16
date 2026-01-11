@@ -163,14 +163,35 @@ interface SuperAdminDashboardProps {
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onImpersonate }) => {
     const [pendingSchools, setPendingSchools] = useState<any[]>([]);
     const [activeSchools, setActiveSchools] = useState<any[]>([]);
+    const [featureRequests, setFeatureRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'pending' | 'active'>('pending');
+    const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'requests'>('pending');
     const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
     const [globalStats, setGlobalStats] = useState({ schools: 0, students: 0, revenue: 0 });
 
     useEffect(() => {
         fetchSchools();
+        fetchFeatureRequests();
     }, []);
+
+    const fetchFeatureRequests = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('support_tickets')
+                .select(`
+                    *, 
+                    schools:school_id (name),
+                    profiles:user_id (full_name, email)
+                `)
+                .eq('type', 'Feature Request')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            if (data) setFeatureRequests(data);
+        } catch (error) {
+            console.error('Error fetching requests:', error);
+        }
+    };
 
     const fetchSchools = async () => {
         setLoading(true);
@@ -400,17 +421,71 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                     >
                         Active Schools ({activeSchools.length})
                     </button>
+                    <button
+                        onClick={() => setActiveTab('requests')}
+                        className={`px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'requests' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                    >
+                        Feature Requests ({featureRequests.length})
+                    </button>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     <div className="p-6 border-b border-slate-100">
                         <h2 className="text-xl font-semibold text-slate-800">
-                            {activeTab === 'pending' ? 'Pending Approvals' : 'Active Schools Management'}
+                            {activeTab === 'pending' ? 'Pending Approvals' : activeTab === 'active' ? 'Active Schools Management' : 'Feature Requests'}
                         </h2>
                     </div>
 
                     {loading ? (
                         <div className="p-8 text-center text-slate-500">Loading...</div>
+                    ) : activeTab === 'requests' ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-4">Request</th>
+                                        <th className="px-6 py-4">School</th>
+                                        <th className="px-6 py-4">Submitted By</th>
+                                        <th className="px-6 py-4">Date</th>
+                                        <th className="px-6 py-4">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {featureRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                                No feature requests found.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        featureRequests.map((req) => (
+                                            <tr key={req.id} className="hover:bg-slate-50">
+                                                <td className="px-6 py-4">
+                                                    <p className="text-sm text-slate-800 font-medium line-clamp-2 md:line-clamp-none" title={req.message}>
+                                                        {req.message}
+                                                    </p>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-slate-600">
+                                                    {req.schools?.name || 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-slate-600">
+                                                    <div>{req.profiles?.full_name || 'N/A'}</div>
+                                                    <div className="text-xs text-slate-400">{req.profiles?.email}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-slate-500">
+                                                    {new Date(req.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${req.status === 'Open' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {req.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
