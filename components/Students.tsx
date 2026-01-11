@@ -653,46 +653,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   );
 
   // --- Backfill & Export Tools ---
-  const handleBackfillCredentials = async () => {
-    if (!confirm('Generate credentials (ID & PIN) for ALL students who have none? (Optimized Batch Mode)')) return;
-    setLoading(true);
-    try {
-      const { data: allStudents, error: fetchError } = await supabase.from('students').select('*');
-      if (fetchError) throw fetchError;
 
-      const studentsToUpdate = allStudents.filter(s => !s.admission_no || s.admission_no.trim() === '');
-      if (!studentsToUpdate || studentsToUpdate.length === 0) {
-        alert('All students already have credentials.');
-        return;
-      }
-
-      // Prepare updates with Unique IDs (Time + Index)
-      const updates = studentsToUpdate.map((s, index) => ({
-        ...s,
-        admission_no: `${new Date().getFullYear()}${(s.class || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${(Date.now() + index).toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
-        pin: `${Math.floor(Math.random() * 9000 + 1000)}`
-      }));
-
-      // Process in Batches
-      const BATCH_SIZE = 50;
-      let processed = 0;
-      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-        const batch = updates.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('students').upsert(batch);
-        if (error) throw error;
-        processed += batch.length;
-      }
-
-      alert(`Success! Optimally generated credentials for ${processed} students.`);
-      fetchStudents();
-      clearCache(CACHE_KEY_STUDENTS);
-    } catch (err: any) {
-      console.error(err);
-      alert('Error backfilling: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleExportCredentials = async () => {
     setLoading(true);
@@ -809,13 +770,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             >
               <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export Keys</span>
             </button>
-            <button
-              onClick={handleBackfillCredentials}
-              className="flex items-center gap-2 px-3 py-2 bg-violet-50 text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-100 font-medium text-sm transition-colors whitespace-nowrap"
-              title="Generate Missing IDs"
-            >
-              <FileSpreadsheet className="h-4 w-4" /> <span className="hidden sm:inline">Generate IDs</span>
-            </button>
+
 
             <button
               onClick={() => setIsImportModalOpen(true)}
