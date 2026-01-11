@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { PricingPlan } from '../types';
 
 const Pricing: React.FC = () => {
+  const navigate = useNavigate();
   const plans = [
     {
       name: "Foundation Package",
@@ -95,6 +97,7 @@ const Pricing: React.FC = () => {
               </ul>
 
               <button
+                onClick={() => navigate('/setup')}
                 className={`w-full py-4 px-6 rounded-xl font-black text-lg transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${plan.btnColor}`}
               >
                 Choose {plan.name}
