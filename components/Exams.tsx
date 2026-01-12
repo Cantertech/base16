@@ -716,7 +716,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 <div className="max-w-5xl space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                         <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Exam Setup Details</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex flex-col md:grid md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Exam Name</label>
                                 <input
