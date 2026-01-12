@@ -211,9 +211,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
                     if (configData) {
                         // Start with what was likely synced, but trust the TABLE for these specific fields if present
+                        // Use table data for synced fields, but fallback to JSON config for year if missing in table
                         if (configData.current_term) effectiveTerm = configData.current_term;
+                        // academic_year might not exist in exam_config table, so only update if present and truthy
                         if (configData.academic_year) effectiveYear = configData.academic_year;
-                        effectiveEnabled = configData.mark_entry_enabled;
+                        if (configData.mark_entry_enabled !== undefined) effectiveEnabled = configData.mark_entry_enabled;
 
                         setExamConfig(prev => ({
                             ...prev,
@@ -554,6 +556,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         <h1 className="text-2xl font-bold text-slate-800">Mark Entry</h1>
                         <p className="text-slate-500 text-sm">
                             {examConfig.exam_name} • {examConfig.current_term}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                            Current Year: {examConfig.academic_year || 'Not Set'}
                         </p>
                     </div>
                 </div>
