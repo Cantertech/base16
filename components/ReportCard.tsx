@@ -326,9 +326,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     <tr className="bg-slate-900 text-white print:bg-transparent print:text-black print:border-b-2 print:border-black">
                                         <th className="px-1 py-2 md:px-4 md:py-3 text-left text-[10px] md:text-sm font-bold uppercase tracking-wider rounded-tl-lg print:rounded-none">Subject</th>
                                         {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                            <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">Class (30%)</th>
+                                            <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">
+                                                Class {schoolConfig?.weights?.class ? `(${schoolConfig.weights.class}%)` : '(30%)'}
+                                            </th>
                                         )}
-                                        <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">Exam {schoolConfig?.grading_type === 'COMPETENCY' ? '(100%)' : '(70%)'}</th>
+                                        <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24">
+                                            Exam {schoolConfig?.grading_type === 'COMPETENCY' ? '(100%)' : schoolConfig?.weights?.exam ? `(${schoolConfig.weights.exam}%)` : '(70%)'}
+                                        </th>
                                         <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-12 md:w-24 bg-blue-800 print:bg-transparent print:text-black">Total (100%)</th>
                                         <th className="px-1 py-2 md:px-4 md:py-3 text-center text-[10px] md:text-sm font-bold uppercase tracking-wider w-8 md:w-20">Grade</th>
                                         <th className="px-1 py-2 md:px-4 md:py-3 text-left text-[10px] md:text-sm font-bold uppercase tracking-wider w-24 md:w-48 rounded-tr-lg print:rounded-none">Remarks</th>

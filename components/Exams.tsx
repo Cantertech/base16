@@ -265,7 +265,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
                     // 5a. Fetch Submission Overview (Admin)
                     if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && schoolId) {
-                        const { data: subs, error: subError } = await supabase.rpc('get_exam_submission_overview_v2', { p_school_id: schoolId });
+                        const { data: subs, error: subError } = await supabase.rpc('get_exam_submission_overview_v3', {
+                            p_school_id: schoolId,
+                            p_term: effectiveTerm,
+                            p_year: effectiveYear
+                        });
                         if (subError) console.error("Submission Overview Error:", subError);
                         if (subs) setSubmissionOverview(subs);
 
@@ -334,8 +338,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             if (error) throw error;
 
             setExamConfig(newConfig);
-            // We don't need to full reload since we just set the state, but filtering might need update
-            // fetchData(); 
+            // Reload data to ensure results match new term/year
+            fetchData();
             alert('Exam configuration saved successfully!');
         } catch (error: any) {
             console.error('Error saving config:', error);
@@ -496,10 +500,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
             const schoolId = currentUser?.school_id || profile?.school_id;
 
-            const { error } = await supabase.rpc('submit_exam_marks_v2', {
+            const { error } = await supabase.rpc('submit_exam_marks_v3', {
                 p_school_id: schoolId,
                 p_class: selectedClass,
-                p_subject: selectedSubject
+                p_subject: selectedSubject,
+                p_term: examConfig.current_term,
+                p_year: examConfig.academic_year
             });
 
             if (error) throw error;
@@ -710,7 +716,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 <div className="max-w-5xl space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                         <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Exam Setup Details</h3>
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Exam Name</label>
                                 <input
