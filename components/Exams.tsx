@@ -501,6 +501,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
     const handleSubmitMarks = async () => {
         if (!selectedClass || !selectedSubject) return alert("Select Class and Subject");
+
+        // Auto-save: If there are unsaved changes, save them first!
+        if (Object.keys(pendingChanges).length > 0) {
+            await saveMarks();
+        }
+
         if (!confirm(`Submit marks for ${selectedSubject} (${selectedClass})? This signals you are done.`)) return;
 
         setIsSubmitting(true);
