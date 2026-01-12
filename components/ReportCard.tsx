@@ -253,7 +253,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </div>
                                 <div className="bg-orange-50 px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-orange-100 print-color-adjust-exact">
                                     <p className="text-[10px] md:text-xs text-orange-600 font-bold uppercase tracking-wider">Term</p>
-                                    <p className="text-sm md:text-lg font-bold text-orange-900">{schoolConfig?.term || 'First Term'}</p>
+                                    <p className="text-sm md:text-lg font-bold text-orange-900">{schoolConfig?.current_term || schoolConfig?.term || 'First Term'}</p>
                                 </div>
                             </div>
                         </div>
