@@ -630,12 +630,14 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center text-xs pt-1">
-                  <span className="font-semibold text-slate-600">Balance:</span>
-                  <span className={`font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                    {formatAmount(student.balance)}
-                  </span>
-                </div>
+                {!isTeacher && (
+                  <div className="flex justify-between items-center text-xs pt-1">
+                    <span className="font-semibold text-slate-600">Balance:</span>
+                    <span className={`font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                      {formatAmount(student.balance)}
+                    </span>
+                  </div>
+                )}
               </div>
             ))
           ) : (
@@ -657,7 +659,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                 {!isTeacher && <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Class</th>}
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Gender</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Parent Details</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Balance</th>
+                {!isTeacher && <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Balance</th>}
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
               </tr>
@@ -706,11 +708,13 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                         <p className="text-xs text-slate-500">{student.parentPhone}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-sm font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600 bg-green-50 px-2 py-0.5 rounded'}`}>
-                        {formatAmount(student.balance)}
-                      </span>
-                    </td>
+                    {!isTeacher && (
+                      <td className="px-6 py-4">
+                        <span className={`text-sm font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600 bg-green-50 px-2 py-0.5 rounded'}`}>
+                          {formatAmount(student.balance)}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-6 py-4">
                       <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-green-100 text-green-700 rounded-full">{student.status || 'Active'}</span>
                     </td>
