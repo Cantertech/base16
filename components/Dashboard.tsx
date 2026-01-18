@@ -405,14 +405,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                         <p className="text-slate-500 text-xs md:text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
                     </div>
                     {/* Stats Cards - Grid optimized for mobile (2cols) vs desktop (4cols) */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6">
                         {[
                             { label: 'Total Students', value: stats.students, icon: GraduationCap },
                             { label: 'Teachers', value: stats.teachers, icon: Users },
                             { label: 'Classes', value: stats.classes, icon: Layers },
                             { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote, isWide: true }
                         ].map((item, idx) => (
-                            <div key={idx} className={`bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow ${item.isWide ? 'col-span-2 lg:col-span-1' : ''}`}>
+                            <div key={idx} className={`bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow ${item.isWide ? 'col-span-2 md:col-span-1' : ''}`}>
                                 <div
                                     className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text}`}
                                     style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
