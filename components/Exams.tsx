@@ -648,7 +648,59 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 </table>
                                 {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
                             </div>
-                            {/* Mobile Card View (Omitted for brevity - same logic as desktop) */}
+                            {/* Mobile Card View */}
+                            <div className="md:hidden space-y-4 p-4 bg-slate-50 border-t border-slate-200">
+                                {classStudents.map(student => {
+                                    const savedClass = getExistingScore(student.id, 'classScore');
+                                    const savedExam = getExistingScore(student.id, 'examScore');
+                                    const pending = pendingChanges[student.id];
+                                    const dispClass = pending?.classScore ?? savedClass;
+                                    const dispExam = pending?.examScore ?? savedExam;
+                                    const total = dispClass + dispExam;
+                                    const grade = getGrade(total);
+
+                                    return (
+                                        <div key={student.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800">{student.name}</h4>
+                                                    <span className="text-xs text-slate-500">ID: {student.id.substring(0, 8)}...</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="block text-2xl font-black text-slate-800">{total}</span>
+                                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600`}>Grade {grade}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {examConfig.grading_type !== 'COMPETENCY' && (
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
+                                                        <input
+                                                            type="number"
+                                                            value={dispClass || ''}
+                                                            onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                            className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                )}
+                                                <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
+                                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
+                                                    <input
+                                                        type="number"
+                                                        value={dispExam || ''}
+                                                        onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                        className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {classStudents.length === 0 && <div className="text-center text-slate-400 py-8 italic">No students found.</div>}
+                            </div>
                         </>
                     )}
                 </div>
