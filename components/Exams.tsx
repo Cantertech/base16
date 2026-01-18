@@ -54,30 +54,32 @@ const fetchSchoolInfo = async (schoolId: string) => {
     };
 };
 
+const GRADING_PRESETS = {
+    STANDARD: [
+        { grade: "A", min: 80, max: 100, remark: "Excellent", points: 4.0 },
+        { grade: "B", min: 70, max: 79, remark: "Very Good", points: 3.0 },
+        { grade: "C", min: 60, max: 69, remark: "Good", points: 2.0 },
+        { grade: "D", min: 50, max: 59, remark: "Credit", points: 1.0 },
+        { grade: "E", min: 40, max: 49, remark: "Pass", points: 0.5 },
+        { grade: "F", min: 0, max: 39, remark: "Fail", points: 0 }
+    ],
+    COMPETENCY: [
+        { grade: "EE1", min: 90, max: 100, remark: "Exceeding Expectations (High)", points: 4.0 },
+        { grade: "EE2", min: 75, max: 89, remark: "Exceeding Expectations (Low)", points: 3.5 },
+        { grade: "ME1", min: 58, max: 74, remark: "Meeting Expectations (High)", points: 3.0 },
+        { grade: "ME2", min: 41, max: 57, remark: "Meeting Expectations (Low)", points: 2.5 },
+        { grade: "AE1", min: 31, max: 40, remark: "Approaching Expectations (High)", points: 2.0 },
+        { grade: "AE2", min: 21, max: 30, remark: "Approaching Expectations (Low)", points: 1.5 },
+        { grade: "BE1", min: 11, max: 20, remark: "Below Expectations (High)", points: 1.0 },
+        { grade: "BE2", min: 0, max: 10, remark: "Below Expectations (Low)", points: 0.5 }
+    ]
+};
+
 const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
     const { data: configData } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).single();
 
     // Default Config
-    const gradingPresets = {
-        STANDARD: [
-            { grade: "A", min: 80, max: 100, remark: "Excellent", points: 4.0 },
-            { grade: "B", min: 70, max: 79, remark: "Very Good", points: 3.0 },
-            { grade: "C", min: 60, max: 69, remark: "Good", points: 2.0 },
-            { grade: "D", min: 50, max: 59, remark: "Credit", points: 1.0 },
-            { grade: "E", min: 40, max: 49, remark: "Pass", points: 0.5 },
-            { grade: "F", min: 0, max: 39, remark: "Fail", points: 0 }
-        ],
-        COMPETENCY: [
-            { grade: "EE1", min: 90, max: 100, remark: "Exceeding Expectations (High)", points: 4.0 },
-            { grade: "EE2", min: 75, max: 89, remark: "Exceeding Expectations (Low)", points: 3.5 },
-            { grade: "ME1", min: 58, max: 74, remark: "Meeting Expectations (High)", points: 3.0 },
-            { grade: "ME2", min: 41, max: 57, remark: "Meeting Expectations (Low)", points: 2.5 },
-            { grade: "AE1", min: 31, max: 40, remark: "Approaching Expectations (High)", points: 2.0 },
-            { grade: "AE2", min: 21, max: 30, remark: "Approaching Expectations (Low)", points: 1.5 },
-            { grade: "BE1", min: 11, max: 20, remark: "Below Expectations (High)", points: 1.0 },
-            { grade: "BE2", min: 0, max: 10, remark: "Below Expectations (Low)", points: 0.5 }
-        ]
-    };
+
 
     let baseConfig = {
         exam_name: "End of Term 1 Exam",
@@ -90,7 +92,7 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
         target_subjects: [] as string[],
         weights: { class: 30, exam: 70 },
         grading_type: 'STANDARD',
-        grading: gradingPresets.STANDARD,
+        grading: GRADING_PRESETS.STANDARD,
         ...schoolDataConfig
     };
 
@@ -719,6 +721,74 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs text-slate-500 mb-1">Class Score (%)</label><input type="number" value={localConfig.weights?.class || 0} onChange={e => setLocalConfig({ ...localConfig, weights: { ...localConfig.weights, class: Number(e.target.value) } })} className="w-full p-2 border border-slate-300 rounded-lg" /></div>
                                 <div><label className="block text-xs text-slate-500 mb-1">Exam Score (%)</label><input type="number" value={localConfig.weights?.exam || 0} onChange={e => setLocalConfig({ ...localConfig, weights: { ...localConfig.weights, exam: Number(e.target.value) } })} className="w-full p-2 border border-slate-300 rounded-lg" /></div>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-sm font-bold text-slate-700">Grading Scheme</h4>
+                                <select
+                                    value={localConfig.grading_type || 'STANDARD'}
+                                    onChange={(e) => {
+                                        const type = e.target.value as 'STANDARD' | 'COMPETENCY';
+                                        setLocalConfig({
+                                            ...localConfig,
+                                            grading_type: type,
+                                            grading: GRADING_PRESETS[type]
+                                        });
+                                    }}
+                                    className="text-xs border border-slate-200 rounded p-1 bg-white focus:ring-2 focus:ring-primary-500 outline-none"
+                                >
+                                    <option value="STANDARD">Standard (A-F)</option>
+                                    <option value="COMPETENCY">Competency (EE-BE)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase mb-2">
+                                    <div className="col-span-2 text-center">Grade</div>
+                                    <div className="col-span-3 text-center">Score Range</div>
+                                    <div className="col-span-5">Remark</div>
+                                    <div className="col-span-2 text-center">Points</div>
+                                </div>
+                                {localConfig.grading?.map((g: any, idx: number) => (
+                                    <div key={idx} className="grid grid-cols-12 gap-2 text-xs items-center">
+                                        <div className="col-span-2">
+                                            <input type="text" value={g.grade} onChange={(e) => {
+                                                const newGrading = [...localConfig.grading];
+                                                newGrading[idx] = { ...newGrading[idx], grade: e.target.value };
+                                                setLocalConfig({ ...localConfig, grading: newGrading });
+                                            }} className="w-full p-2 border border-slate-200 rounded font-bold text-center focus:border-primary-500 outline-none" />
+                                        </div>
+                                        <div className="col-span-3 flex items-center gap-1">
+                                            <input type="number" value={g.min} onChange={(e) => {
+                                                const newGrading = [...localConfig.grading];
+                                                newGrading[idx] = { ...newGrading[idx], min: Number(e.target.value) };
+                                                setLocalConfig({ ...localConfig, grading: newGrading });
+                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" />
+                                            <span className="text-slate-400">-</span>
+                                            <input type="number" value={g.max} onChange={(e) => {
+                                                const newGrading = [...localConfig.grading];
+                                                newGrading[idx] = { ...newGrading[idx], max: Number(e.target.value) };
+                                                setLocalConfig({ ...localConfig, grading: newGrading });
+                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" />
+                                        </div>
+                                        <div className="col-span-5">
+                                            <input type="text" value={g.remark} onChange={(e) => {
+                                                const newGrading = [...localConfig.grading];
+                                                newGrading[idx] = { ...newGrading[idx], remark: e.target.value };
+                                                setLocalConfig({ ...localConfig, grading: newGrading });
+                                            }} className="w-full p-2 border border-slate-200 rounded focus:border-primary-500 outline-none" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <input type="number" step="0.1" value={g.points} onChange={(e) => {
+                                                const newGrading = [...localConfig.grading];
+                                                newGrading[idx] = { ...newGrading[idx], points: Number(e.target.value) };
+                                                setLocalConfig({ ...localConfig, grading: newGrading });
+                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" placeholder="GP" />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
