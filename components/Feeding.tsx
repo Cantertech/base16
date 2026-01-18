@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Student {
     id: string;
@@ -18,180 +19,218 @@ interface FeedingProps {
     currentUser: any;
 }
 
+// --- Fetch Functions ---
+
+const fetchClasses = async (schoolId: string) => {
+    const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
+    return data ? data.map(c => c.name) : [];
+};
+
+const fetchStudents = async (schoolId: string, className: string) => {
+    const { data } = await supabase
+        .from('students')
+        .select('id, name, class')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .order('name');
+    return data || [];
+};
+
+const fetchFeedingLogs = async (schoolId: string, inputDate: string) => {
+    const { data } = await supabase
+        .from('feeding_logs')
+        .select('student_id')
+        .eq('school_id', schoolId)
+        .eq('date', inputDate);
+
+    const map: Record<string, boolean> = {};
+    data?.forEach((r: any) => map[r.student_id] = true);
+    return map;
+};
+
+const fetchDailyAttendance = async (schoolId: string, inputDate: string) => {
+    const { data } = await supabase
+        .from('attendance')
+        .select('student_id, status')
+        .eq('school_id', schoolId)
+        .eq('date', inputDate);
+
+    const map: Record<string, string> = {};
+    data?.forEach((r: any) => map[r.student_id] = r.status);
+    return map;
+};
+
+
 const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
+    const queryClient = useQueryClient();
+    const schoolId = currentUser?.school_id;
+
+    // Local State
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedClass, setSelectedClass] = useState('');
-    const [classes, setClasses] = useState<string[]>([]);
-    const [students, setStudents] = useState<Student[]>([]);
-    const [feedingMap, setFeedingMap] = useState<Record<string, boolean>>({});
-    const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({});
-    const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [showOnlyDefaulters, setShowOnlyDefaulters] = useState(false); // "Present but Not Paid"
+    const [showOnlyDefaulters, setShowOnlyDefaulters] = useState(false);
 
-    // Bulk / Advance Payment
+    // Bulk / Advance Payment Modal State
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkStudent, setBulkStudent] = useState<Student | null>(null);
     const [bulkStartDate, setBulkStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [bulkEndDate, setBulkEndDate] = useState(new Date().toISOString().split('T')[0]);
-    const [bulkAmount, setBulkAmount] = useState('0');
-    const [processing, setProcessing] = useState(false);
 
+    // --- Queries ---
+
+    const { data: classes = [] } = useQuery({
+        queryKey: ['classNames', schoolId],
+        queryFn: () => fetchClasses(schoolId),
+        enabled: !!schoolId
+    });
+
+    const { data: students = [], isLoading: studentsLoading } = useQuery({
+        queryKey: ['students', schoolId, selectedClass],
+        queryFn: () => fetchStudents(schoolId, selectedClass),
+        enabled: !!schoolId && !!selectedClass
+    });
+
+    const { data: feedingMap = {} } = useQuery({
+        queryKey: ['feedingLogs', schoolId, selectedDate],
+        queryFn: () => fetchFeedingLogs(schoolId, selectedDate),
+        enabled: !!schoolId
+    });
+
+    const { data: attendanceMap = {} } = useQuery({
+        queryKey: ['dailyAttendance', schoolId, selectedDate],
+        queryFn: () => fetchDailyAttendance(schoolId, selectedDate),
+        enabled: !!schoolId
+    });
+
+    // Initial Class Selection
     useEffect(() => {
-        fetchClasses();
-    }, [currentUser]);
-
-    useEffect(() => {
-        if (selectedClass) {
-            fetchData();
+        if (!selectedClass && classes.length > 0) {
+            setSelectedClass(classes[0]);
         }
-    }, [selectedClass, selectedDate]);
+    }, [classes, selectedClass]);
 
-    const fetchClasses = async () => {
-        if (!currentUser?.school_id) return;
-        const { data } = await supabase.from('classes').select('name').eq('school_id', currentUser.school_id).order('name');
-        if (data) {
-            setClasses(data.map(c => c.name));
-            if (!selectedClass && data.length > 0) setSelectedClass(data[0].name);
-        }
-    };
 
-    const fetchData = async () => {
-        if (!currentUser?.school_id || !selectedClass) return;
-        setLoading(true);
-        try {
-            // 1. Fetch Students
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('id, name, class')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', selectedClass)
-                .order('name');
+    // --- Mutations ---
 
-            if (studentsData) setStudents(studentsData);
-
-            // 2. Fetch Feeding Logs for Date
-            const { data: feedingData } = await supabase
-                .from('feeding_logs')
-                .select('student_id')
-                .eq('school_id', currentUser.school_id)
-                .eq('date', selectedDate);
-
-            const fMap: Record<string, boolean> = {};
-            feedingData?.forEach((r: any) => fMap[r.student_id] = true);
-            setFeedingMap(fMap);
-
-            // 3. Fetch Attendance for Date (to check who is Present)
-            const { data: attendanceData } = await supabase
-                .from('attendance')
-                .select('student_id, status')
-                .eq('school_id', currentUser.school_id)
-                .eq('date', selectedDate);
-
-            const aMap: Record<string, string> = {};
-            attendanceData?.forEach((r: any) => aMap[r.student_id] = r.status);
-            setAttendanceMap(aMap);
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleFeeding = async (student: Student) => {
-        const isPaid = feedingMap[student.id];
-        const newStatus = !isPaid;
-
-        // Optimistic UI update
-        setFeedingMap(prev => ({ ...prev, [student.id]: newStatus }));
-
-        try {
-            if (newStatus) {
-                // Mark as Paid
+    const toggleFeedingMutation = useMutation({
+        mutationFn: async ({ studentId, isPaid }: { studentId: string, isPaid: boolean }) => {
+            if (isPaid) {
+                // It was paid, now toggle to unpaid (delete)
+                await supabase.from('feeding_logs').delete()
+                    .eq('student_id', studentId)
+                    .eq('date', selectedDate);
+            } else {
+                // It was unpaid, now toggle to paid (upsert)
                 await supabase.from('feeding_logs').upsert({
-                    school_id: currentUser.school_id,
-                    student_id: student.id,
+                    school_id: schoolId,
+                    student_id: studentId,
                     date: selectedDate,
                     status: 'PAID',
-                    amount: 0 // Track default amount?
+                    amount: 0
                 });
-            } else {
-                // Remove Paid status
-                await supabase.from('feeding_logs').delete()
-                    .eq('student_id', student.id)
-                    .eq('date', selectedDate);
             }
-        } catch (error) {
-            console.error("Error toggling feeding:", error);
-            // Revert on error
-            setFeedingMap(prev => ({ ...prev, [student.id]: isPaid }));
-        }
-    };
+        },
+        onMutate: async ({ studentId, isPaid }) => {
+            // Cancel refetches
+            await queryClient.cancelQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
 
-    const markAllPaid = async () => {
-        if (!confirm('Mark all displayed students as PAID for today?')) return;
-        setProcessing(true);
-        try {
-            const updates = students.map(s => ({
-                school_id: currentUser.school_id,
+            // Snapshot
+            const previousMap = queryClient.getQueryData(['feedingLogs', schoolId, selectedDate]);
+
+            // Optimistic Update
+            queryClient.setQueryData(['feedingLogs', schoolId, selectedDate], (old: Record<string, boolean> = {}) => {
+                const newMap = { ...old };
+                if (isPaid) delete newMap[studentId]; // Become unpaid
+                else newMap[studentId] = true; // Become paid
+                return newMap;
+            });
+
+            return { previousMap };
+        },
+        onError: (err, newTodo, context: any) => {
+            queryClient.setQueryData(['feedingLogs', schoolId, selectedDate], context.previousMap);
+            alert('Error updating feeding status');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+        }
+    });
+
+    const markAllPaidMutation = useMutation({
+        mutationFn: async () => {
+            const updates = students.map((s: any) => ({
+                school_id: schoolId,
                 student_id: s.id,
                 date: selectedDate,
                 status: 'PAID'
             }));
-
             const { error } = await supabase.from('feeding_logs').upsert(updates, { onConflict: 'student_id,date' });
             if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+            alert('All displayed students marked as PAID.');
+        },
+        onError: () => alert('Error marking all paid')
+    });
 
-            // Update UI
-            const newMap = { ...feedingMap };
-            students.forEach(s => newMap[s.id] = true);
-            setFeedingMap(newMap);
-        } catch (e) {
-            alert('Error marking all paid');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    // Bulk / Advance Payment Handler
-    const handleBulkPayment = async () => {
-        if (!bulkStudent || !bulkStartDate || !bulkEndDate) return;
-        setProcessing(true);
-        try {
-            // Generate dates between start and end
+    const bulkPaymentMutation = useMutation({
+        mutationFn: async ({ studentId, start, end }: { studentId: string, start: string, end: string }) => {
+            // Generate dates
             const dates = [];
-            let curr = new Date(bulkStartDate);
-            const end = new Date(bulkEndDate);
+            let curr = new Date(start);
+            const endDateObj = new Date(end);
 
-            while (curr <= end) {
+            while (curr <= endDateObj) {
                 dates.push(new Date(curr).toISOString().split('T')[0]);
                 curr.setDate(curr.getDate() + 1);
             }
 
             const inserts = dates.map(date => ({
-                school_id: currentUser.school_id,
-                student_id: bulkStudent.id,
+                school_id: schoolId,
+                student_id: studentId,
                 date: date,
                 status: 'PAID',
-                amount: 0 // Could store bulkAmount / count
+                amount: 0
             }));
 
             const { error } = await supabase.from('feeding_logs').upsert(inserts, { onConflict: 'student_id,date' });
             if (error) throw error;
-
-            alert(`Successfully marked ${dates.length} days as paid for ${bulkStudent.name}`);
+            return dates.length;
+        },
+        onSuccess: (count) => {
+            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId] }); // Invalidate loosely or specifically
+            alert(`Successfully marked ${count} days as paid.`);
             setShowBulkModal(false);
-            fetchData(); // Refresh to see changes if range includes today
-        } catch (error: any) {
-            alert('Error: ' + error.message);
-        } finally {
-            setProcessing(false);
-        }
+        },
+        onError: (error: any) => alert('Error: ' + error.message)
+    });
+
+
+    // --- Handlers ---
+
+    const toggleFeeding = (student: Student) => {
+        const isPaid = feedingMap[student.id];
+        toggleFeedingMutation.mutate({ studentId: student.id, isPaid: !!isPaid });
+    };
+
+    const markAllPaid = () => {
+        if (!confirm('Mark all displayed students as PAID for today?')) return;
+        markAllPaidMutation.mutate();
+    };
+
+    const handleBulkPayment = () => {
+        if (!bulkStudent || !bulkStartDate || !bulkEndDate) return;
+        bulkPaymentMutation.mutate({
+            studentId: bulkStudent.id,
+            start: bulkStartDate,
+            end: bulkEndDate
+        });
     };
 
     // Filter Logic
-    const filteredStudents = students.filter(s => {
+    const filteredStudents = students.filter((s: any) => {
         const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
         const isPresent = attendanceMap[s.id] === 'Present';
         const isPaid = feedingMap[s.id];
@@ -201,7 +240,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
             return matchesSearch && isPresent && !isPaid;
         }
         return matchesSearch;
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
     return (
         <div className="p-4 md:p-8 space-y-6 h-full flex flex-col pb-20 md:pb-0 overflow-y-auto">
@@ -220,7 +259,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                         onChange={e => setSelectedClass(e.target.value)}
                         className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-orange-500"
                     >
-                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                        {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
                     </select>
 
                     <input
@@ -261,7 +300,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
 
                     <button
                         onClick={markAllPaid}
-                        disabled={processing}
+                        disabled={markAllPaidMutation.isPending}
                         className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-bold hover:bg-orange-700 shadow-sm flex items-center gap-2"
                     >
                         <CheckSquare className="h-4 w-4" /> Mark All Paid
@@ -272,7 +311,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
             {/* Student List */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col min-h-[600px] md:min-h-0">
                 <div className="overflow-y-auto flex-1">
-                    {loading ? (
+                    {studentsLoading ? (
                         <div className="p-8"><Loading type="skeleton" fullScreen={false} /></div>
                     ) : (
                         <table className="w-full text-left border-collapse">
@@ -286,7 +325,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filteredStudents.length > 0 ? (
-                                    filteredStudents.map(student => {
+                                    filteredStudents.map((student: any) => {
                                         const isPaid = feedingMap[student.id];
                                         const attStatus = attendanceMap[student.id] || 'Not Marked';
 
@@ -389,10 +428,10 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                                 </button>
                                 <button
                                     onClick={handleBulkPayment}
-                                    disabled={processing}
+                                    disabled={bulkPaymentMutation.isPending}
                                     className="flex-1 py-2.5 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200"
                                 >
-                                    {processing ? 'Processing...' : 'Confirm Payment'}
+                                    {bulkPaymentMutation.isPending ? 'Processing...' : 'Confirm Payment'}
                                 </button>
                             </div>
                         </div>

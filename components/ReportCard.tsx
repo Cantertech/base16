@@ -378,7 +378,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
                                     <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Attendance</p>
                                     <p className="font-bold text-slate-900 text-sm">
-                                        {attendanceStats ? `${attendanceStats.present} of ${attendanceStats.total}` : '-'}
+                                        {attendanceStats ? `${attendanceStats.present} out of ${attendanceStats.total}` : '-'}
                                     </p>
                                 </div>
                                 <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">

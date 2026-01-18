@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     MessageSquare,
     Users,
@@ -7,18 +7,17 @@ import {
     AlertCircle,
     CheckCircle,
     Search,
-    Filter,
     Plus,
     Trash2,
     Clock,
     StickyNote,
     X,
-    Sparkles,
-    Megaphone
+    Sparkles
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
-import { getCachedData, setCachedData } from '../utils/cache';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Loading from './Loading';
 
 interface Notice {
     id: string;
@@ -28,6 +27,7 @@ interface Notice {
     audience: 'All Staff' | 'Teaching Staff' | 'Admins Only';
     date: string;
     author_id: string;
+    created_at?: string;
 }
 
 interface MessageLog {
@@ -39,24 +39,65 @@ interface MessageLog {
     status: 'Delivered' | 'Failed' | 'Pending';
 }
 
+// --- Fetch Functions ---
+
+const fetchSMSBalance = async (schoolId: string) => {
+    const { data } = await supabase.from('schools').select('sms_balance').eq('id', schoolId).single();
+    return data?.sms_balance || 0;
+};
+
+const fetchNotices = async (schoolId: string) => {
+    const { data } = await supabase.from('notices').select('*').eq('school_id', schoolId).order('created_at', { ascending: false });
+    return data?.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' })) || [];
+};
+
+const fetchClasses = async (schoolId: string) => {
+    // Fetch unique classes from students table (or classes table if preferred, but original used students)
+    // Original used students table to get classes. Let's stick to that or use the classes table if available/reliable.
+    // Ideally should use 'classes' table.
+    const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
+    if (data && data.length > 0) return data.map(c => c.name);
+
+    // Fallback if classes table empty or logic prefers students
+    const { data: studentData } = await supabase.from('students').select('class').eq('school_id', schoolId);
+    const uniqueClasses = [...new Set(studentData?.map((d: any) => d.class))].filter(Boolean).sort();
+    return uniqueClasses;
+};
+
+const fetchSchoolName = async (schoolId: string) => {
+    const { data } = await supabase.from('schools').select('name').eq('id', schoolId).single();
+    return data?.name || '';
+};
+
+const fetchMessageHistory = async (schoolId: string) => {
+    const { data } = await supabase.from('message_logs').select('*').eq('school_id', schoolId).order('created_at', { ascending: false });
+    return data || [];
+};
+
+const searchStudents = async (schoolId: string, query: string) => {
+    if (query.length < 2) return [];
+    const { data } = await supabase
+        .from('students')
+        .select('id, name, class, parent_phone')
+        .eq('school_id', schoolId)
+        .ilike('name', `%${query}%`)
+        .limit(5);
+    return data || [];
+};
+
+
 const Communication = ({ currentUser }: { currentUser: any }) => {
     const [activeTab, setActiveTab] = useState('notices');
-    const [smsBalance, setSmsBalance] = useState(0);
     const isTeacher = currentUser.role === 'teacher';
+    const schoolId = currentUser?.school_id;
 
-    useEffect(() => {
-        const fetchBalance = async () => {
-            if (!currentUser?.school_id) return;
-            const { data } = await supabase.from('schools').select('sms_balance').eq('id', currentUser.school_id).single();
-            if (data) setSmsBalance(data.sms_balance || 0);
-        };
-        fetchBalance();
-    }, [currentUser?.school_id]);
-
-    const updateBalance = (newBalance: number) => {
-        setSmsBalance(newBalance);
-        // In a real app, update DB here
-    };
+    // We can fetch balance here to share, or inside ComposeSMS. Sharing is nice for header maybe?
+    // But original code passed it down.
+    const { data: smsBalance = 0 } = useQuery({
+        queryKey: ['smsBalance', schoolId],
+        queryFn: () => fetchSMSBalance(schoolId),
+        enabled: !!schoolId
+    });
 
     return (
         <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-full overflow-hidden">
@@ -97,7 +138,7 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
             {/* Content Area */}
             <div className="min-h-[400px]">
                 {activeTab === 'notices' && <NoticeBoard isTeacher={isTeacher} currentUser={currentUser} />}
-                {activeTab === 'sms' && !isTeacher && <ComposeSMS balance={smsBalance} onUpdateBalance={updateBalance} currentUser={currentUser} />}
+                {activeTab === 'sms' && !isTeacher && <ComposeSMS balance={smsBalance} currentUser={currentUser} />}
                 {activeTab === 'history' && !isTeacher && <HistoryTable currentUser={currentUser} />}
             </div>
         </div>
@@ -106,130 +147,62 @@ const Communication = ({ currentUser }: { currentUser: any }) => {
 
 // --- SUB-COMPONENTS ---
 
-const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number, onUpdateBalance: (n: number) => void, currentUser: any }) => {
+const ComposeSMS = ({ balance, currentUser }: { balance: number, currentUser: any }) => {
     const { currency } = useCurrency();
+    const queryClient = useQueryClient();
+    const schoolId = currentUser?.school_id;
+
     const [recipient, setRecipient] = useState('Debtors');
     const [message, setMessage] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [classes, setClasses] = useState<string[]>([]);
     const [selectedClass, setSelectedClass] = useState('');
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<any>(null);
-    const [searchingStudent, setSearchingStudent] = useState(false);
-    const [studentSearchResults, setStudentSearchResults] = useState<any[]>([]);
-    const [schoolName, setSchoolName] = useState('');
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Fetch Classes
-    useEffect(() => {
-        const fetchClassesAndSchool = async () => {
-            if (!currentUser?.school_id) return;
+    // Queries
+    const { data: classes = [] } = useQuery({
+        queryKey: ['classNames', schoolId],
+        queryFn: () => fetchClasses(schoolId!),
+        enabled: !!schoolId
+    });
 
-            // Fetch Classes
-            const { data: classData } = await supabase
-                .from('students')
-                .select('class')
-                .eq('school_id', currentUser.school_id);
+    const { data: schoolName = '' } = useQuery({
+        queryKey: ['schoolName', schoolId],
+        queryFn: async () => {
+            if (currentUser.school_name) return currentUser.school_name;
+            return fetchSchoolName(schoolId);
+        },
+        enabled: !!schoolId
+    });
 
-            if (classData) {
-                const uniqueClasses = [...new Set(classData.map((d: any) => d.class))].filter(Boolean).sort();
-                setClasses(uniqueClasses);
-                if (uniqueClasses.length > 0) setSelectedClass(uniqueClasses[0]);
-            }
+    const { data: studentSearchResults = [], isFetching: searchingStudent } = useQuery({
+        queryKey: ['studentSearch', schoolId, targetStudentSearch],
+        queryFn: () => searchStudents(schoolId, targetStudentSearch),
+        enabled: !!schoolId && targetStudentSearch.length >= 2
+    });
 
-            // Fetch School Name if not in currentUser
-            if (currentUser.school_name) {
-                setSchoolName(currentUser.school_name);
-            } else {
-                const { data: schoolData } = await supabase.from('schools').select('name').eq('id', currentUser.school_id).single();
-                if (schoolData) setSchoolName(schoolData.name);
-            }
-        };
-        fetchClassesAndSchool();
-    }, [currentUser?.school_id]);
+    // Auto-select first class
+    if (!selectedClass && classes.length > 0) setSelectedClass(classes[0]);
 
-    // Student Search Effect
-    useEffect(() => {
-        const searchStudents = async () => {
-            if (targetStudentSearch.length < 2) {
-                setStudentSearchResults([]);
-                return;
-            }
-            setSearchingStudent(true);
-            const { data } = await supabase
-                .from('students')
-                .select('id, name, class, parent_phone')
-                .eq('school_id', currentUser.school_id)
-                .ilike('name', `%${targetStudentSearch}%`)
-                .limit(5);
-            setStudentSearchResults(data || []);
-            setSearchingStudent(false);
-        };
-        const timeout = setTimeout(searchStudents, 500);
-        return () => clearTimeout(timeout);
-    }, [targetStudentSearch, currentUser?.school_id]);
+    // Mutation
+    const sendSMSMutation = useMutation({
+        mutationFn: async () => {
+            if (!message.trim()) throw new Error("Message is empty");
+            if (balance < 1) throw new Error("Insufficient SMS Balance.");
+            if (recipient === 'Single Student' && !selectedStudent) throw new Error("Please select a student first.");
 
-
-    const getVariables = () => {
-        const baseVars = ['{Parent Name}', '{Student Name}', '{Student ID}', '{PIN}', '{Link}'];
-        if (recipient === 'Debtors') return [...baseVars, '{Balance}', '{Due Date}'];
-        if (recipient === 'Results') return [...baseVars, '{Total Score}', '{Position}'];
-        return baseVars;
-    };
-
-    const insertVariable = (variable: string) => {
-        if (textAreaRef.current) {
-            const start = textAreaRef.current.selectionStart;
-            const end = textAreaRef.current.selectionEnd;
-            const text = message;
-            const newText = text.substring(0, start) + variable + text.substring(end);
-            setMessage(newText);
-            setTimeout(() => {
-                if (textAreaRef.current) {
-                    textAreaRef.current.focus();
-                    textAreaRef.current.setSelectionRange(start + variable.length, start + variable.length);
-                }
-            }, 0);
-        } else {
-            setMessage(prev => prev + variable);
-        }
-    };
-
-    const applyTemplate = (type: string) => {
-        if (type === 'fee') setMessage(`Dear {Parent Name}, kindly pay the outstanding ${currency.code} {Balance} for {Student Name} immediately to avoid any inconvenience.`);
-        if (type === 'result') setMessage("Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}");
-        if (type === 'portal') setMessage("Dear {Parent Name}, you can now view {Student Name}'s full report card online. \nLink: {Link}\nStudent ID: {Student ID}\nPIN: {PIN}\n\nPlease keep these credentials safe.");
-        if (type === 'emergency') setMessage("NOTICE: School will be closed tomorrow due to heavy rains. Please stay safe.");
-    };
-
-    const handleSend = async () => {
-        if (!message.trim()) return;
-        if (balance < 1) {
-            alert("Insufficient SMS Balance.");
-            return;
-        }
-
-        if (recipient === 'Single Student' && !selectedStudent) {
-            alert("Please select a student first.");
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            // 1. Fetch Recipients with Data for Personalization
+            // 1. Fetch Recipients
             let recipientsData: any[] = [];
-
             const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
-            const PORTAL_LINK = 'https://base16.sixzones.com/login'; // Changed to login
+            const PORTAL_LINK = 'https://base16.sixzones.com/login';
 
             if (recipient === 'Debtors') {
                 const { data } = await supabase
                     .from('students')
                     .select('parent_phone, parent_name, name, balance, admission_no, id, pin')
                     .gt('balance', 0)
-                    .eq('school_id', currentUser.school_id)
+                    .eq('school_id', schoolId)
                     .neq('parent_phone', null);
 
                 recipientsData = data?.map((d: any) => ({
@@ -244,12 +217,11 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                         '{Link}': PORTAL_LINK
                     }
                 })) || [];
-
             } else if (recipient === 'All Parents' || recipient === 'Results') {
                 const { data } = await supabase
                     .from('students')
                     .select('parent_phone, parent_name, name, admission_no, id, pin')
-                    .eq('school_id', currentUser.school_id)
+                    .eq('school_id', schoolId)
                     .neq('parent_phone', null);
 
                 recipientsData = data?.map((d: any) => ({
@@ -263,12 +235,11 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                         '{Link}': PORTAL_LINK
                     }
                 })) || [];
-
             } else if (recipient === 'Specific Class') {
                 const { data } = await supabase
                     .from('students')
                     .select('parent_phone, parent_name, name, admission_no, id, pin')
-                    .eq('school_id', currentUser.school_id)
+                    .eq('school_id', schoolId)
                     .eq('class', selectedClass)
                     .neq('parent_phone', null);
 
@@ -282,10 +253,8 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                         '{Link}': PORTAL_LINK
                     }
                 })) || [];
-
             } else if (recipient === 'Single Student') {
                 if (selectedStudent?.id) {
-                    // We fetch specifically to ensure we have all fields even if search result was partial
                     const { data } = await supabase.from('students').select('*').eq('id', selectedStudent.id).single();
                     if (data && data.parent_phone) {
                         recipientsData = [{
@@ -300,15 +269,14 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                             }
                         }];
                     } else {
-                        alert("Selected student has no parent data."); setLoading(false); return;
+                        throw new Error("Selected student has no parent data.");
                     }
                 }
-
             } else if (recipient === 'Teachers') {
                 const { data } = await supabase
                     .from('teachers')
                     .select('phone, name')
-                    .eq('school_id', currentUser.school_id)
+                    .eq('school_id', schoolId)
                     .neq('phone', null);
 
                 recipientsData = data?.map((d: any) => ({
@@ -323,24 +291,14 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                 })) || [];
             }
 
-            // Filter valid numbers
             recipientsData = recipientsData.filter(r => r.phone && r.phone.length >= 9);
 
-            if (recipientsData.length === 0) {
-                alert(`No valid recipients found.`);
-                setLoading(false);
-                return;
-            }
+            if (recipientsData.length === 0) throw new Error("No valid recipients found.");
 
             const actualCost = recipientsData.length;
+            if (balance < actualCost) throw new Error(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
 
-            if (balance < actualCost) {
-                alert(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
-                setLoading(false);
-                return;
-            }
-
-            // 3. Send SMS via Edge Function using 'recipients' payload
+            // Send SMS
             const finalMessage = schoolName ? `${schoolName}\n${message}` : message;
 
             const { data, error } = await supabase.functions.invoke('send-sms', {
@@ -359,38 +317,70 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
             console.log('SMS Sent Response:', data);
 
-            // 4. Update Balance & Log
-            await onUpdateBalance(balance - recipientsData.length); // Use recipientsData.length for actual count
+            // Deduct credits RPC
+            await supabase.rpc('deduct_sms_credits', { p_school_id: schoolId, p_count: recipientsData.length });
 
-            // Deduct from DB
-            if (currentUser?.school_id) {
-                await supabase.rpc('deduct_sms_credits', { p_school_id: currentUser.school_id, p_count: recipientsData.length });
-            }
+            // Log message
+            await supabase.from('message_logs').insert({
+                school_id: schoolId,
+                date: new Date().toISOString().split('T')[0],
+                type: recipient === 'Single Student' ? 'Individual SMS' : 'SMS Blast',
+                recipient: recipient === 'Single Student' ? (selectedStudent?.name || 'Student') : recipient,
+                content: message,
+                status: 'Delivered'
+            });
 
-            if (currentUser?.school_id) {
-                await supabase.from('message_logs').insert({
-                    school_id: currentUser.school_id,
-                    date: new Date().toISOString().split('T')[0],
-                    type: recipient === 'Single Student' ? 'Individual SMS' : 'SMS Blast',
-                    recipient: recipient === 'Single Student' ? (selectedStudent?.name || 'Student') : recipient,
-                    content: message,
-                    status: 'Delivered'
-                });
-            }
-
+            return recipientsData.length;
+        },
+        onSuccess: (count) => {
+            alert(`Success! Messages queued for ${count} recipients.`);
             setMessage('');
-            alert(`Success! Messages queued for ${recipientsData.length} recipients. accounts.`);
+            queryClient.invalidateQueries({ queryKey: ['smsBalance', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['messageHistory', schoolId] });
             if (recipient === 'Single Student') {
                 setSelectedStudent(null);
                 setTargetStudentSearch('');
             }
-
-        } catch (err: any) {
-            console.error(err);
-            alert("Error sending SMS: " + (err.message || "Unknown error"));
-        } finally {
-            setLoading(false);
+        },
+        onError: (error: any) => {
+            alert("Error sending SMS: " + (error.message || "Unknown error"));
         }
+    });
+
+
+    // --- Handlers ---
+
+    const getVariables = () => {
+        const baseVars = ['{Parent Name}', '{Student Name}', '{Student ID}', '{PIN}', '{Link}'];
+        if (recipient === 'Debtors') return [...baseVars, '{Balance}', '{Due Date}'];
+        if (recipient === 'Results') return [...baseVars, '{Total Score}', '{Position}'];
+        return baseVars;
+    };
+
+    const insertVariable = (variable: string) => {
+        if (textAreaRef.current) {
+            const start = textAreaRef.current.selectionStart;
+            const end = textAreaRef.current.selectionEnd;
+            const text = message;
+            const newText = text.substring(0, start) + variable + text.substring(end);
+            setMessage(newText);
+            // Re-focus logic is tricky in strict mode with state updates on ref, but timeouts work usually
+            setTimeout(() => {
+                if (textAreaRef.current) {
+                    textAreaRef.current.focus();
+                    textAreaRef.current.setSelectionRange(start + variable.length, start + variable.length);
+                }
+            }, 0);
+        } else {
+            setMessage(prev => prev + variable);
+        }
+    };
+
+    const applyTemplate = (type: string) => {
+        if (type === 'fee') setMessage(`Dear {Parent Name}, kindly pay the outstanding ${currency.code} {Balance} for {Student Name} immediately to avoid any inconvenience.`);
+        if (type === 'result') setMessage("Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}");
+        if (type === 'portal') setMessage("Dear {Parent Name}, you can now view {Student Name}'s full report card online. \nLink: {Link}\nStudent ID: {Student ID}\nPIN: {PIN}\n\nPlease keep these credentials safe.");
+        if (type === 'emergency') setMessage("NOTICE: School will be closed tomorrow due to heavy rains. Please stay safe.");
     };
 
     return (
@@ -439,7 +429,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                                 onChange={(e) => setSelectedClass(e.target.value)}
                                 className="w-full md:w-1/2 p-2 border rounded-lg"
                             >
-                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                                {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
                     )}
@@ -472,7 +462,7 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
                                         {searchingStudent ? (
                                             <div className="p-4 text-center text-xs text-slate-500">Searching...</div>
                                         ) : studentSearchResults.length > 0 ? (
-                                            studentSearchResults.map(s => (
+                                            studentSearchResults.map((s: any) => (
                                                 <button
                                                     key={s.id}
                                                     onClick={() => { setSelectedStudent(s); setTargetStudentSearch(''); }}
@@ -539,12 +529,12 @@ const ComposeSMS = ({ balance, onUpdateBalance, currentUser }: { balance: number
 
                 <div className="flex justify-end">
                     <button
-                        onClick={handleSend}
-                        disabled={loading || !message}
+                        onClick={() => sendSMSMutation.mutate()}
+                        disabled={sendSMSMutation.isPending || !message}
                         className="w-full md:w-auto px-8 bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Personalizing & Sending...' : 'Send Blast Message'}
-                        {!loading && <Send className="h-4 w-4" />}
+                        {sendSMSMutation.isPending ? 'Personalizing & Sending...' : 'Send Blast Message'}
+                        {!sendSMSMutation.isPending && <Send className="h-4 w-4" />}
                     </button>
                 </div>
             </div>
@@ -632,48 +622,49 @@ const PostNoticeModal = ({ onClose, onPost }: any) => {
 };
 
 const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUser: any }) => {
-    const [notices, setNotices] = useState<Notice[]>([]);
+    const schoolId = currentUser?.school_id;
+    const queryClient = useQueryClient();
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const CACHE_KEY = `notices_${currentUser?.school_id}`;
 
-    const fetchNotices = async (force = false) => {
-        if (!currentUser?.school_id) return;
-        if (!force) {
-            const cached = getCachedData<Notice[]>(CACHE_KEY);
-            if (cached) {
-                setNotices(cached);
-                return;
-            }
+    const { data: notices = [], isLoading } = useQuery({
+        queryKey: ['notices', schoolId],
+        queryFn: () => fetchNotices(schoolId),
+        enabled: !!schoolId
+    });
+
+    const postNoticeMutation = useMutation({
+        mutationFn: async (noticeData: any) => {
+            const { error } = await supabase.from('notices').insert({
+                school_id: schoolId,
+                title: noticeData.title,
+                message: noticeData.message,
+                priority: noticeData.priority,
+                audience: noticeData.audience,
+                date: noticeData.date,
+                author_id: currentUser.id
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            setIsModalOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['notices', schoolId] });
+        },
+        onError: () => alert('Failed to post')
+    });
+
+    const deleteNoticeMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('notices').delete().eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notices', schoolId] });
         }
-        const { data } = await supabase.from('notices').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false });
-        if (data) {
-            const mapped = data.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' }));
-            setNotices(mapped);
-            setCachedData(CACHE_KEY, mapped);
-        }
-    };
+    });
 
-    useEffect(() => { fetchNotices(); }, [currentUser?.school_id]);
-
-    const handlePost = async (noticeData: any) => {
-        if (!currentUser?.school_id) return;
-        const { error } = await supabase.from('notices').insert({
-            school_id: currentUser.school_id,
-            title: noticeData.title,
-            message: noticeData.message,
-            priority: noticeData.priority,
-            audience: noticeData.audience,
-            date: noticeData.date,
-            author_id: currentUser.id
-        });
-        if (error) { console.error(error); alert('Failed to post'); }
-        else { setIsModalOpen(false); fetchNotices(true); }
-    };
-
-    const handleDelete = async (id: string) => {
+    const handleDelete = (id: string) => {
         if (!confirm('Delete notice?')) return;
-        const { error } = await supabase.from('notices').delete().eq('id', id);
-        if (!error) fetchNotices(true);
+        deleteNoticeMutation.mutate(id);
     };
 
     return (
@@ -686,40 +677,34 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
                     </button>
                 )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {notices.length > 0 ? notices.map(n => <NoticeCard key={n.id} notice={n} onDelete={handleDelete} isTeacher={isTeacher} />) : (
-                    <div className="col-span-2 text-center py-12 bg-white rounded-xl border border-dashed border-slate-300"><p className="text-slate-400">No notices found.</p></div>
-                )}
-            </div>
-            {isModalOpen && !isTeacher && <PostNoticeModal onClose={() => setIsModalOpen(false)} onPost={handlePost} />}
+            {isLoading ? <Loading type="skeleton" fullScreen={false} /> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {notices.length > 0 ? notices.map((n: any) => <NoticeCard key={n.id} notice={n} onDelete={handleDelete} isTeacher={isTeacher} />) : (
+                        <div className="col-span-2 text-center py-12 bg-white rounded-xl border border-dashed border-slate-300"><p className="text-slate-400">No notices found.</p></div>
+                    )}
+                </div>
+            )}
+            {isModalOpen && !isTeacher && <PostNoticeModal onClose={() => setIsModalOpen(false)} onPost={postNoticeMutation.mutate} />}
         </div>
     );
 };
 
 const HistoryTable = ({ currentUser }: { currentUser: any }) => {
-    const [history, setHistory] = useState<MessageLog[]>([]);
-    const CACHE_KEY = `msg_history_${currentUser?.school_id}`;
+    const schoolId = currentUser?.school_id;
 
-    useEffect(() => {
-        const fetchHistory = async () => {
-            if (!currentUser?.school_id) return;
-            const cached = getCachedData<MessageLog[]>(CACHE_KEY);
-            if (cached) { setHistory(cached); return; }
+    const { data: history = [], isLoading } = useQuery({
+        queryKey: ['messageHistory', schoolId],
+        queryFn: () => fetchMessageHistory(schoolId),
+        enabled: !!schoolId
+    });
 
-            const { data } = await supabase.from('message_logs').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false });
-            if (data) {
-                setHistory(data);
-                setCachedData(CACHE_KEY, data);
-            }
-        };
-        fetchHistory();
-    }, [currentUser?.school_id]);
+    if (isLoading) return <Loading type="skeleton" fullScreen={false} />;
 
     return (
         <div className="space-y-4">
             {/* Mobile History Cards */}
             <div className="md:hidden space-y-4">
-                {history.length > 0 ? history.map(log => (
+                {history.length > 0 ? history.map((log: any) => (
                     <div key={log.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
                         <div className="flex justify-between items-start">
                             <div>
@@ -754,7 +739,7 @@ const HistoryTable = ({ currentUser }: { currentUser: any }) => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {history.length > 0 ? history.map(log => (
+                        {history.length > 0 ? history.map((log: any) => (
                             <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4 text-sm text-slate-600">{log.date}</td>
                                 <td className="px-6 py-4 text-sm font-medium text-slate-800">{log.type}</td>

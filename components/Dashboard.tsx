@@ -49,8 +49,8 @@ import Timetable from './Timetable';
 import Feeding from './Feeding';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
-import { getCachedData, setCachedData } from '../utils/cache';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface DashboardProps {
     onLogout: () => void;
@@ -137,29 +137,9 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImpersonating, onExitImpersonation }) => {
+    const queryClient = useQueryClient();
     const { formatAmount, currency } = useCurrency();
-    const [schoolConfig, setSchoolConfig] = useState<any>(null);
     const [activeMenu, setActiveMenu] = useState('Dashboard');
-    const [loading, setLoading] = useState(true);
-
-    // Real Data State
-    const [stats, setStats] = useState({
-        students: 0,
-        teachers: 0,
-        classes: 0,
-        revenue: 0,
-        boys: 0,
-        girls: 0
-    });
-    const [financialHistory, setFinancialHistory] = useState<any[]>([]);
-    const [recentNotices, setRecentNotices] = useState<any[]>([]);
-
-    // Welcome Modal State
-    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-
-    // Subscription State
-    const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'warning' | 'suspended'>('active');
-    const [daysOverdue, setDaysOverdue] = useState(0);
 
     // Sidebar Customization State
     const [hiddenMenuItems, setHiddenMenuItems] = useState<string[]>([]);
@@ -178,25 +158,122 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         localStorage.setItem('orbit_hidden_menus', JSON.stringify(newHidden));
     };
 
+    // Welcome Modal State
+    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+    // Subscription State
+    const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'warning' | 'suspended'>('active');
+    const [daysOverdue, setDaysOverdue] = useState(0);
+
+    // --- Queries ---
+
+    // 1. School Config (Name, Logo, Color, Payment Due, Term Info)
+    const { data: schoolConfig, isLoading: configLoading } = useQuery({
+        queryKey: ['schoolConfig', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return null;
+            const { data: school } = await supabase.from('schools').select('*').eq('id', currentUser.school_id).single();
+            return school ? {
+                name: school.name,
+                motto: school.motto,
+                logo: school.logo_url,
+                color: school.theme_color || 'blue',
+                next_payment_due: school.next_payment_due,
+                current_term: school.current_term || 'First Term',
+                academic_year: school.academic_year
+            } : null;
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 2. Dashboard Stats (Counts)
+    const { data: stats = { students: 0, teachers: 0, classes: 0, revenue: 0, boys: 0, girls: 0 }, isLoading: statsLoading } = useQuery({
+        queryKey: ['dashboardStats', currentUser.school_id, schoolConfig?.current_term, schoolConfig?.academic_year],
+        queryFn: async () => {
+            if (!currentUser.school_id || !schoolConfig) return { students: 0, teachers: 0, classes: 0, revenue: 0, boys: 0, girls: 0 };
+
+            const { count: studentCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id);
+            const { count: teacherCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('role', 'teacher');
+            const { count: classCount } = await supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id);
+
+            const { count: boysCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Male');
+            const { count: girlsCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Female');
+
+            // Revenue - Filter by Term
+            const { data: transactions } = await supabase
+                .from('transactions')
+                .select('amount')
+                .eq('school_id', currentUser.school_id)
+                .eq('term', schoolConfig.current_term)
+                .eq('academic_year', schoolConfig.academic_year);
+
+            const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+
+            return {
+                students: studentCount || 0,
+                teachers: teacherCount || 0,
+                classes: classCount || 0,
+                revenue: totalRevenue,
+                boys: boysCount || 0,
+                girls: girlsCount || 0
+            };
+        },
+        enabled: !!currentUser.school_id && !!schoolConfig
+    });
+
+    // 3. Financial History
+    const { data: financialHistory = [] } = useQuery({
+        queryKey: ['financialHistory', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return [];
+            const { data: transactions } = await supabase.from('transactions').select('amount, date').eq('school_id', currentUser.school_id);
+
+            const historyMap = new Map();
+            transactions?.forEach((t: any) => {
+                const date = new Date(t.date);
+                const month = date.toLocaleString('default', { month: 'short' });
+                historyMap.set(month, (historyMap.get(month) || 0) + t.amount);
+            });
+
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date();
+                d.setMonth(d.getMonth() - i);
+                const m = d.toLocaleString('default', { month: 'short' });
+                months.push({ month: m, collected: historyMap.get(m) || 0 });
+            }
+            return months;
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 4. Recent Notices
+    const { data: recentNotices = [] } = useQuery({
+        queryKey: ['recentNotices', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return [];
+            const { data: notices } = await supabase.from('notices').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false }).limit(5);
+            return notices ? notices.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' })) : [];
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // Combined Loading State
+    const loading = configLoading || statsLoading;
+
+    // --- Effects ---
+
     useEffect(() => {
         // Use the flag passed from Login.tsx
         if ((currentUser as any).isFirstLogin) {
             setShowWelcomeModal(true);
         }
-        checkSubscription();
     }, [currentUser]);
 
-    const checkSubscription = async () => {
-        if (!currentUser.school_id) return;
-        const { data: school } = await supabase
-            .from('schools')
-            .select('next_payment_due')
-            .eq('id', currentUser.school_id)
-            .single();
-
-        if (school?.next_payment_due) {
+    useEffect(() => {
+        if (schoolConfig?.next_payment_due) {
             const today = new Date();
-            const due = new Date(school.next_payment_due);
+            const due = new Date(schoolConfig.next_payment_due);
             // Reset time part for accurate day comparison
             today.setHours(0, 0, 0, 0);
             due.setHours(0, 0, 0, 0);
@@ -213,100 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 setSubscriptionStatus('active');
             }
         }
-    };
-
-    const loadConfig = async () => {
-        if (!currentUser.school_id) return;
-        const { data: school } = await supabase.from('schools').select('*').eq('id', currentUser.school_id).single();
-        if (school) {
-            setSchoolConfig({
-                name: school.name,
-                motto: school.motto,
-                logo: school.logo_url,
-                color: school.theme_color || 'blue'
-            });
-        }
-    };
-
-    const fetchDashboardData = async () => {
-        if (!currentUser.school_id) return;
-
-        const CACHE_KEY = `dashboard_data_v2_${currentUser.school_id}`;
-        const cached = getCachedData<any>(CACHE_KEY);
-
-        if (cached) {
-            setStats(cached.stats);
-            setFinancialHistory(cached.financialHistory);
-            setRecentNotices(cached.recentNotices);
-            setLoading(false);
-            // Stale-while-revalidate: We use cached data but continue to fetch fresh data
-        }
-
-        try {
-            // 1. Counts
-            const { count: studentCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id);
-            const { count: teacherCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('role', 'teacher');
-            const { count: classCount } = await supabase.from('classes').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id);
-
-            // 2. Gender Stats
-            const { count: boysCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Male');
-            const { count: girlsCount } = await supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('gender', 'Female');
-
-            // 3. Financials (Revenue)
-            const { data: transactions, error: transError } = await supabase.from('transactions').select('amount, date, type').eq('school_id', currentUser.school_id);
-
-            if (transError) console.error('Error fetching transactions:', transError);
-
-            const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-
-            // 4. Financial History
-            const historyMap = new Map();
-            transactions?.forEach(t => {
-                const date = new Date(t.date);
-                const month = date.toLocaleString('default', { month: 'short' });
-                historyMap.set(month, (historyMap.get(month) || 0) + t.amount);
-            });
-            const months = [];
-            for (let i = 5; i >= 0; i--) {
-                const d = new Date();
-                d.setMonth(d.getMonth() - i);
-                const m = d.toLocaleString('default', { month: 'short' });
-                months.push({ month: m, collected: historyMap.get(m) || 0 });
-            }
-
-            const newStats = {
-                students: studentCount || 0,
-                teachers: teacherCount || 0,
-                classes: classCount || 0,
-                revenue: totalRevenue || 0,
-                boys: boysCount || 0,
-                girls: girlsCount || 0
-            };
-
-            setStats(newStats);
-            setFinancialHistory(months);
-
-            // 5. Recent Notices
-            const { data: notices } = await supabase.from('notices').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false }).limit(5);
-            let mappedNotices: any[] = [];
-            if (notices) {
-                mappedNotices = notices.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' }));
-                setRecentNotices(mappedNotices);
-            }
-
-            setCachedData(CACHE_KEY, { stats: newStats, financialHistory: months, recentNotices: mappedNotices });
-
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadConfig();
-        fetchDashboardData();
-    }, [currentUser.school_id]);
+    }, [schoolConfig]);
 
     const getThemeStyles = (color: string) => {
         const isHex = color?.startsWith('#');
@@ -397,7 +381,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Attendance': return <Attendance currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
-                case 'Settings & Profile': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={teacherMenuItems} />;
+                case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={teacherMenuItems} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
             }
         }
@@ -413,7 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
-            case 'Settings': return <Settings onConfigUpdate={loadConfig} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={adminMenuItems} />;
+            case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={adminMenuItems} />;
             default: return (
                 <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>
@@ -425,19 +409,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                         {[
                             { label: 'Total Students', value: stats.students, icon: GraduationCap },
                             { label: 'Teachers', value: stats.teachers, icon: Users },
-                            { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote },
-                            { label: 'Classes', value: stats.classes, icon: Layers }
+                            { label: 'Classes', value: stats.classes, icon: Layers },
+                            { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote, isWide: true }
                         ].map((item, idx) => (
-                            <div key={idx} className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow">
+                            <div key={idx} className={`bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow ${item.isWide ? 'col-span-2 lg:col-span-1' : ''}`}>
                                 <div
                                     className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text}`}
                                     style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
                                 >
                                     <item.icon className="h-5 w-5 md:h-6 md:w-6" />
                                 </div>
-                                <div>
+                                <div className="min-w-0 flex-1">
                                     <p className="text-slate-500 text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</p>
-                                    <h3 className="text-lg md:text-2xl font-bold text-slate-800 truncate">{item.value}</h3>
+                                    <h3 className="text-lg md:text-2xl font-bold text-slate-800 break-words">{item.value}</h3>
                                 </div>
                             </div>
                         ))}

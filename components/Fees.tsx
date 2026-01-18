@@ -6,9 +6,7 @@ import {
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 import FeeReceipt from './FeeReceipt';
-import { getCachedData, setCachedData, clearCache } from '../utils/cache';
-
-const CACHE_KEY_FEES_DATA = 'orbit_fees_full_data';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // --- Types ---
 interface Student {
@@ -38,17 +36,71 @@ interface FeesProps {
     };
 }
 
+// --- Fetch Functions ---
+const fetchSchoolInfo = async (schoolId: string) => {
+    const { data } = await supabase.from('schools').select('*').eq('id', schoolId).single();
+    return data;
+};
+
+const fetchStudents = async (schoolId: string) => {
+    const { data, error } = await supabase.from('students').select('*').eq('school_id', schoolId);
+    if (error) throw error;
+    return (data || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        class: s.class,
+        balance: s.balance,
+        parentPhone: s.parent_phone
+    })) as Student[];
+};
+
+const fetchTransactions = async (schoolId: string, term?: string, year?: string) => {
+    let query = supabase
+        .from('transactions')
+        .select('*, students(name)')
+        .eq('school_id', schoolId);
+
+    if (term) query = query.eq('term', term);
+    if (year) query = query.eq('academic_year', year);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map((t: any) => ({
+        id: t.id,
+        studentId: t.student_id,
+        studentName: t.students?.name || 'Unknown',
+        amount: t.amount,
+        date: t.date,
+        type: t.type,
+        method: t.method,
+        reference: t.reference
+    })) as Transaction[];
+};
+
+const fetchFeeStructure = async (schoolId: string, term?: string, year?: string) => {
+    let query = supabase.from('fee_structure').select('*').eq('school_id', schoolId);
+
+    if (term) query = query.eq('term', term);
+    if (year) query = query.eq('academic_year', year);
+
+    const { data, error } = await query.order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+};
+
+const fetchClasses = async (schoolId: string) => {
+    const { data } = await supabase.from('classes').select('*').eq('school_id', schoolId).order('name');
+    return data || [];
+};
+
+
 // --- Main Component ---
 const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const { formatAmount, currency } = useCurrency();
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'overview' | 'structure'>('overview');
-    const [students, setStudents] = useState<Student[]>([]);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [feeStructure, setFeeStructure] = useState<any[]>([]);
-    const [classes, setClasses] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'owing'>('all');
-    const [schoolInfo, setSchoolInfo] = useState<any>(null);
     const [receiptData, setReceiptData] = useState<any>(null);
 
     // Modal State
@@ -56,169 +108,54 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const [isAddFeeModalOpen, setIsAddFeeModalOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-    // Load Data
-    useEffect(() => {
-        fetchData();
-    }, [currentUser]);
+    const schoolId = currentUser?.school_id;
 
-    const fetchData = async (background = false) => {
-        // Cache Check
-        if (!background) {
-            const cached = getCachedData<any>(CACHE_KEY_FEES_DATA);
-            if (cached) {
-                setStudents(cached.students);
-                setTransactions(cached.transactions);
-                setFeeStructure(cached.feeStructure);
-                setClasses(cached.classes);
-                // If we have cache, we could stop here or do a background refresh.
-                // For 'Fees', accuracy is key, so maybe background refresh is safer?
-                // But the user complained about "dataload", so let's trust cache for 2 mins.
-                // We'll proceed to fetch ONLY if no cache.
-                return;
-            }
-        }
-        try {
-            let schoolId = currentUser?.school_id;
+    // --- Queries ---
+    const { data: students = [] } = useQuery({
+        queryKey: ['students', schoolId],
+        queryFn: () => fetchStudents(schoolId!),
+        enabled: !!schoolId
+    });
 
-            if (!schoolId) {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('school_id')
-                        .eq('id', user.id)
-                        .single();
-                    schoolId = profile?.school_id;
-                }
-            }
+    const { data: schoolInfo } = useQuery({
+        queryKey: ['schoolInfo', schoolId],
+        queryFn: () => fetchSchoolInfo(schoolId!),
+        enabled: !!schoolId
+    });
 
-            if (!schoolId) {
-                console.error("No school ID found for Fees data fetch");
-                return;
-            }
+    const { data: transactions = [] } = useQuery({
+        queryKey: ['transactions', schoolId, schoolInfo?.current_term, schoolInfo?.academic_year],
+        queryFn: () => fetchTransactions(schoolId!, schoolInfo?.current_term, schoolInfo?.academic_year),
+        enabled: !!schoolId && !!schoolInfo
+    });
 
-            // Fetch Students
-            const { data: studentsData, error: studentsError } = await supabase
-                .from('students')
-                .select('*')
-                .eq('school_id', schoolId);
+    const { data: feeStructure = [] } = useQuery({
+        queryKey: ['feeStructure', schoolId, schoolInfo?.current_term, schoolInfo?.academic_year],
+        queryFn: () => fetchFeeStructure(schoolId!, schoolInfo?.current_term, schoolInfo?.academic_year),
+        enabled: !!schoolId && !!schoolInfo // Wait for school config
+    });
 
-            if (studentsError) throw studentsError;
-
-            // Fetch School Details
-            const { data: schoolData } = await supabase
-                .from('schools')
-                .select('*')
-                .eq('id', schoolId)
-                .single();
-            if (schoolData) setSchoolInfo(schoolData);
-
-            // Fetch Transactions
-            const { data: transactionsData, error: transactionsError } = await supabase
-                .from('transactions')
-                .select('*, students(name)')
-                .eq('school_id', schoolId)
-                .order('created_at', { ascending: false });
-
-            if (transactionsError) throw transactionsError;
-
-            // Fetch Fee Structure
-            const { data: feesData, error: feesError } = await supabase
-                .from('fee_structure')
-                .select('*')
-                .eq('school_id', schoolId)
-                .order('created_at', { ascending: true });
-
-            if (feesError) throw feesError;
-
-            // Fetch Classes (for dropdowns)
-            const { data: classesData } = await supabase
-                .from('classes')
-                .select('*')
-                .eq('school_id', schoolId)
-                .order('name');
+    const { data: classes = [] } = useQuery({
+        queryKey: ['feeClasses', schoolId],
+        queryFn: () => fetchClasses(schoolId!),
+        enabled: !!schoolId
+    });
 
 
-            // Transform Students
-            const mappedStudents = (studentsData || []).map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                class: s.class,
-                balance: s.balance,
-                parentPhone: s.parent_phone
-            }));
 
-            // Transform Transactions
-            const mappedTransactions = (transactionsData || []).map((t: any) => ({
-                id: t.id,
-                studentId: t.student_id,
-                studentName: t.students?.name || 'Unknown',
-                amount: t.amount,
-                date: t.date,
-                type: t.type,
-                method: t.method,
-                reference: t.reference
-            }));
-
-            setStudents(mappedStudents);
-            setTransactions(mappedTransactions);
-            if (feesData) setFeeStructure(feesData);
-            if (classesData) setClasses(classesData);
-
-            // Save to Cache
-            setCachedData(CACHE_KEY_FEES_DATA, {
-                students: mappedStudents,
-                transactions: mappedTransactions,
-                feeStructure: feesData || [],
-                classes: classesData || []
-            });
-
-        } catch (error) {
-            console.error('Error fetching fee data:', error);
-        }
-    };
-
-    // --- Derived Statistics ---
-    // 1. Total Outstanding (Sum of all student balances)
-    const totalOutstanding = students.reduce((sum, s) => sum + s.balance, 0);
-
-    // 2. Total Collected (Sum of all transactions)
-    const totalCollected = transactions.reduce((sum, t) => sum + t.amount, 0);
-
-    // 3. Total Expected (Collected + Outstanding)
-    // Logic: The school expects to have (what they have) + (what they are owed)
-    const totalExpected = totalCollected + totalOutstanding;
-
-    // --- Payment Handler ---
-    const handlePayment = async (paymentData: any) => {
-        if (!selectedStudent) return;
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No user logged in');
-
-            let targetSchoolId = currentUser?.school_id;
-
-            if (!targetSchoolId) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('school_id')
-                    .eq('id', user.id)
-                    .single();
-                targetSchoolId = profile?.school_id;
-            }
-
-            if (!targetSchoolId) throw new Error('No school associated with user');
-
-            // 1. Create Transaction Record
+    // --- Mutations ---
+    const paymentMutation = useMutation({
+        mutationFn: async ({ student, paymentData }: { student: Student, paymentData: any }) => {
             const newTransaction = {
-                school_id: targetSchoolId,
-                student_id: selectedStudent.id,
+                school_id: schoolId,
+                student_id: student.id,
                 amount: Number(paymentData.amount),
                 date: paymentData.date,
                 type: 'Tuition Fee Payment',
                 method: paymentData.method,
-                reference: paymentData.reference
+                reference: paymentData.reference,
+                term: schoolInfo?.current_term,
+                academic_year: schoolInfo?.academic_year
             };
 
             const { data: insertedTrx, error: trxError } = await supabase
@@ -229,31 +166,26 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
             if (trxError) throw trxError;
 
-            // 2. Update Student Balance
-            const previousBalance = selectedStudent.balance;
-            const newBalance = Math.max(0, previousBalance - Number(paymentData.amount));
+            const previousBalance = student.balance;
+            // Allow negative balance (credit) if overpayment
+            const newBalance = previousBalance - Number(paymentData.amount);
 
             const { error: updateError } = await supabase
                 .from('students')
                 .update({ balance: newBalance })
-                .eq('id', selectedStudent.id);
+                .eq('id', student.id);
 
             if (updateError) throw updateError;
 
-            // 3. Refresh Data
-            clearCache(CACHE_KEY_FEES_DATA);
-            fetchData(true);
-
-            // 4. Return Receipt Data (Do NOT set state or close modal yet)
             return {
                 schoolName: schoolInfo?.name || 'School Name',
                 schoolLogo: schoolInfo?.logo_url,
                 schoolAddress: schoolInfo?.address,
                 schoolPhone: schoolInfo?.phone,
                 schoolEmail: schoolInfo?.email,
-                studentName: selectedStudent.name,
-                studentClass: selectedStudent.class,
-                studentId: selectedStudent.id,
+                studentName: student.name,
+                studentClass: student.class,
+                studentId: student.id,
                 transactionId: insertedTrx.id,
                 date: paymentData.date,
                 amount: Number(paymentData.amount),
@@ -263,109 +195,90 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                 newBalance: newBalance,
                 type: 'Tuition Fee Payment'
             };
-
-        } catch (error: any) {
-            console.error('Payment error:', error);
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['transactions', schoolId] });
+            // Note: We don't close modal yet, we wait for user to click "Generate Receipt" or "Close" in the modal's success state
+        },
+        onError: (error: any) => {
             alert(`Payment failed: ${error.message}`);
-            return null;
         }
-    };
+    });
 
-    const handleAddFeeItem = async (feeData: any) => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No user logged in');
-
-            let targetSchoolId = currentUser?.school_id;
-
-            if (!targetSchoolId) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('school_id')
-                    .eq('id', user.id)
-                    .single();
-                targetSchoolId = profile?.school_id;
-            }
-
-            if (!targetSchoolId) throw new Error('No school associated with user');
-
+    const addFeeMutation = useMutation({
+        mutationFn: async (feeData: any) => {
             const feesToInsert = [];
-
             if (feeData.applyToAll) {
                 feesToInsert.push({
-                    school_id: targetSchoolId,
+                    school_id: schoolId,
                     name: feeData.name,
                     amount: Number(feeData.amount),
-                    target_class: null // All
+                    target_class: null,
+                    term: schoolInfo?.current_term,
+                    academic_year: schoolInfo?.academic_year
                 });
             } else {
-                if (!feeData.selectedClasses || feeData.selectedClasses.length === 0) {
-                    alert("Please select at least one class.");
-                    return;
-                }
-                // Create one entry per selected class
+                if (!feeData.selectedClasses || feeData.selectedClasses.length === 0) throw new Error("Please select at least one class.");
                 feeData.selectedClasses.forEach((cls: string) => {
                     feesToInsert.push({
-                        school_id: targetSchoolId,
+                        school_id: schoolId,
                         name: feeData.name,
                         amount: Number(feeData.amount),
-                        target_class: cls
+                        target_class: cls,
+                        term: schoolInfo?.current_term,
+                        academic_year: schoolInfo?.academic_year
                     });
                 });
             }
 
-            const { error } = await supabase
-                .from('fee_structure')
-                .insert(feesToInsert);
-
+            const { error } = await supabase.from('fee_structure').insert(feesToInsert);
             if (error) throw error;
 
-            // --- AUTO-UPDATE STUDENT BALANCES ---
-            // Now that the fee is added to the structure, apply it to the students' current balances.
+            // Auto-update student balances
             if (feeData.applyToAll) {
-                await supabase.rpc('add_fee_to_students', {
-                    p_school_id: targetSchoolId,
-                    p_amount: Number(feeData.amount),
-                    p_target_class: null
-                });
+                await supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: Number(feeData.amount), p_target_class: null });
             } else {
-                if (feeData.selectedClasses && feeData.selectedClasses.length > 0) {
-                    // Update each class in parallel
-                    await Promise.all(feeData.selectedClasses.map((cls: string) =>
-                        supabase.rpc('add_fee_to_students', {
-                            p_school_id: targetSchoolId,
-                            p_amount: Number(feeData.amount),
-                            p_target_class: cls
-                        })
-                    ));
-                }
+                await Promise.all(feeData.selectedClasses.map((cls: string) =>
+                    supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: Number(feeData.amount), p_target_class: cls })
+                ));
             }
-
-            clearCache(CACHE_KEY_FEES_DATA);
-            fetchData(true);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feeStructure', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
             setIsAddFeeModalOpen(false);
             alert('Fee item(s) added successfully!');
-        } catch (error: any) {
-            console.error('Error adding fee item:', error);
+        },
+        onError: (error: any) => {
             alert(`Failed to add fee item: ${error.message}`);
         }
-    };
+    });
 
-    const handleDeleteFeeItem = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this fee item?')) return;
-        try {
-            const { error } = await supabase
-                .from('fee_structure')
-                .delete()
-                .eq('id', id);
-
+    const deleteFeeMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('fee_structure').delete().eq('id', id);
             if (error) throw error;
-            clearCache(CACHE_KEY_FEES_DATA);
-            fetchData(true);
-        } catch (error: any) {
-            console.error('Error deleting fee item:', error);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feeStructure', schoolId] });
+        },
+        onError: (error: any) => {
             alert(`Failed to delete: ${error.message}`);
         }
+    });
+
+    // --- Handlers ---
+    const handlePayment = async (paymentData: any) => {
+        if (!selectedStudent) return null;
+        return await paymentMutation.mutateAsync({ student: selectedStudent, paymentData });
+    };
+
+    const handleAddFeeItem = (feeData: any) => addFeeMutation.mutate(feeData);
+
+    const handleDeleteFeeItem = (id: string) => {
+        if (!confirm('Are you sure you want to delete this fee item?')) return;
+        deleteFeeMutation.mutate(id);
     };
 
     const openPaymentModal = (student: Student) => {
@@ -373,7 +286,6 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
         setIsPaymentModalOpen(true);
     };
 
-    // Filter Logic
     // Filter Logic
     const filteredStudents = students.filter(s => {
         const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -385,6 +297,12 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
         return matchesSearch && matchesStatus;
     }).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Stats
+    const totalOutstanding = students.reduce((sum, s) => sum + s.balance, 0);
+    const totalCollected = transactions.reduce((sum, t) => sum + t.amount, 0);
+    const totalExpected = totalCollected + totalOutstanding;
+
 
     return (
         <div className="p-4 md:p-8 space-y-4 md:space-y-8 relative h-full pb-20 md:pb-0 overflow-y-auto">
@@ -507,6 +425,10 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                                         <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold border border-red-100">
                                                             <AlertCircle className="h-3 w-3" /> Due: {formatAmount(student.balance)}
                                                         </span>
+                                                    ) : student.balance < 0 ? (
+                                                        <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold border border-blue-100">
+                                                            Credit: {formatAmount(Math.abs(student.balance))}
+                                                        </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-bold border border-green-100">
                                                             <CheckCircle className="h-3 w-3" /> Paid
@@ -526,14 +448,12 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                                 </div>
                                             </div>
 
-                                            {student.balance > 0 && (
-                                                <button
-                                                    onClick={() => openPaymentModal(student)}
-                                                    className="w-full bg-primary-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-700 transition-colors shadow-sm flex items-center justify-center gap-2"
-                                                >
-                                                    <CreditCard className="h-4 w-4" /> Record Payment
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => openPaymentModal(student)}
+                                                className="w-full bg-primary-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                <CreditCard className="h-4 w-4" /> Record Payment
+                                            </button>
                                         </div>
                                     );
                                 })
@@ -579,9 +499,13 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                                             <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-red-100">
                                                                 Owing {formatAmount(student.balance)}
                                                             </span>
+                                                        ) : student.balance < 0 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-blue-100">
+                                                                Credit {formatAmount(Math.abs(student.balance))}
+                                                            </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold border border-green-100">
-                                                                <CheckCircle className="h-3 w-3" /> Fully Paid
+                                                                <CheckCircle className="h-3 w-3" /> Paid
                                                             </span>
                                                         )}
                                                     </td>
@@ -798,33 +722,42 @@ const PaymentModal = ({ student, onClose, onConfirm, onGenerateReceipt }: { stud
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
 
                     {/* Student Info Card */}
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex justify-between items-center">
+                    <div className="bg-slate-50 p-4 rounded-lg flex justify-between items-center">
                         <div>
-                            <p className="text-xs text-blue-500 uppercase font-bold tracking-wide">Student</p>
-                            <p className="font-bold text-blue-900">{student.name}</p>
-                            <p className="text-xs text-blue-700">{student.class}</p>
+                            <p className="font-bold text-slate-800">{student.name}</p>
+                            <p className="text-xs text-slate-500">{student.class}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-xs text-blue-500 uppercase font-bold tracking-wide">Balance</p>
-                            <p className="font-bold text-red-600 text-lg">{formatAmount(student.balance)}</p>
+                            <p className="text-[10px] uppercase text-slate-400 font-bold">Outstanding</p>
+                            <p className="font-bold text-red-600">{formatAmount(student.balance)}</p>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Amount ({currency.code})</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <span className="text-slate-500 font-bold">{currency.symbol}</span>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">{currency.code}</span>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    min="0.1"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none font-medium"
+                                    placeholder="0.00"
+                                />
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
                             <input
                                 required
-                                type="number"
-                                min="1"
-                                max={student.balance} // Optional: restrict overpayment
-                                value={amount}
-                                onChange={e => setAmount(e.target.value)}
-                                className="w-full pl-16 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none font-bold text-lg"
-                                placeholder="0.00"
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm"
                             />
                         </div>
                     </div>
@@ -833,97 +766,90 @@ const PaymentModal = ({ student, onClose, onConfirm, onGenerateReceipt }: { stud
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Payment Method</label>
                             <select
-                                className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
                                 value={method}
-                                onChange={e => setMethod(e.target.value)}
+                                onChange={(e) => setMethod(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm bg-white"
                             >
-                                <option value="Cash">Cash</option>
-                                <option value="MoMo">Mobile Money</option>
-                                <option value="Bank Deposit">Bank Deposit</option>
-                                <option value="Cheque">Cheque</option>
+                                <option>Cash</option>
+                                <option>Bank Transfer</option>
+                                <option>Mobile Money</option>
+                                <option>Cheque</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Reference No.</label>
                             <input
-                                required
-                                type="date"
-                                value={date}
-                                onChange={e => setDate(e.target.value)}
-                                className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                type="text"
+                                value={reference}
+                                onChange={(e) => setReference(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none text-sm"
+                                placeholder="Optional"
                             />
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Reference / Receipt #</label>
-                        <input
-                            type="text"
-                            value={reference}
-                            onChange={e => setReference(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                            placeholder="Optional (e.g. RCP-1024)"
-                        />
-                    </div>
 
-                    <div className="pt-4">
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            {isSubmitting ? 'Processing...' : <><CheckCircle className="h-5 w-5" /> Confirm Payment</>}
-                        </button>
-                    </div>
-
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full mt-4 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 shadow-sm transition-transform active:scale-95 disabled:opacity-50"
+                    >
+                        {isSubmitting ? 'Processing...' : `Confirm Payment`}
+                    </button>
                 </form>
             </div>
         </div>
     );
 };
 
-export default Fees;
-
-// --- Sub-component: Add Fee Item Modal ---
+// --- Sub-component: Add Fee Modal ---
 const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
     const { currency } = useCurrency();
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');
     const [applyToAll, setApplyToAll] = useState(true);
-    const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+    const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
+
+    const toggleClass = (cls: string) => {
+        const newSet = new Set(selectedClasses);
+        if (newSet.has(cls)) newSet.delete(cls);
+        else newSet.add(cls);
+        setSelectedClasses(newSet);
+    };
+
+    const handleSelectAllClasses = () => {
+        if (selectedClasses.size === classes.length) {
+            setSelectedClasses(new Set());
+        } else {
+            setSelectedClasses(new Set(classes.map((c: any) => c.name)));
+        }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onConfirm({ name, amount, applyToAll, selectedClasses });
-    };
-
-    const toggleClass = (className: string) => {
-        if (selectedClasses.includes(className)) {
-            setSelectedClasses(selectedClasses.filter(c => c !== className));
-        } else {
-            setSelectedClasses([...selectedClasses, className]);
-        }
+        onConfirm({ name, amount, applyToAll, selectedClasses: Array.from(selectedClasses) });
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-lg text-slate-800">Add Fee Item</h3>
+                    <h3 className="font-bold text-lg text-slate-800">Add New Fee Item</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
+
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Fee Name</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Fee Description</label>
                         <input
                             required
                             type="text"
                             value={name}
-                            onChange={e => setName(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                            placeholder="e.g. Tuition Fee, PTA Levy"
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                            placeholder="e.g. Tuition Fee, Exam Fee"
                         />
                     </div>
                     <div>
@@ -934,55 +860,64 @@ const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
                             min="0"
                             step="0.01"
                             value={amount}
-                            onChange={e => setAmount(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                            onChange={(e) => setAmount(e.target.value)}
+                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                             placeholder="0.00"
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Target Audience</label>
-
-                        <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setApplyToAll(!applyToAll)}>
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${applyToAll ? 'bg-primary-600 border-primary-600' : 'border-slate-300 bg-white'}`}>
-                                {applyToAll && <CheckCircle className="h-3.5 w-3.5 text-white" />}
-                            </div>
-                            <span className="text-sm text-slate-700">Apply to All Students</span>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-2 mb-2">
+                            <input
+                                type="radio"
+                                checked={applyToAll}
+                                onChange={() => setApplyToAll(true)}
+                                className="text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-sm font-medium text-slate-800">Apply to All Students</span>
                         </div>
-
-                        {!applyToAll && (
-                            <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
-                                <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Select Classes</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {classes.map((c: any) => (
-                                        <button
-                                            key={c.id}
-                                            type="button"
-                                            onClick={() => toggleClass(c.name)}
-                                            className={`text-xs px-2 py-1.5 rounded border transition-all text-left truncate ${selectedClasses.includes(c.name)
-                                                ? 'bg-primary-100 border-primary-300 text-primary-700 font-medium'
-                                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                                                }`}
-                                        >
-                                            {c.name}
-                                        </button>
-                                    ))}
-                                </div>
-                                {classes.length === 0 && <p className="text-xs text-slate-400 italic">No classes found.</p>}
-                            </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="radio"
+                                checked={!applyToAll}
+                                onChange={() => setApplyToAll(false)}
+                                className="text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-sm font-medium text-slate-800">Select Specific Classes</span>
+                        </div>
                     </div>
 
-                    <div className="pt-4">
-                        <button
-                            type="submit"
-                            className="w-full bg-primary-600 text-white py-2 rounded-lg font-medium hover:bg-primary-700 transition-colors"
-                        >
-                            Save Fee Item
-                        </button>
+                    {!applyToAll && (
+                        <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1">
+                            <div className="flex justify-end mb-2">
+                                <button type="button" onClick={handleSelectAllClasses} className="text-xs text-primary-600 hover:underline font-medium">
+                                    {selectedClasses.size === classes.length ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {classes.map((c: any) => (
+                                    <label key={c.id} className="flex items-center gap-2 text-sm text-slate-600 hover:bg-slate-50 p-1 rounded cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedClasses.has(c.name)}
+                                            onChange={() => toggleClass(c.name)}
+                                            className="rounded text-primary-600 focus:ring-primary-500"
+                                        />
+                                        {c.name}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="pt-4 flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg font-medium">Cancel</button>
+                        <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 shadow-sm">Save Fee</button>
                     </div>
                 </form>
             </div>
         </div>
     );
 };
+
+export default Fees;

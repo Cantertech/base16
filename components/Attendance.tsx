@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     Calendar, CheckCircle, XCircle, Clock, Save,
-    Search, Filter, Users, ChevronLeft, ChevronRight,
-    BarChart2, PieChart as PieIcon, TrendingUp
+    Search, Users, ChevronLeft, ChevronRight,
+    BarChart2, PieChart as PieIcon
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -10,17 +10,14 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell
 } from 'recharts';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+// --- Types ---
 interface Student {
     id: string;
     name: string;
     class: string;
     photo?: string;
-}
-
-interface AttendanceRecord {
-    student_id: string;
-    status: 'Present' | 'Absent' | 'Late';
 }
 
 interface AttendanceProps {
@@ -31,277 +28,293 @@ interface AttendanceProps {
     };
 }
 
+// --- Fetch Functions ---
+
+const fetchClasses = async (schoolId: string) => {
+    const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
+    return data ? data.map(c => c.name) : [];
+};
+
+const fetchSchoolConfig = async (schoolId: string) => {
+    const { data } = await supabase.from('schools').select('current_term, academic_year').eq('id', schoolId).single();
+    return data;
+};
+
+const fetchAdminStats = async (schoolId: string, date: string) => {
+    // 1. Overall Daily Stats
+    const { data: allAttendance } = await supabase
+        .from('attendance')
+        .select('status')
+        .eq('school_id', schoolId)
+        .eq('date', date);
+
+    const present = allAttendance?.filter(a => a.status === 'Present').length || 0;
+    const absent = allAttendance?.filter(a => a.status === 'Absent').length || 0;
+    const late = allAttendance?.filter(a => a.status === 'Late').length || 0;
+
+    const dailyStats = [
+        { name: 'Present', value: present, color: '#16a34a' },
+        { name: 'Absent', value: absent, color: '#dc2626' },
+        { name: 'Late', value: late, color: '#ca8a04' }
+    ];
+
+    // 2. Class-wise Breakdown
+    const { data: classAttendance } = await supabase
+        .from('attendance')
+        .select('class, status')
+        .eq('school_id', schoolId)
+        .eq('date', date);
+
+    const classMap: Record<string, any> = {};
+    classAttendance?.forEach((r: any) => {
+        if (!classMap[r.class]) classMap[r.class] = { name: r.class, Present: 0, Absent: 0, Late: 0 };
+        classMap[r.class][r.status]++;
+    });
+
+    const classStats = Object.values(classMap);
+    return { dailyStats, classStats };
+};
+
+const fetchStudents = async (schoolId: string, className: string) => {
+    const { data } = await supabase
+        .from('students')
+        .select('id, name, class')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .order('name');
+    return data || [];
+};
+
+const fetchAttendance = async (schoolId: string, className: string, date: string) => {
+    const { data } = await supabase
+        .from('attendance')
+        .select('student_id, status')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .eq('date', date);
+
+    const map: Record<string, 'Present' | 'Absent' | 'Late'> = {};
+    if (data) {
+        data.forEach((r: any) => map[r.student_id] = r.status);
+    }
+    return map;
+};
+
+const fetchMonthlyAttendance = async (schoolId: string, className: string, monthStr: string) => {
+    // 1. Get Dates Range
+    const [year, month] = monthStr.split('-').map(Number);
+    const startDate = `${monthStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${monthStr}-${lastDay}`;
+
+    // 2. Get Attendance
+    const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('student_id, date, status')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .gte('date', startDate)
+        .lte('date', endDate);
+
+    // 3. Transform to Map: student_id -> day_number -> status
+    const map: Record<string, Record<number, string>> = {};
+    attendanceData?.forEach((r: any) => {
+        if (!map[r.student_id]) map[r.student_id] = {};
+        const day = parseInt(r.date.split('-')[2]);
+        map[r.student_id][day] = r.status;
+    });
+    return map;
+};
+
+const fetchViewResults = async (schoolId: string, className: string, date: string) => {
+    if (!className) return [];
+
+    // Get students of that class
+    const { data: studentsData } = await supabase
+        .from('students')
+        .select('id, name')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .order('name');
+
+    // Get attendance
+    const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('student_id, status')
+        .eq('school_id', schoolId)
+        .eq('class', className)
+        .eq('date', date);
+
+    const statusMap: Record<string, string> = {};
+    attendanceData?.forEach((r: any) => statusMap[r.student_id] = r.status);
+
+    return studentsData?.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        status: statusMap[s.id] || 'Not Marked'
+    })) || [];
+};
+
+
 const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
+    const queryClient = useQueryClient();
+    const schoolId = currentUser?.school_id;
+
     // --- Shared State ---
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // --- Admin State (Stats) ---
-    const [dailyStats, setDailyStats] = useState<any[]>([]);
-    const [classStats, setClassStats] = useState<any[]>([]);
-    const [loadingStats, setLoadingStats] = useState(false);
-
-    // --- Teacher State (Marking) ---
+    // --- Teacher State ---
     const [selectedClass, setSelectedClass] = useState(currentUser?.assignedClass || '');
-    const [students, setStudents] = useState<Student[]>([]);
-    const [attendanceMap, setAttendanceMap] = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
-    const [loadingMarking, setLoadingMarking] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [classes, setClasses] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-
-    // --- View/Verify Section State (Bottom) ---
-    const [viewClass, setViewClass] = useState<string>(''); // Default empty to force selection
-    const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
-    const [viewResults, setViewResults] = useState<{ name: string, status: string, id: string }[]>([]);
-    const [viewLoading, setViewLoading] = useState(false);
+    const [attendanceMap, setAttendanceMap] = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
 
     // --- Monthly View State ---
     const [viewMode, setViewMode] = useState<'mark' | 'monthly'>('mark');
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-    const [monthlyData, setMonthlyData] = useState<Record<string, Record<number, string>>>({});
-    const [loadingMonthly, setLoadingMonthly] = useState(false);
 
+    // --- Verification View State ---
+    const [viewClass, setViewClass] = useState<string>('');
+    const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
+
+
+    // --- Queries ---
+
+    // 1. Classes List
+    const { data: classes = [] } = useQuery({
+        queryKey: ['classNames', schoolId],
+        queryFn: () => fetchClasses(schoolId!),
+        enabled: !!schoolId
+    });
+
+    const { data: schoolConfig } = useQuery({
+        queryKey: ['schoolConfig', schoolId],
+        queryFn: () => fetchSchoolConfig(schoolId!),
+        enabled: !!schoolId
+    });
+
+    // 2. Admin Stats
+    const { data: adminStats, isLoading: statsLoading } = useQuery({
+        queryKey: ['adminAttendanceStats', schoolId, selectedDate],
+        queryFn: () => fetchAdminStats(schoolId!, selectedDate),
+        enabled: !!schoolId && currentUser?.role === 'admin'
+    });
+    const dailyStats = adminStats?.dailyStats || [];
+    const classStats = adminStats?.classStats || [];
+
+    // 3. Students List (for currently selected class)
+    const { data: students = [], isLoading: studentsLoading } = useQuery({
+        queryKey: ['students', schoolId, selectedClass],
+        queryFn: () => fetchStudents(schoolId!, selectedClass),
+        enabled: !!schoolId && !!selectedClass
+    });
+
+    // 4. Marking Data (Existing attendance for selected class/date)
+    const { data: fetchedAttendanceMap } = useQuery({
+        queryKey: ['attendanceMarking', schoolId, selectedClass, selectedDate],
+        queryFn: () => fetchAttendance(schoolId!, selectedClass, selectedDate),
+        enabled: !!schoolId && !!selectedClass && viewMode === 'mark'
+    });
+
+    // 5. Monthly Data
+    const { data: monthlyData = {}, isLoading: monthlyLoading } = useQuery({
+        queryKey: ['attendanceMonthly', schoolId, selectedClass, selectedMonth],
+        queryFn: () => fetchMonthlyAttendance(schoolId!, selectedClass, selectedMonth),
+        enabled: !!schoolId && !!selectedClass && viewMode === 'monthly'
+    });
+
+    // 6. View Results (Verification)
+    // Only fetch when explicitly triggered? Or just reactive?
+    // Original code had a button trigger. We can make it reactive easily.
+    const { data: viewResults = [], isLoading: viewLoading } = useQuery({
+        queryKey: ['attendanceVerification', schoolId, viewClass, viewDate],
+        queryFn: () => fetchViewResults(schoolId!, viewClass, viewDate),
+        enabled: !!schoolId && !!viewClass && !!viewDate
+    });
+
+
+    // --- Side Effects ---
+    // Update local attendanceMap when fetched data changes OR when students change (to reset)
     useEffect(() => {
-        console.log("Attendance Effect Triggered:", {
-            role: currentUser?.role,
-            assigned: currentUser?.assignedClass,
-            selectedClass,
-            schoolId: currentUser?.school_id
-        });
-
-        if (currentUser?.role === 'admin') {
-            fetchClasses(); // Ensure Admin (and Teacher) fetches classes
-            fetchAdminStats();
+        if (fetchedAttendanceMap) {
+            setAttendanceMap(fetchedAttendanceMap);
         } else {
-            // Teacher Mode
-            fetchClasses(); // Always fetch lists for the bottom dropdown
+            setAttendanceMap({});
+        }
+    }, [fetchedAttendanceMap, selectedClass, selectedDate]);
 
-            if (currentUser?.assignedClass && selectedClass !== currentUser.assignedClass) {
+    // Initial class selection
+    useEffect(() => {
+        if (!selectedClass && classes.length > 0) {
+            if (currentUser?.assignedClass) {
                 setSelectedClass(currentUser.assignedClass);
-            }
-
-            if (selectedClass) {
-                if (viewMode === 'mark') {
-                    fetchMarkingData();
-                } else {
-                    fetchMonthlyAttendance();
-                }
+            } else if (currentUser?.role === 'teacher' || currentUser?.role === 'admin') {
+                setSelectedClass(classes[0]);
             }
         }
-    }, [currentUser, selectedDate, selectedClass, viewMode, selectedMonth]);
+    }, [classes, currentUser, selectedClass]);
 
-    // --- ADMIN LOGIC ---
-    const fetchAdminStats = async () => {
-        if (!currentUser?.school_id) return;
-        setLoadingStats(true);
-        try {
-            // 1. Overall Daily Stats (Pie Chart Data)
-            const { data: allAttendance } = await supabase
+
+    // --- Mutations ---
+    const saveAttendanceMutation = useMutation({
+        mutationFn: async (currentMap: Record<string, string>) => {
+            const upsertData = Object.entries(currentMap).map(([studentId, status]) => ({
+                school_id: schoolId,
+                student_id: studentId,
+                date: selectedDate,
+                class: selectedClass,
+                status: status,
+                term: schoolConfig?.current_term,
+                academic_year: schoolConfig?.academic_year
+            }));
+            if (upsertData.length === 0) return;
+
+            const { error } = await supabase
                 .from('attendance')
-                .select('status')
-                .eq('school_id', currentUser.school_id)
-                .eq('date', selectedDate);
-
-            const present = allAttendance?.filter(a => a.status === 'Present').length || 0;
-            const absent = allAttendance?.filter(a => a.status === 'Absent').length || 0;
-            const late = allAttendance?.filter(a => a.status === 'Late').length || 0;
-
-            setDailyStats([
-                { name: 'Present', value: present, color: '#16a34a' },
-                { name: 'Absent', value: absent, color: '#dc2626' },
-                { name: 'Late', value: late, color: '#ca8a04' }
-            ]);
-
-            // 2. Class-wise Breakdown (Bar Chart Data)
-            const { data: classAttendance } = await supabase
-                .from('attendance')
-                .select('class, status')
-                .eq('school_id', currentUser.school_id)
-                .eq('date', selectedDate);
-
-            const classMap: Record<string, any> = {};
-            classAttendance?.forEach((r: any) => {
-                if (!classMap[r.class]) classMap[r.class] = { name: r.class, Present: 0, Absent: 0, Late: 0 };
-                classMap[r.class][r.status]++;
-            });
-
-            setClassStats(Object.values(classMap));
-
-        } catch (error) {
-            console.error('Error fetching admin stats:', error);
-        } finally {
-            setLoadingStats(false);
+                .upsert(upsertData, { onConflict: 'student_id,date' });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            alert('Attendance saved successfully!');
+            queryClient.invalidateQueries({ queryKey: ['adminAttendanceStats', schoolId, selectedDate] });
+            queryClient.invalidateQueries({ queryKey: ['attendanceMonthly', schoolId] }); // Potentially affects monthly view too
+            // No need to invalidate marking data as local map is authority until reset
+        },
+        onError: (error: any) => {
+            alert('Failed to save attendance.');
         }
-    };
+    });
 
-    // --- TEACHER LOGIC ---
-    const fetchClasses = async () => {
-        if (!currentUser?.school_id) return;
-        const { data } = await supabase.from('classes').select('name').eq('school_id', currentUser.school_id).order('name');
-        if (data) {
-            setClasses(data.map(c => c.name));
-            if (!selectedClass && data.length > 0) setSelectedClass(data[0].name);
-        }
-    };
 
-    const fetchMarkingData = async () => {
-        if (!currentUser?.school_id || !selectedClass) return;
-        setLoadingMarking(true);
-        try {
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('id, name, class')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', selectedClass)
-                .order('name');
-
-            if (studentsData) setStudents(studentsData);
-
-            const { data: attendanceData } = await supabase
-                .from('attendance')
-                .select('student_id, status')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', selectedClass)
-                .eq('date', selectedDate);
-
-            const newMap: Record<string, 'Present' | 'Absent' | 'Late'> = {};
-            if (attendanceData) {
-                attendanceData.forEach((r: any) => newMap[r.student_id] = r.status);
-            }
-            setAttendanceMap(newMap);
-        } catch (error) {
-            console.error('Error fetching marking data:', error);
-        } finally {
-            setLoadingMarking(false);
-        }
-    };
-
-    const fetchMonthlyAttendance = async () => {
-        if (!currentUser?.school_id || !selectedClass) return;
-        setLoadingMonthly(true);
-        try {
-            // 1. Get Students (Ensure list is up to date)
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('id, name, class')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', selectedClass)
-                .order('name');
-
-            if (studentsData) setStudents(studentsData);
-
-            // 2. Get Dates Range
-            const [year, month] = selectedMonth.split('-').map(Number);
-            const startDate = `${selectedMonth}-01`;
-            // Calculate last day of month
-            const lastDay = new Date(year, month, 0).getDate();
-            const endDate = `${selectedMonth}-${lastDay}`;
-
-            // 3. Get Attendance
-            const { data: attendanceData } = await supabase
-                .from('attendance')
-                .select('student_id, date, status')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', selectedClass)
-                .gte('date', startDate)
-                .lte('date', endDate);
-
-            // 4. Transform to Map: student_id -> day_number -> status
-            const map: Record<string, Record<number, string>> = {};
-            attendanceData?.forEach((r: any) => {
-                if (!map[r.student_id]) map[r.student_id] = {};
-                const day = parseInt(r.date.split('-')[2]); // Extract day part
-                map[r.student_id][day] = r.status;
-            });
-            setMonthlyData(map);
-
-        } catch (error) {
-            console.error('Error fetching monthly data:', error);
-        } finally {
-            setLoadingMonthly(false);
-        }
-    };
-
+    // --- Handlers ---
     const handleStatusChange = (studentId: string, status: 'Present' | 'Absent' | 'Late') => {
         setAttendanceMap(prev => ({ ...prev, [studentId]: status }));
     };
 
     const markAll = (status: 'Present' | 'Absent') => {
         const newMap = { ...attendanceMap };
-        students.forEach(s => newMap[s.id] = status);
+        students.forEach((s: any) => newMap[s.id] = status);
         setAttendanceMap(newMap);
     };
 
-    const saveAttendance = async () => {
-        if (!currentUser?.school_id) return;
-        setSaving(true);
-        try {
-            const upsertData = Object.entries(attendanceMap).map(([studentId, status]) => ({
-                school_id: currentUser.school_id,
-                student_id: studentId,
-                date: selectedDate,
-                class: selectedClass,
-                status: status
-            }));
-
-            if (upsertData.length === 0) return;
-
-            const { error } = await supabase
-                .from('attendance')
-                .upsert(upsertData, { onConflict: 'student_id,date' });
-
-            if (error) throw error;
-            alert('Attendance saved successfully!');
-            // Refresh admin stats if needed (though they are separated)
-        } catch (error: any) {
-            console.error('Error saving attendance:', error);
-            alert('Failed to save attendance.');
-        } finally {
-            setSaving(false);
-        }
+    const saveAttendance = () => {
+        saveAttendanceMutation.mutate(attendanceMap);
     };
 
-    const fetchViewResults = async () => {
-        if (!currentUser?.school_id || !viewClass) return;
-        setViewLoading(true);
-        try {
-            // Get students of that class
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('id, name')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', viewClass)
-                .order('name');
-
-            // Get attendance
-            const { data: attendanceData } = await supabase
-                .from('attendance')
-                .select('student_id, status')
-                .eq('school_id', currentUser.school_id)
-                .eq('class', viewClass)
-                .eq('date', viewDate);
-
-            const statusMap: Record<string, string> = {};
-            attendanceData?.forEach((r: any) => statusMap[r.student_id] = r.status);
-
-            const results = studentsData?.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                status: statusMap[s.id] || 'Not Marked'
-            })) || [];
-
-            setViewResults(results);
-        } catch (e) { console.error(e); }
-        finally { setViewLoading(false); }
+    // --- Helpers ---
+    const getDaysInMonth = () => {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        return new Date(year, month, 0).getDate();
     };
 
+    const filteredStudents = students
+        .filter((s: any) => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+    const totalMarked = dailyStats.reduce((sum: number, item: any) => sum + item.value, 0);
 
     // --- RENDER: ADMIN VIEW ---
     if (currentUser?.role === 'admin') {
-        const totalMarked = dailyStats.reduce((sum, item) => sum + item.value, 0);
-
         return (
-
             <div className="p-4 md:p-8 space-y-6 h-full overflow-y-auto pb-20 md:pb-0">
                 <div className="flex justify-between items-center">
                     <div>
@@ -319,7 +332,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                     </div>
                 </div>
 
-                {loadingStats ? (
+                {statsLoading ? (
                     <Loading type="skeleton" fullScreen={false} />
                 ) : (
                     <>
@@ -329,7 +342,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                 <div className="p-2 md:p-3 bg-blue-50 text-blue-600 rounded-full"><Users className="h-5 w-5 md:h-6 md:w-6" /></div>
                                 <div><p className="text-[10px] md:text-sm font-medium text-slate-500">Total Marked</p><h3 className="text-lg md:text-2xl font-bold text-slate-800">{totalMarked}</h3></div>
                             </div>
-                            {dailyStats.map((stat) => (
+                            {dailyStats.map((stat: any) => (
                                 <div key={stat.name} className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
                                     <div className="p-2 md:p-3 rounded-full" style={{ backgroundColor: `${stat.color}20`, color: stat.color }}>
                                         {stat.name === 'Present' ? <CheckCircle className="h-5 w-5 md:h-6 md:w-6" /> : stat.name === 'Absent' ? <XCircle className="h-5 w-5 md:h-6 md:w-6" /> : <Clock className="h-5 w-5 md:h-6 md:w-6" />}
@@ -375,7 +388,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                                 paddingAngle={5}
                                                 dataKey="value"
                                             >
-                                                {dailyStats.map((entry, index) => (
+                                                {dailyStats.map((entry: any, index: number) => (
                                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                                 ))}
                                             </Pie>
@@ -384,14 +397,14 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                     </ResponsiveContainer>
                                     {/* Center Text */}
                                     <div className="absolute flex flex-col items-center">
-                                        <span className="text-3xl font-bold text-slate-800">{attendanceMap && (
-                                            (dailyStats.find(s => s.name === 'Present')?.value || 0) / (totalMarked || 1) * 100
-                                        ).toFixed(0)}%</span>
+                                        <span className="text-3xl font-bold text-slate-800">{currentTotalMarked(dailyStats) > 0 ? (
+                                            (dailyStats.find((s: any) => s.name === 'Present')?.value || 0) / (totalMarked || 1) * 100
+                                        ).toFixed(0) : 0}%</span>
                                         <span className="text-xs text-slate-400 uppercase">Present</span>
                                     </div>
                                 </div>
                                 <div className="space-y-3 mt-4">
-                                    {dailyStats.map(stat => (
+                                    {dailyStats.map((stat: any) => (
                                         <div key={stat.name} className="flex justify-between items-center text-sm">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stat.color }}></div>
@@ -418,13 +431,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                             className="p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary-500 bg-white"
                         >
                             <option value="">Select Class to View</option>
-                            {/* Admin needs to fetch classes? Use 'viewClass' directly if mapped */}
-                            {/* Note: classes state is for Teacher view logic, Admin might not have it populated via fetchClasses(). 
-                            Admin View relies on 'classStats' maybe? Or we need to fetch all classes for Admin too.
-                            For now, let's assume Admin might not see dropdown options if 'classes' is empty. 
-                            I'll add a fetchClasses call for Admin in useEffect to be safe.
-                        */}
-                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                            {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <input
                             type="date"
@@ -432,12 +439,10 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                             onChange={e => setViewDate(e.target.value)}
                             className="p-2 text-sm border border-slate-200 rounded-lg outline-none bg-white"
                         />
-                        <button
-                            onClick={fetchViewResults}
-                            className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900"
-                        >
-                            View Records
-                        </button>
+                        {/* Button no longer needed given query enabled: !!viewClass && !!viewDate, but nice to have for refreshing? 
+                            Actually forcing a refetch on click is nice.
+                            For now let's just let it auto-fetch or manually refetch.
+                        */}
                     </div>
 
                     {viewClass && (
@@ -453,7 +458,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                     {viewLoading ? (
                                         <tr><td colSpan={2} className="p-4 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
                                     ) : viewResults.length > 0 ? (
-                                        viewResults.map(r => (
+                                        viewResults.map((r: any) => (
                                             <tr key={r.id}>
                                                 <td className="px-4 py-2 font-medium text-slate-700">{r.name}</td>
                                                 <td className="px-4 py-2">
@@ -468,7 +473,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan={2} className="p-4 text-center text-slate-400">No records found. Click 'View Records'.</td></tr>
+                                        <tr><td colSpan={2} className="p-4 text-center text-slate-400">No records found.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -480,20 +485,10 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
     }
 
     // --- RENDER: TEACHER VIEW (Marking) ---
-    const filteredStudents = students
-        .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
     // Calculate quick stats for the sticky header
     const presentCount = Object.values(attendanceMap).filter(s => s === 'Present').length;
     const absentCount = Object.values(attendanceMap).filter(s => s === 'Absent').length;
     const lateCount = Object.values(attendanceMap).filter(s => s === 'Late').length;
-
-    // Helper for generating days in month
-    const getDaysInMonth = () => {
-        const [year, month] = selectedMonth.split('-').map(Number);
-        return new Date(year, month, 0).getDate();
-    };
 
     return (
         <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)] w-full flex flex-col bg-slate-50 md:bg-white md:rounded-3xl md:border border-slate-200 md:shadow-sm relative overflow-hidden group">
@@ -530,7 +525,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                         className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-medium transition-all hover:bg-slate-200 cursor-pointer"
                                     >
                                         <option value="">Select Class</option>
-                                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                                        {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                     <div className="absolute right-3 top-3 pointer-events-none">
                                         <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
@@ -610,7 +605,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                             </div>
 
                             {/* Students List */}
-                            {loadingMarking ? (
+                            {studentsLoading ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-40 bg-slate-200 animate-pulse rounded-2xl"></div>)}
                                 </div>
@@ -633,7 +628,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {filteredStudents.map((student, idx) => {
+                                            {filteredStudents.map((student: any, idx: number) => {
                                                 const status = attendanceMap[student.id];
                                                 return (
                                                     <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
@@ -688,7 +683,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                     ) : (
                         // --- VIEW MODE: MONTHLY REGISTER ---
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full w-full">
-                            {loadingMonthly ? (
+                            {monthlyLoading ? (
                                 <div className="p-12 flex justify-center"><Loading type="spinner" fullScreen={false} message="Loading monthly register..." /></div>
                             ) : (
                                 <div className="overflow-auto custom-scrollbar flex-1 relative w-full">
@@ -706,7 +701,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredStudents.map((student, idx) => (
+                                            {filteredStudents.map((student: any, idx: number) => (
                                                 <tr key={student.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-3 text-sm font-bold text-slate-700 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] whitespace-nowrap">
                                                         <div className="flex items-center gap-2">
@@ -783,7 +778,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                             className="appearance-none w-full p-3 pl-4 pr-10 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
                                         >
                                             <option value="">Select Class</option>
-                                            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                                            {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                         <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90" />
                                     </div>
@@ -793,12 +788,9 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                         onChange={e => setViewDate(e.target.value)}
                                         className="p-3 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
                                     />
-                                    <button
-                                        onClick={fetchViewResults}
-                                        className="px-6 py-3 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-all shadow-lg shadow-slate-800/20 whitespace-nowrap"
-                                    >
-                                        View Records
-                                    </button>
+                                    {/* No explicit view button needed as query is reactive, but keeping it for UI structure if user wants "action" feeling or we could remove it. 
+                                        Actually, query is reactive to viewDate change.
+                                    */}
                                 </div>
 
                                 {viewClass && (
@@ -814,7 +806,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                                 {viewLoading ? (
                                                     <tr><td colSpan={2} className="p-8 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
                                                 ) : viewResults.length > 0 ? (
-                                                    viewResults.map((r, idx) => (
+                                                    viewResults.map((r: any, idx: number) => (
                                                         <tr key={r.id} className="hover:bg-white transition-colors">
                                                             <td className="px-6 py-4 font-bold text-slate-700">{r.name}</td>
                                                             <td className="px-6 py-4">
@@ -830,7 +822,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                                                         </tr>
                                                     ))
                                                 ) : (
-                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400 italic">No records found. Select a class and date, then click 'View Records'.</td></tr>
+                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400 italic">No records found. Select a class and date.</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -855,10 +847,10 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                         </div>
                         <button
                             onClick={saveAttendance}
-                            disabled={saving}
+                            disabled={saveAttendanceMutation.isPending}
                             className="w-full md:w-auto md:ml-auto px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5"
                         >
-                            {saving ? (
+                            {saveAttendanceMutation.isPending ? (
                                 <>
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     <span>Saving...</span>
@@ -876,5 +868,9 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
         </div>
     );
 };
+
+function currentTotalMarked(dailyStats: any[]) {
+    return dailyStats.reduce((sum: number, item: any) => sum + item.value, 0);
+}
 
 export default Attendance;

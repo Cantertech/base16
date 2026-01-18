@@ -3,6 +3,7 @@ import {
     Users, BookOpen, Layers, Edit, Trash2, Plus,
     MoreHorizontal, Search, CheckSquare, Square, X, Check
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
 
 // --- Types ---
@@ -30,13 +31,86 @@ interface CoursesProps {
     };
 }
 
+// --- Fetch Functions ---
+const fetchClasses = async (schoolId: string) => {
+    // 1. Fetch Classes
+    const { data: classesData, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('school_id', schoolId);
+
+    if (classError) throw classError;
+
+    // 2. Fetch Students for counts
+    const { data: studentsData } = await supabase
+        .from('students')
+        .select('class')
+        .eq('school_id', schoolId);
+
+    const studentCounts: Record<string, number> = {};
+    studentsData?.forEach((s: any) => {
+        if (s.class) {
+            studentCounts[s.class] = (studentCounts[s.class] || 0) + 1;
+        }
+    });
+
+    // 3. Fetch Teachers for assignment
+    const { data: teachersData } = await supabase
+        .from('teachers')
+        .select('name, assigned_class')
+        .eq('school_id', schoolId);
+
+    const classTeachers: Record<string, string> = {};
+    teachersData?.forEach((t: any) => {
+        if (t.assigned_class) {
+            classTeachers[t.assigned_class] = t.name;
+        }
+    });
+
+    return classesData.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        section: c.section,
+        studentCount: studentCounts[c.name] || 0,
+        teacherId: classTeachers[c.name] || 'Unassigned'
+    })) as ClassItem[];
+};
+
+const fetchSubjects = async (schoolId: string) => {
+    // 1. Fetch Subjects
+    const { data: subjectsData, error: subjectError } = await supabase
+        .from('subjects')
+        .select('*')
+        .eq('school_id', schoolId);
+
+    if (subjectError) throw subjectError;
+
+    // 2. Fetch Assignments
+    const { data: assignmentsData, error: assignError } = await supabase
+        .from('subject_assignments')
+        .select('subject_id, classes(name)')
+        .eq('school_id', schoolId);
+
+    if (assignError) throw assignError;
+
+    return subjectsData.map((s: any) => {
+        const assignedClasses = assignmentsData
+            .filter((a: any) => a.subject_id === s.id && a.classes)
+            .map((a: any) => a.classes.name);
+
+        return {
+            id: s.id,
+            name: s.name,
+            code: s.code,
+            type: s.type,
+            classes: [...new Set(assignedClasses)] // Unique names
+        } as SubjectItem;
+    });
+};
+
 const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'classes' | 'subjects'>('classes');
-
-    // Data State
-    const [classes, setClasses] = useState<ClassItem[]>([]);
-    const [subjects, setSubjects] = useState<SubjectItem[]>([]);
-
     const [schoolId, setSchoolId] = useState<string | null>(null);
 
     // Modals
@@ -45,19 +119,17 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
     const [editingSubject, setEditingSubject] = useState<SubjectItem | null>(null);
 
-    // Load Data
+    // Initialize School ID
     useEffect(() => {
         const init = async () => {
             if (currentUser?.school_id) {
                 setSchoolId(currentUser.school_id);
-                fetchData(currentUser.school_id);
             } else {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).single();
                     if (profile?.school_id) {
                         setSchoolId(profile.school_id);
-                        fetchData(profile.school_id);
                     }
                 }
             }
@@ -65,177 +137,79 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
         init();
     }, [currentUser]);
 
-    const fetchData = async (sId: string) => {
-        try {
-            // 1. Fetch Classes
-            const { data: classesData, error: classError } = await supabase
-                .from('classes')
-                .select('*')
-                .eq('school_id', sId);
+    // Queries
+    const { data: classes = [] } = useQuery({
+        queryKey: ['classes', schoolId],
+        queryFn: () => fetchClasses(schoolId!),
+        enabled: !!schoolId,
+    });
 
-            if (classError) throw classError;
+    const { data: subjects = [] } = useQuery({
+        queryKey: ['subjects', schoolId],
+        queryFn: () => fetchSubjects(schoolId!),
+        enabled: !!schoolId,
+    });
 
-            // 2. Fetch Students for counts
-            const { data: studentsData } = await supabase
-                .from('students')
-                .select('class')
-                .eq('school_id', sId);
-
-            const studentCounts: Record<string, number> = {};
-            studentsData?.forEach((s: any) => {
-                if (s.class) {
-                    studentCounts[s.class] = (studentCounts[s.class] || 0) + 1;
-                }
-            });
-
-            // 3. Fetch Teachers for assignment
-            const { data: teachersData } = await supabase
-                .from('teachers')
-                .select('name, assigned_class')
-                .eq('school_id', sId);
-
-            const classTeachers: Record<string, string> = {};
-            teachersData?.forEach((t: any) => {
-                if (t.assigned_class) {
-                    classTeachers[t.assigned_class] = t.name;
-                }
-            });
-
-            const loadedClasses: ClassItem[] = classesData.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                section: c.section,
-                studentCount: studentCounts[c.name] || 0,
-                teacherId: classTeachers[c.name] || 'Unassigned'
-            }));
-            setClasses(loadedClasses);
-
-            // 2. Fetch Subjects
-            const { data: subjectsData, error: subjectError } = await supabase
-                .from('subjects')
-                .select('*')
-                .eq('school_id', sId);
-
-            if (subjectError) throw subjectError;
-
-            // 3. Fetch Assignments
-            const { data: assignmentsData, error: assignError } = await supabase
-                .from('subject_assignments')
-                .select('subject_id, classes(name)')
-                .eq('school_id', sId);
-
-            if (assignError) throw assignError;
-
-            // Map assignments to subjects
-            const loadedSubjects: SubjectItem[] = subjectsData.map((s: any) => {
-                const assignedClasses = assignmentsData
-                    .filter((a: any) => a.subject_id === s.id && a.classes)
-                    .map((a: any) => a.classes.name);
-
-                return {
-                    id: s.id,
-                    name: s.name,
-                    code: s.code,
-                    type: s.type,
-                    classes: [...new Set(assignedClasses)] // Unique names
-                };
-            });
-            setSubjects(loadedSubjects);
-
-        } catch (error) {
-            console.error('Error fetching courses data:', error);
-        }
-    };
-
-    // --- Handlers: Classes ---
-    const handleSaveClass = async (classData: Partial<ClassItem>) => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No user logged in');
-
-            let targetSchoolId = currentUser?.school_id;
-
-            if (!targetSchoolId) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('school_id')
-                    .eq('id', user.id)
-                    .single();
-                targetSchoolId = profile?.school_id;
-            }
-
-            if (!targetSchoolId) throw new Error('No school associated with user');
-
+    // Mutations - Classes
+    const saveClassMutation = useMutation({
+        mutationFn: async (classData: Partial<ClassItem>) => {
+            if (!schoolId) throw new Error('No school ID');
             const payload = {
-                school_id: targetSchoolId,
+                school_id: schoolId,
                 name: classData.name,
                 section: classData.section
             };
 
             if (editingClass) {
-                // Update
                 const { error } = await supabase
                     .from('classes')
                     .update(payload)
                     .eq('id', editingClass.id);
                 if (error) throw error;
             } else {
-                // Insert
                 const { error } = await supabase
                     .from('classes')
                     .insert(payload);
                 if (error) throw error;
             }
-
-            if (targetSchoolId) fetchData(targetSchoolId);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
             setIsClassModalOpen(false);
             setEditingClass(null);
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             console.error('Error saving class:', error);
             alert(`Failed to save class: ${error.message}`);
         }
-    };
+    });
 
-    const handleDeleteClass = async (id: string) => {
-        if (!confirm('Are you sure? This will remove the class structure.')) return;
-        try {
+    const deleteClassMutation = useMutation({
+        mutationFn: async (id: string) => {
             const { error } = await supabase
                 .from('classes')
                 .delete()
                 .eq('id', id);
-
             if (error) throw error;
-            if (schoolId) fetchData(schoolId);
-        } catch (error: any) {
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+        },
+        onError: (error: any) => {
             console.error('Error deleting class:', error);
             alert(`Failed to delete class: ${error.message}`);
         }
-    };
+    });
 
-    // --- Handlers: Subjects ---
-    const handleSaveSubject = async (subjectData: Partial<SubjectItem>) => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('No user logged in');
-
-            let targetSchoolId = currentUser?.school_id;
-
-            if (!targetSchoolId) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('school_id')
-                    .eq('id', user.id)
-                    .single();
-                targetSchoolId = profile?.school_id;
-            }
-
-            if (!targetSchoolId) throw new Error('No school associated with user');
-
+    // Mutations - Subjects
+    const saveSubjectMutation = useMutation({
+        mutationFn: async (subjectData: Partial<SubjectItem>) => {
+            if (!schoolId) throw new Error('No school ID');
             let subjectId = editingSubject?.id;
 
             // 1. Upsert Subject
             const payload = {
-                school_id: targetSchoolId,
+                school_id: schoolId,
                 name: subjectData.name,
                 code: subjectData.code,
                 type: subjectData.type
@@ -260,7 +234,6 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             if (!subjectId) throw new Error('Failed to get subject ID');
 
             // 2. Handle Assignments
-            // First, delete existing assignments for this subject
             const { error: delError } = await supabase
                 .from('subject_assignments')
                 .delete()
@@ -268,15 +241,12 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
 
             if (delError) throw delError;
 
-            // Then, insert new assignments
             if (subjectData.classes && subjectData.classes.length > 0) {
-                // We need to map class names back to IDs
-                // This is a bit inefficient, but since we have `classes` state, we can find IDs
                 const assignments = subjectData.classes.map((className: string) => {
                     const cls = classes.find(c => c.name === className);
                     if (cls) {
                         return {
-                            school_id: targetSchoolId,
+                            school_id: schoolId,
                             subject_id: subjectId,
                             class_id: cls.id
                         };
@@ -288,60 +258,57 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                     const { error: assignError } = await supabase
                         .from('subject_assignments')
                         .insert(assignments);
-
                     if (assignError) throw assignError;
                 }
             }
-
-            if (targetSchoolId) fetchData(targetSchoolId);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['subjects', schoolId] });
             setIsSubjectModalOpen(false);
             setEditingSubject(null);
-
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             console.error('Error saving subject:', error);
             alert(`Failed to save subject: ${error.message}`);
         }
-    };
+    });
 
-    const handleDeleteSubject = async (id: string) => {
-        if (!confirm('Delete this subject? This action cannot be undone.')) return;
-        try {
-            // 1. Delete assignments first (Foreign Key Constraint)
-            const { error: assignError } = await supabase
-                .from('subject_assignments')
-                .delete()
-                .eq('subject_id', id);
-
+    const deleteSubjectMutation = useMutation({
+        mutationFn: async (id: string) => {
+            // 1. Delete assignments
+            const { error: assignError } = await supabase.from('subject_assignments').delete().eq('subject_id', id);
             if (assignError) throw assignError;
 
-            // 2. Delete timetable entries (Foreign Key Constraint)
-            const { error: timetableError } = await supabase
-                .from('timetable_entries')
-                .delete()
-                .eq('subject_id', id);
-
+            // 2. Timetable
+            const { error: timetableError } = await supabase.from('timetable_entries').delete().eq('subject_id', id);
             if (timetableError) throw timetableError;
 
-            // 3. Delete teacher assignments (Foreign Key Constraint)
-            const { error: teacherError } = await supabase
-                .from('teacher_assignments')
-                .delete()
-                .eq('subject_id', id);
-
+            // 3. Teacher assignments
+            const { error: teacherError } = await supabase.from('teacher_assignments').delete().eq('subject_id', id);
             if (teacherError) throw teacherError;
 
-            // 4. Delete the subject
-            const { error } = await supabase
-                .from('subjects')
-                .delete()
-                .eq('id', id);
-
+            // 4. Subject
+            const { error } = await supabase.from('subjects').delete().eq('id', id);
             if (error) throw error;
-            if (schoolId) fetchData(schoolId);
-        } catch (error: any) {
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['subjects', schoolId] });
+        },
+        onError: (error: any) => {
             console.error('Error deleting subject:', error);
             alert(`Failed to delete subject: ${error.message}`);
         }
+    });
+
+    // Handlers
+    const handleSaveClass = (data: Partial<ClassItem>) => saveClassMutation.mutate(data);
+    const handleDeleteClass = (id: string) => {
+        if (confirm('Are you sure? This will remove the class structure.')) deleteClassMutation.mutate(id);
+    };
+
+    const handleSaveSubject = (data: Partial<SubjectItem>) => saveSubjectMutation.mutate(data);
+    const handleDeleteSubject = (id: string) => {
+        if (confirm('Delete this subject? This action cannot be undone.')) deleteSubjectMutation.mutate(id);
     };
 
     return (

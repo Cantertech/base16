@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
     Calendar, Clock, Plus, Trash2, Edit2, User, BookOpen,
-    ChevronLeft, ChevronRight, School, Filter
+    ChevronLeft, ChevronRight, School, Filter, Loader2
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface TimetableProps {
     currentUser: any;
@@ -29,17 +30,68 @@ interface TimetableEntry {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
+// --- Fetch Functions ---
+
+const fetchClasses = async (schoolId: string) => {
+    const { data } = await supabase.from('classes').select('*').eq('school_id', schoolId).order('name');
+    return data || [];
+};
+
+const fetchSubjects = async (schoolId: string) => {
+    const { data } = await supabase.from('subjects').select('*').eq('school_id', schoolId).order('name');
+    return data || [];
+};
+
+const fetchTeachers = async (schoolId: string) => {
+    const { data } = await supabase
+        .from('profiles')
+        .select('id, name:full_name')
+        .eq('role', 'teacher')
+        .eq('school_id', schoolId)
+        .order('full_name');
+    return data || [];
+};
+
+const fetchClassTimetable = async (classId: string) => {
+    const { data, error } = await supabase
+        .from('timetable_entries')
+        .select(`
+            *,
+            classes(name),
+            subjects(name),
+            teachers:teacher_id(name:full_name) 
+        `)
+        .eq('class_id', classId)
+        .order('start_time');
+
+    if (error) throw error;
+    return data as TimetableEntry[] || [];
+};
+
+const fetchTeacherTimetable = async (teacherId: string) => {
+    const { data, error } = await supabase
+        .from('timetable_entries')
+        .select(`
+            *,
+            classes(name),
+            subjects(name)
+        `)
+        .eq('teacher_id', teacherId)
+        .order('start_time');
+
+    if (error) throw error;
+    return data as TimetableEntry[] || [];
+};
+
+
 const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
+    const queryClient = useQueryClient();
+    const schoolId = currentUser?.school_id;
+
     const [viewMode, setViewMode] = useState<'class' | 'teacher'>(
         currentUser.role === 'admin' ? 'class' : 'teacher'
     );
     const [selectedClassId, setSelectedClassId] = useState<string>('');
-    const [timetableData, setTimetableData] = useState<TimetableEntry[]>([]);
-    const [classes, setClasses] = useState<any[]>([]);
-    const [subjects, setSubjects] = useState<any[]>([]);
-    const [teachersList, setTeachersList] = useState<any[]>([]);
-
-    const [loading, setLoading] = useState(false);
 
     // Mobile View State
     const [activeDay, setActiveDay] = useState(DAYS.includes(new Date().toLocaleDateString('en-US', { weekday: 'long' })) ? new Date().toLocaleDateString('en-US', { weekday: 'long' }) : 'Monday');
@@ -58,128 +110,51 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
         activity_name: ''
     });
 
-    useEffect(() => {
-        fetchMetadata();
-    }, [currentUser]);
+    // --- Queries ---
+    const { data: classes = [] } = useQuery({
+        queryKey: ['timetableClasses', schoolId],
+        queryFn: () => fetchClasses(schoolId),
+        enabled: !!schoolId
+    });
 
+    const { data: subjects = [] } = useQuery({
+        queryKey: ['timetableSubjects', schoolId],
+        queryFn: () => fetchSubjects(schoolId),
+        enabled: !!schoolId
+    });
+
+    const { data: teachersList = [] } = useQuery({
+        queryKey: ['timetableTeachers', schoolId],
+        queryFn: () => fetchTeachers(schoolId),
+        enabled: !!schoolId
+    });
+
+    // Auto-select class for admin
     useEffect(() => {
-        if (viewMode === 'class' && selectedClassId) {
-            fetchClassTimetable(selectedClassId);
-        } else if (viewMode === 'teacher' && currentUser.id) {
-            fetchTeacherTimetable(currentUser.id);
+        if (currentUser.role === 'admin' && classes.length > 0 && !selectedClassId) {
+            setSelectedClassId(classes[0].id);
         }
-    }, [viewMode, selectedClassId, currentUser.id]);
+    }, [classes, currentUser, selectedClassId]);
 
-    const fetchMetadata = async () => {
-        try {
-            const { data: cls } = await supabase.from('classes')
-                .select('*')
-                .eq('school_id', currentUser.school_id)
-                .order('name');
-            if (cls) {
-                setClasses(cls);
-                // Auto-select first class for admin
-                if (currentUser.role === 'admin' && cls.length > 0 && !selectedClassId) {
-                    setSelectedClassId(cls[0].id);
-                }
+    // Timetable Data Query
+    const { data: timetableData = [], isLoading: timetableLoading } = useQuery({
+        queryKey: ['timetable', viewMode, viewMode === 'class' ? selectedClassId : currentUser.id],
+        queryFn: () => {
+            if (viewMode === 'class') {
+                if (!selectedClassId) return [];
+                return fetchClassTimetable(selectedClassId);
+            } else {
+                if (!currentUser.id) return [];
+                return fetchTeacherTimetable(currentUser.id);
             }
+        },
+        enabled: (viewMode === 'class' ? !!selectedClassId : !!currentUser.id)
+    });
 
-            const { data: sub } = await supabase.from('subjects')
-                .select('*')
-                .eq('school_id', currentUser.school_id)
-                .order('name');
-            if (sub) setSubjects(sub);
 
-            // Fetch teachers from profiles or teachers table depending on architecture
-            // Using profiles for now as it's more standard for auth linkage, fall back to teachers table if needed
-            const { data: tch } = await supabase
-                .from('profiles')
-                .select('id, name:full_name')
-                .eq('role', 'teacher')
-                .eq('school_id', currentUser.school_id)
-                .order('full_name');
-            if (tch) setTeachersList(tch);
-
-        } catch (error) {
-            console.error('Error fetching metadata:', error);
-        }
-    };
-
-    const fetchClassTimetable = async (classId: string) => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('timetable_entries')
-                .select(`
-                    *,
-                    classes(name),
-                    subjects(name),
-                    teachers:teacher_id(name:full_name) 
-                `) // note: teachers alias assumes linkage to profiles or teachers table. 
-                // Based on schema script: teacher_id references profiles(id)
-                .eq('class_id', classId)
-                .order('start_time');
-
-            if (error) throw error;
-            setTimetableData(data || []);
-        } catch (error) {
-            console.error('Error fetching class timetable:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchTeacherTimetable = async (teacherId: string) => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('timetable_entries')
-                .select(`
-                    *,
-                    classes(name),
-                    subjects(name)
-                `)
-                .eq('teacher_id', teacherId)
-                .order('start_time');
-
-            if (error) throw error;
-            setTimetableData(data || []);
-        } catch (error) {
-            console.error('Error fetching teacher timetable:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this entry?')) return;
-        try {
-            const { error } = await supabase.from('timetable_entries').delete().eq('id', id);
-            if (error) throw error;
-            // Refresh
-            if (viewMode === 'class') fetchClassTimetable(selectedClassId);
-            else fetchTeacherTimetable(currentUser.id);
-        } catch (error) {
-            console.error('Error deleting entry:', error);
-        }
-    };
-
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const payload = {
-                school_id: currentUser.school_id,
-                class_id: selectedClassId,
-                day_of_week: formData.day_of_week,
-                start_time: formData.start_time,
-                end_time: formData.end_time,
-                type: formData.type,
-                subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null,
-                teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null,
-                room_number: formData.room_number,
-                activity_name: formData.type === 'Other' ? formData.activity_name : null
-            };
-
+    // --- Mutations ---
+    const saveMutation = useMutation({
+        mutationFn: async (payload: any) => {
             if (editingEntry) {
                 const { error } = await supabase
                     .from('timetable_entries')
@@ -192,14 +167,54 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                     .insert([payload]);
                 if (error) throw error;
             }
-
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['timetable'] }); // Invalidate all timetables to be safe
             setIsModalOpen(false);
             setEditingEntry(null);
-            fetchClassTimetable(selectedClassId);
-        } catch (error: any) {
+        },
+        onError: (error: any) => {
             console.error('Error saving timetable entry:', error);
             alert('Failed to save entry: ' + error.message);
         }
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('timetable_entries').delete().eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['timetable'] });
+        },
+        onError: (error: any) => {
+            console.error('Error deleting entry:', error);
+        }
+    });
+
+
+    // --- Handlers ---
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this entry?')) return;
+        deleteMutation.mutate(id);
+    };
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const payload = {
+            school_id: currentUser.school_id,
+            class_id: selectedClassId,
+            day_of_week: formData.day_of_week,
+            start_time: formData.start_time,
+            end_time: formData.end_time,
+            type: formData.type,
+            subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null,
+            teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null,
+            room_number: formData.room_number,
+            activity_name: formData.type === 'Other' ? formData.activity_name : null
+        };
+        saveMutation.mutate(payload);
     };
 
     const openAddModal = (day?: string) => {
@@ -231,8 +246,6 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
         });
         setIsModalOpen(true);
     };
-
-    // --- Render Helpers ---
 
     const getEntriesForDay = (day: string) => {
         return timetableData.filter(t => t.day_of_week === day);
@@ -279,7 +292,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                 className="w-full sm:w-auto pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none shadow-sm min-w-[150px]"
                             >
                                 <option value="">Select Class</option>
-                                {classes.map(c => (
+                                {classes.map((c: any) => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
                             </select>
@@ -317,7 +330,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             </div>
 
             {/* Timetable Grid */}
-            {loading ? (
+            {timetableLoading ? (
                 <div className="py-20">
                     <Loading type="skeleton" fullScreen={false} />
                 </div>
@@ -585,7 +598,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                             className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-primary-500"
                                         >
                                             <option value="">Select Subject</option>
-                                            {subjects.map(s => (
+                                            {subjects.map((s: any) => (
                                                 <option key={s.id} value={s.id}>{s.name}</option>
                                             ))}
                                         </select>
@@ -598,7 +611,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                             className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-primary-500"
                                         >
                                             <option value="">No Teacher Assgined</option>
-                                            {teachersList.map(t => (
+                                            {teachersList.map((t: any) => (
                                                 <option key={t.id} value={t.id}>{t.name}</option>
                                             ))}
                                         </select>
@@ -608,8 +621,10 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors mt-4"
+                                disabled={saveMutation.isPending}
+                                className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors mt-4 flex items-center justify-center gap-2"
                             >
+                                {saveMutation.isPending && <Loader2 className="animate-spin h-4 w-4" />}
                                 {editingEntry ? 'Update Entry' : 'Add Entry'}
                             </button>
                         </form>

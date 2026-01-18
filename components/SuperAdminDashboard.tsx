@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2 } from 'lucide-react';
 
 interface School {
@@ -25,47 +26,27 @@ interface SchoolDetailModalProps {
 }
 
 const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete }) => {
-    const [stats, setStats] = useState<any>(null);
+    // --- Queries ---
+    const { data: stats = { students: 0, teachers: 0 } } = useQuery({
+        queryKey: ['schoolStats', school.id],
+        queryFn: async () => {
+            // Fetch real-time count of students
+            const { count: students } = await supabase
+                .from('students')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', school.id);
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                // Fetch real-time count of students
-                const { count: students, error: studentError } = await supabase
-                    .from('students')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('school_id', school.id);
+            // Fetch real-time count of teachers
+            const { count: teachers } = await supabase
+                .from('profiles')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', school.id)
+                .eq('role', 'teacher');
 
-                if (studentError) {
-                    console.error('Error fetching student count:', studentError);
-                    // Explicitly check for network error
-                    if (studentError.message && studentError.message.includes('fetch')) {
-                        console.error('Possible Network Error or CORS issue');
-                    }
-                }
-
-                // Fetch real-time count of teachers
-                const { count: teachers, error: teacherError } = await supabase
-                    .from('profiles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('school_id', school.id)
-                    .eq('role', 'teacher');
-
-                if (teacherError) {
-                    console.error('Error fetching teacher count:', teacherError);
-                }
-
-                setStats({ students: students || 0, teachers: teachers || 0 });
-            } catch (err: any) {
-                console.error('Unexpected error fetching stats:', err);
-                if (err.message && err.message.includes('fetch')) {
-                    console.error('Confirming network error captured in catch block');
-                }
-            }
-        };
-
-        fetchStats();
-    }, [school.id]);
+            return { students: students || 0, teachers: teachers || 0 };
+        },
+        enabled: !!school.id
+    });
 
 
     return (
@@ -161,21 +142,57 @@ interface SuperAdminDashboardProps {
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onImpersonate }) => {
-    const [pendingSchools, setPendingSchools] = useState<any[]>([]);
-    const [activeSchools, setActiveSchools] = useState<any[]>([]);
-    const [featureRequests, setFeatureRequests] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'requests'>('pending');
     const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
-    const [globalStats, setGlobalStats] = useState({ schools: 0, students: 0, revenue: 0 });
 
-    useEffect(() => {
-        fetchSchools();
-        fetchFeatureRequests();
-    }, []);
+    // --- Queries ---
 
-    const fetchFeatureRequests = async () => {
-        try {
+    const { data: schoolsData = { pending: [], active: [], global: { schools: 0, students: 0, revenue: 0 } }, isLoading: schoolsLoading } = useQuery({
+        queryKey: ['adminSchools'],
+        queryFn: async () => {
+            const { data, error } = await supabase.rpc('get_admin_school_stats');
+            if (error) throw error;
+
+            if (!data) return { pending: [], active: [], global: { schools: 0, students: 0, revenue: 0 } };
+
+            const formattedSchools = data.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                status: s.status,
+                created_at: s.created_at,
+                next_payment_due: s.next_payment_due,
+                last_payment_date: s.last_payment_date,
+                student_count: s.student_count,
+                teacher_count: s.teacher_count,
+                profiles: {
+                    full_name: s.admin_name,
+                    email: s.admin_email,
+                    role: 'admin'
+                }
+            }));
+
+            const pending = formattedSchools.filter((s: any) => s.status === 'pending');
+            const active = formattedSchools.filter((s: any) => s.status === 'active');
+
+            const totalStudents = formattedSchools.reduce((sum: number, s: any) => sum + (Number(s.student_count) || 0), 0);
+            const activeCount = active.length;
+
+            return {
+                pending,
+                active,
+                global: {
+                    schools: activeCount,
+                    students: totalStudents,
+                    revenue: activeCount * 200
+                }
+            };
+        }
+    });
+
+    const { data: featureRequests = [] } = useQuery({
+        queryKey: ['featureRequests'],
+        queryFn: async () => {
             const { data, error } = await supabase
                 .from('support_tickets')
                 .select(`
@@ -185,182 +202,131 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                 `)
                 .eq('type', 'Feature Request')
                 .order('created_at', { ascending: false });
-
             if (error) throw error;
-            if (data) setFeatureRequests(data);
-        } catch (error) {
-            console.error('Error fetching requests:', error);
+            return data || [];
         }
-    };
+    });
 
-    const fetchSchools = async () => {
-        setLoading(true);
-        try {
-            // Use the new secure RPC function to get all schools with accurate counts
-            const { data, error } = await supabase.rpc('get_admin_school_stats');
 
+    // --- Mutations ---
+
+    const approveSchoolMutation = useMutation({
+        mutationFn: async (schoolId: string) => {
+            const nextDue = new Date();
+            nextDue.setDate(nextDue.getDate() + 30);
+            const { error } = await supabase.from('schools')
+                .update({
+                    status: 'active',
+                    next_payment_due: nextDue.toISOString(),
+                    last_payment_date: new Date().toISOString()
+                })
+                .eq('id', schoolId);
             if (error) throw error;
-
-            if (data) {
-                // Map the flat RPC result to the structure expected by the UI
-                const formattedSchools = data.map((s: any) => ({
-                    id: s.id,
-                    name: s.name,
-                    status: s.status,
-                    created_at: s.created_at,
-                    next_payment_due: s.next_payment_due,
-                    last_payment_date: s.last_payment_date,
-                    student_count: s.student_count,
-                    teacher_count: s.teacher_count,
-                    profiles: { // Mocking the profile structure the UI expects
-                        full_name: s.admin_name,
-                        email: s.admin_email,
-                        role: 'admin'
-                    }
-                }));
-
-                setPendingSchools(formattedSchools.filter((s: any) => s.status === 'pending'));
-                setActiveSchools(formattedSchools.filter((s: any) => s.status === 'active'));
-
-                // Calculate Global Stats
-                const totalStudents = formattedSchools.reduce((sum: number, s: any) => sum + (Number(s.student_count) || 0), 0);
-                const activeCount = formattedSchools.filter((s: any) => s.status === 'active').length;
-
-                setGlobalStats({
-                    schools: activeCount,
-                    students: totalStudents,
-                    revenue: activeCount * 200 // Mock revenue
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching school stats:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const approveSchool = async (schoolId: string) => {
-        // Set next_payment_due to 30 days from now upon approval
-        const nextDue = new Date();
-        nextDue.setDate(nextDue.getDate() + 30);
-
-        const { error } = await supabase
-            .from('schools')
-            .update({
-                status: 'active',
-                next_payment_due: nextDue.toISOString(),
-                last_payment_date: new Date().toISOString()
-            })
-            .eq('id', schoolId);
-
-        if (error) {
-            alert('Error approving school');
-            console.error(error);
-        } else {
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
             alert('School approved successfully!');
-            fetchSchools(); // Refresh lists
-        }
-    };
+        },
+        onError: (err: any) => alert('Error approving school: ' + err.message)
+    });
 
-    const renewSubscription = async (schoolId: string) => {
-        if (!confirm('Confirm payment received and renew subscription for 30 days?')) return;
-
-        const nextDue = new Date();
-        nextDue.setDate(nextDue.getDate() + 30);
-
-        const { error } = await supabase
-            .from('schools')
-            .update({
-                next_payment_due: nextDue.toISOString(),
-                last_payment_date: new Date().toISOString(),
-                status: 'active' // Ensure it's active if it was suspended
-            })
-            .eq('id', schoolId);
-
-        if (error) {
-            alert('Error renewing subscription');
-            console.error(error);
-        } else {
+    const renewSubscriptionMutation = useMutation({
+        mutationFn: async (schoolId: string) => {
+            const nextDue = new Date();
+            nextDue.setDate(nextDue.getDate() + 30);
+            const { error } = await supabase.from('schools')
+                .update({
+                    next_payment_due: nextDue.toISOString(),
+                    last_payment_date: new Date().toISOString(),
+                    status: 'active'
+                })
+                .eq('id', schoolId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
             alert('Subscription renewed successfully!');
-            fetchSchools();
-            if (selectedSchool) setSelectedSchool(null);
-        }
-    };
+            setSelectedSchool(null);
+        },
+        onError: (err: any) => alert('Error renewing subscription: ' + err.message)
+    });
 
-    const toggleSchoolStatus = async (schoolId: string, currentStatus: string) => {
-        const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
-        if (!confirm(`Are you sure you want to ${newStatus === 'suspended' ? 'SUSPEND' : 'ACTIVATE'} this school?`)) return;
-
-        const { error } = await supabase
-            .from('schools')
-            .update({ status: newStatus })
-            .eq('id', schoolId);
-
-        if (error) {
-            alert(`Error updating status: ${error.message}`);
-        } else {
+    const toggleStatusMutation = useMutation({
+        mutationFn: async ({ id, currentStatus }: { id: string, currentStatus: string }) => {
+            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+            const { error } = await supabase.from('schools').update({ status: newStatus }).eq('id', id);
+            if (error) throw error;
+            return newStatus;
+        },
+        onSuccess: (newStatus) => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
             alert(`School ${newStatus === 'suspended' ? 'suspended' : 'activated'} successfully.`);
-            fetchSchools();
-            if (selectedSchool) setSelectedSchool(null);
-        }
-    }
+            setSelectedSchool(null);
+        },
+        onError: (err: any) => alert(`Error updating status: ${err.message}`)
+    });
 
-
-    const resetSchoolPassword = async (schoolId: string) => {
-        if (!confirm("Are you sure? This will reset the school admin's password to 'password123'.")) return;
-
-        try {
+    const resetPasswordMutation = useMutation({
+        mutationFn: async (schoolId: string) => {
             const { error } = await supabase.rpc('reset_school_admin_password', {
                 target_school_id: schoolId,
                 new_password: 'password123'
             });
-
             if (error) throw error;
-            alert("Password successfully reset to 'password123'.");
-        } catch (error: any) {
-            console.error('Error resetting password:', error);
-            alert(`Failed to reset password: ${error.message}`);
+        },
+        onSuccess: () => alert("Password successfully reset to 'password123'."),
+        onError: (err: any) => alert(`Failed to reset password: ${err.message}`)
+    });
+
+    const deleteSchoolMutation = useMutation({
+        mutationFn: async (schoolId: string) => {
+            const { data, error } = await supabase.rpc('delete_school_permanently', { target_school_id: schoolId });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
+            alert(`School deleted successfully.\nDeleted Items:\n${JSON.stringify(data, null, 2)}`);
+            setSelectedSchool(null);
+        },
+        onError: (err: any) => alert(`Error deleting school: ${err.message}`)
+    });
+
+
+    // --- Handlers ---
+
+    const approveSchool = (schoolId: string) => approveSchoolMutation.mutate(schoolId);
+
+    const renewSubscription = (schoolId: string) => {
+        if (confirm('Confirm payment received and renew subscription for 30 days?')) {
+            renewSubscriptionMutation.mutate(schoolId);
         }
     };
 
-    const deleteSchool = async (schoolId: string) => {
-        const schoolName = pendingSchools.find(s => s.id === schoolId)?.name || activeSchools.find(s => s.id === schoolId)?.name || 'this school';
+    const toggleSchoolStatus = (schoolId: string, currentStatus: string) => {
+        const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+        if (confirm(`Are you sure you want to ${newStatus === 'suspended' ? 'SUSPEND' : 'ACTIVATE'} this school?`)) {
+            toggleStatusMutation.mutate({ id: schoolId, currentStatus });
+        }
+    };
 
-        if (!confirm(`Are you sure you want to PERMANENTLY DELETE ${schoolName}? This action cannot be undone and will remove all data associated with this school.`)) return;
+    const resetSchoolPassword = (schoolId: string) => {
+        if (confirm("Are you sure? This will reset the school admin's password to 'password123'.")) {
+            resetPasswordMutation.mutate(schoolId);
+        }
+    };
+
+    const deleteSchool = async (schoolId: string) => { // Async not strictly needed here but kept signature
+        const schoolName = schoolsData.pending.find((s: any) => s.id === schoolId)?.name || schoolsData.active.find((s: any) => s.id === schoolId)?.name || 'this school';
+        if (!confirm(`Are you sure you want to PERMANENTLY DELETE ${schoolName}? This action cannot be undone.`)) return;
 
         const userInput = prompt(`Type "DELETE" to confirm deletion of ${schoolName}:`);
-        if (userInput !== 'DELETE') {
-            return alert('Deletion cancelled. Input did not match.');
-        }
+        if (userInput !== 'DELETE') return alert('Deletion cancelled.');
 
-        try {
-            // Use the secure RPC function to delete the school
-            const { data, error } = await supabase.rpc('delete_school_permanently', {
-                target_school_id: schoolId
-            });
-
-            if (error) {
-                console.error("Supabase RPC Error:", error);
-                throw error;
-            }
-
-            console.log("School deleted successfully via RPC:", data);
-            alert(`School deleted successfully.\nDeleted Items:\n${JSON.stringify(data, null, 2)}`);
-
-            // Force local state update immediately for better UX
-            setPendingSchools(prev => prev.filter(s => s.id !== schoolId));
-            setActiveSchools(prev => prev.filter(s => s.id !== schoolId));
-
-            if (selectedSchool?.id === schoolId) setSelectedSchool(null);
-
-            // Still fetch fresh data to be sure
-            await fetchSchools();
-
-        } catch (error: any) {
-            alert(`Error deleting school: ${error.message}`);
-            console.error(error);
-        }
+        deleteSchoolMutation.mutate(schoolId);
     };
+
+
 
     const getSubscriptionStatus = (nextPaymentDue?: string) => {
         if (!nextPaymentDue) return { status: 'Unknown', color: 'text-slate-500', bg: 'bg-slate-100' };
@@ -395,15 +361,15 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
                         <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><CheckCircle className="h-6 w-6" /></div>
-                        <div><p className="text-slate-500 text-sm font-medium">Active Schools</p><h3 className="text-2xl font-bold text-slate-800">{globalStats.schools}</h3></div>
+                        <div><p className="text-slate-500 text-sm font-medium">Active Schools</p><h3 className="text-2xl font-bold text-slate-800">{schoolsData.global.schools}</h3></div>
                     </div>
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
                         <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><Calendar className="h-6 w-6" /></div>
-                        <div><p className="text-slate-500 text-sm font-medium">Total Students Managed</p><h3 className="text-2xl font-bold text-slate-800">{globalStats.students}</h3></div>
+                        <div><p className="text-slate-500 text-sm font-medium">Total Students Managed</p><h3 className="text-2xl font-bold text-slate-800">{schoolsData.global.students}</h3></div>
                     </div>
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
                         <div className="p-4 bg-green-50 text-green-600 rounded-xl"><RefreshCw className="h-6 w-6" /></div>
-                        <div><p className="text-slate-500 text-sm font-medium">Est. Monthly Revenue</p><h3 className="text-2xl font-bold text-slate-800">GH¢ {globalStats.revenue}</h3></div>
+                        <div><p className="text-slate-500 text-sm font-medium">Est. Monthly Revenue</p><h3 className="text-2xl font-bold text-slate-800">GH¢ {schoolsData.global.revenue}</h3></div>
                     </div>
                 </div>
 
@@ -413,13 +379,13 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                         onClick={() => setActiveTab('pending')}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                     >
-                        Pending Approvals ({pendingSchools.length})
+                        Pending Approvals ({schoolsData.pending.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('active')}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'active' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                     >
-                        Active Schools ({activeSchools.length})
+                        Active Schools ({schoolsData.active.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('requests')}
@@ -436,7 +402,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                         </h2>
                     </div>
 
-                    {loading ? (
+                    {schoolsLoading ? (
                         <div className="p-8 text-center text-slate-500">Loading...</div>
                     ) : activeTab === 'requests' ? (
                         <div className="overflow-x-auto">
@@ -501,14 +467,14 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {(activeTab === 'pending' ? pendingSchools : activeSchools).length === 0 ? (
+                                    {(activeTab === 'pending' ? schoolsData.pending : schoolsData.active).length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
                                                 No {activeTab} schools found.
                                             </td>
                                         </tr>
                                     ) : (
-                                        (activeTab === 'pending' ? pendingSchools : activeSchools).map((school) => {
+                                        (activeTab === 'pending' ? schoolsData.pending : schoolsData.active).map((school: any) => {
                                             const subStatus = getSubscriptionStatus(school.next_payment_due);
                                             const StatusIcon = subStatus.icon || CheckCircle;
                                             const admin = Array.isArray(school.profiles)

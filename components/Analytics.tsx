@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import {
     AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -6,6 +5,7 @@ import {
 import { TrendingUp, Users, AlertCircle, BookOpen, Gift, CheckCircle, Clock } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useQuery } from '@tanstack/react-query';
 
 // --- Types ---
 interface FinancialMonth {
@@ -41,179 +41,177 @@ interface AnalyticsProps {
 
 const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
     const { formatAmount, currency } = useCurrency();
-    const [financialData, setFinancialData] = useState<FinancialMonth[]>([]);
-    const [debtorData, setDebtorData] = useState<any[]>([]);
-    const [classPopData, setClassPopData] = useState<any[]>([]);
-    const [academicData, setAcademicData] = useState<any[]>([]);
-    const [referralHistory, setReferralHistory] = useState<Referral[]>([]);
-    const [attendanceData, setAttendanceData] = useState<any[]>([]);
+    // --- Queries ---
 
-    useEffect(() => {
-        const fetchAnalyticsData = async () => {
-            if (!currentUser?.school_id) return;
+    // 1. Financial History & Transactions
+    const { data: financialHistory = [] } = useQuery({
+        queryKey: ['financialAnalytics', currentUser?.school_id],
+        queryFn: async () => {
+            if (!currentUser?.school_id) return [];
 
-            try {
-                // 1. Financial History (Transactions)
-                const { data: transactions } = await supabase
-                    .from('transactions')
-                    .select('amount, date')
-                    .eq('school_id', currentUser.school_id);
+            // Fetch Transactions
+            const { data: transactions } = await supabase
+                .from('transactions')
+                .select('amount, date')
+                .eq('school_id', currentUser.school_id);
 
-                if (transactions) {
-                    const monthlyData: Record<string, number> = {};
-                    transactions.forEach((t: any) => {
-                        const date = new Date(t.date);
-                        const month = date.toLocaleString('default', { month: 'short' });
-                        monthlyData[month] = (monthlyData[month] || 0) + t.amount;
-                    });
+            // Fetch Debt for Expected Calculation
+            const { data: debtData } = await supabase
+                .from('students')
+                .select('balance')
+                .eq('school_id', currentUser.school_id)
+                .gt('balance', 0);
 
-                    // Fetch total outstanding debt to estimate "Expected" for current month
-                    const { data: debtData } = await supabase
-                        .from('students')
-                        .select('balance')
-                        .eq('school_id', currentUser.school_id)
-                        .gt('balance', 0);
+            if (!transactions) return [];
 
-                    const totalDebt = debtData?.reduce((sum, s) => sum + (s.balance || 0), 0) || 0;
-                    const currentMonth = new Date().toLocaleString('default', { month: 'short' });
+            const monthlyData: Record<string, number> = {};
+            transactions.forEach((t: any) => {
+                const date = new Date(t.date);
+                const month = date.toLocaleString('default', { month: 'short' });
+                monthlyData[month] = (monthlyData[month] || 0) + t.amount;
+            });
 
-                    // Construct chart for all months to ensure lines are drawn (not just dots)
-                    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const totalDebt = debtData?.reduce((sum, s) => sum + (s.balance || 0), 0) || 0;
+            const currentMonth = new Date().toLocaleString('default', { month: 'short' });
+            const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-                    const chartData = monthsOrder.map(m => {
-                        const collected = monthlyData[m] || 0;
-                        // For current month, Expected = Collected + Outstanding Debt
-                        // For other months, Expected = Collected (assuming no historical debt tracking per month)
-                        const expected = m === currentMonth ? (collected + totalDebt) : collected;
+            return monthsOrder.map(m => {
+                const collected = monthlyData[m] || 0;
+                const expected = m === currentMonth ? (collected + totalDebt) : collected;
+                return { month: m, expected, collected };
+            });
+        },
+        enabled: !!currentUser?.school_id,
+        initialData: []
+    });
 
-                        return {
-                            month: m,
-                            expected,
-                            collected
-                        };
-                    });
+    // 2. Student Data (Debtors & Population)
+    const { data: studentStats = { debtorData: [], classPopData: [] } } = useQuery({
+        queryKey: ['studentAnalytics', currentUser?.school_id],
+        queryFn: async () => {
+            if (!currentUser?.school_id) return { debtorData: [], classPopData: [] };
 
-                    setFinancialData(chartData);
-                }
+            const { data: students } = await supabase
+                .from('students')
+                .select('class, balance')
+                .eq('school_id', currentUser.school_id);
 
-                // 2. Student Data (Debtors & Population)
-                const { data: students } = await supabase
-                    .from('students')
-                    .select('class, balance')
-                    .eq('school_id', currentUser.school_id);
+            if (!students) return { debtorData: [], classPopData: [] };
 
-                if (students) {
-                    // Debtor Logic
-                    let paidCount = 0;
-                    let partCount = 0;
-                    let debtCount = 0;
+            // Debtor Logic
+            let paidCount = 0, partCount = 0, debtCount = 0;
+            students.forEach((s: any) => {
+                if (s.balance <= 0) paidCount++;
+                else if (s.balance < 300) partCount++;
+                else debtCount++;
+            });
 
-                    students.forEach((s: any) => {
-                        if (s.balance <= 0) paidCount++;
-                        else if (s.balance < 300) partCount++;
-                        else debtCount++;
-                    });
+            const debtorData = [
+                { name: 'Fully Paid', value: paidCount, color: '#10b981' },
+                { name: 'Part Payment', value: partCount, color: '#f59e0b' },
+                { name: 'High Debt', value: debtCount, color: '#ef4444' },
+            ];
 
-                    setDebtorData([
-                        { name: 'Fully Paid', value: paidCount, color: '#10b981' },
-                        { name: 'Part Payment', value: partCount, color: '#f59e0b' },
-                        { name: 'High Debt', value: debtCount, color: '#ef4444' },
-                    ]);
+            // Class Population Logic
+            const classCounts: Record<string, number> = {};
+            students.forEach((s: any) => {
+                classCounts[s.class] = (classCounts[s.class] || 0) + 1;
+            });
 
-                    // Class Population Logic
-                    const classCounts: Record<string, number> = {};
-                    students.forEach((s: any) => {
-                        classCounts[s.class] = (classCounts[s.class] || 0) + 1;
-                    });
+            const classOrder = ['Creche', 'KG 1', 'KG 2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS 1', 'JHS 2', 'JHS 3'];
+            const classPopData = classOrder
+                .filter(c => classCounts[c] !== undefined)
+                .map(c => ({ name: c, students: classCounts[c] || 0 }));
 
-                    const classOrder = ['Creche', 'KG 1', 'KG 2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS 1', 'JHS 2', 'JHS 3'];
-                    const popChartData = classOrder
-                        .filter(c => classCounts[c] !== undefined)
-                        .map(c => ({
-                            name: c,
-                            students: classCounts[c] || 0
-                        }));
+            return { debtorData, classPopData };
+        },
+        enabled: !!currentUser?.school_id
+    });
 
-                    setClassPopData(popChartData);
-                }
+    // 3. Academic Performance
+    const { data: academicData = [] } = useQuery({
+        queryKey: ['academicAnalytics', currentUser?.school_id],
+        queryFn: async () => {
+            if (!currentUser?.school_id) return [];
+            const { data: results } = await supabase
+                .from('exam_results')
+                .select('subject, total')
+                .eq('school_id', currentUser.school_id);
 
-                // 3. Academic Performance (Exam Results)
-                const { data: results } = await supabase
-                    .from('exam_results')
-                    .select('subject, total')
-                    .eq('school_id', currentUser.school_id);
+            if (!results) return [];
 
-                if (results) {
-                    const subjectStats: Record<string, { total: number, count: number }> = {};
+            const subjectStats: Record<string, { total: number, count: number }> = {};
+            results.forEach((r: any) => {
+                if (!subjectStats[r.subject]) subjectStats[r.subject] = { total: 0, count: 0 };
+                subjectStats[r.subject].total += r.total;
+                subjectStats[r.subject].count += 1;
+            });
 
-                    results.forEach((r: any) => {
-                        if (!subjectStats[r.subject]) subjectStats[r.subject] = { total: 0, count: 0 };
-                        subjectStats[r.subject].total += r.total;
-                        subjectStats[r.subject].count += 1;
-                    });
+            return Object.keys(subjectStats).map(sub => ({
+                subject: sub,
+                score: Math.round(subjectStats[sub].total / subjectStats[sub].count),
+                fullMark: 100
+            })).sort((a, b) => b.score - a.score).slice(0, 6);
+        },
+        enabled: !!currentUser?.school_id
+    });
 
-                    const acaChartData = Object.keys(subjectStats).map(sub => ({
-                        subject: sub,
-                        score: Math.round(subjectStats[sub].total / subjectStats[sub].count),
-                        fullMark: 100
-                    })).sort((a, b) => b.score - a.score).slice(0, 6);
+    // 4. Referrals
+    const { data: referralHistory = [] } = useQuery({
+        queryKey: ['referralAnalytics', currentUser?.school_id],
+        queryFn: async () => {
+            if (!currentUser?.school_id) return [];
+            const { data: referrals } = await supabase
+                .from('referrals')
+                .select('*')
+                .eq('school_id', currentUser.school_id);
 
-                    setAcademicData(acaChartData);
-                }
+            if (!referrals) return [];
 
-                // 4. Referrals
-                const { data: referrals } = await supabase
-                    .from('referrals')
-                    .select('*')
-                    .eq('school_id', currentUser.school_id);
+            return referrals.map((r: any) => ({
+                id: r.id,
+                schoolName: r.referee_school_name,
+                date: r.date,
+                reward: r.reward_amount > 0 ? `${currency.symbol} ${r.reward_amount}` : 'Credit',
+                status: r.status
+            }));
+        },
+        enabled: !!currentUser?.school_id
+    });
 
-                if (referrals) {
-                    const mappedReferrals = referrals.map((r: any) => ({
-                        id: r.id,
-                        schoolName: r.referee_school_name,
-                        date: r.date,
-                        reward: r.reward_amount > 0 ? `${currency.symbol} ${r.reward_amount}` : 'Credit',
-                        status: r.status
-                    }));
-                    setReferralHistory(mappedReferrals);
-                }
+    // 5. Attendance Overview
+    const { data: attendanceData = [] } = useQuery({
+        queryKey: ['attendanceAnalytics', currentUser?.school_id], // Intentionally not including date in key to keep it simple for now, or could add today
+        queryFn: async () => {
+            if (!currentUser?.school_id) return [];
+            const { data: attendance } = await supabase
+                .from('attendance')
+                .select('status')
+                .eq('school_id', currentUser.school_id)
+                .eq('date', new Date().toISOString().split('T')[0]);
 
-                // 5. Attendance Overview (NEW)
-                const { data: attendance } = await supabase
-                    .from('attendance')
-                    .select('status')
-                    .eq('school_id', currentUser.school_id)
-                    .eq('date', new Date().toISOString().split('T')[0]); // Today's attendance
+            if (!attendance) return [{ name: 'No Data', value: 1, color: '#cbd5e1' }];
 
-                if (attendance) {
-                    let present = 0, absent = 0, late = 0;
-                    attendance.forEach((r: any) => {
-                        if (r.status === 'Present') present++;
-                        else if (r.status === 'Absent') absent++;
-                        else if (r.status === 'Late') late++;
-                    });
+            let present = 0, absent = 0, late = 0;
+            attendance.forEach((r: any) => {
+                if (r.status === 'Present') present++;
+                else if (r.status === 'Absent') absent++;
+                else if (r.status === 'Late') late++;
+            });
 
-                    const total = present + absent + late;
-                    if (total > 0) {
-                        setAttendanceData([
-                            { name: 'Present', value: present, color: '#22c55e' },
-                            { name: 'Absent', value: absent, color: '#ef4444' },
-                            { name: 'Late', value: late, color: '#eab308' }
-                        ]);
-                    } else {
-                        setAttendanceData([
-                            { name: 'No Data', value: 1, color: '#cbd5e1' }
-                        ]);
-                    }
-                }
-
-            } catch (error) {
-                console.error('Error fetching analytics:', error);
+            const total = present + absent + late;
+            if (total > 0) {
+                return [
+                    { name: 'Present', value: present, color: '#22c55e' },
+                    { name: 'Absent', value: absent, color: '#ef4444' },
+                    { name: 'Late', value: late, color: '#eab308' }
+                ];
+            } else {
+                return [{ name: 'No Data', value: 1, color: '#cbd5e1' }];
             }
-        };
-
-        fetchAnalyticsData();
-    }, [currentUser?.school_id]);
+        },
+        enabled: !!currentUser?.school_id
+    });
 
     // Custom Tooltip for Charts
     const CustomTooltip = ({ active, payload, label }: any) => {
@@ -253,7 +251,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
 
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={financialData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <LineChart data={financialHistory} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis
                                     dataKey="month"
@@ -348,7 +346,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={debtorData}
+                                    data={studentStats.debtorData}
                                     cx="50%"
                                     cy="50%"
                                     innerRadius={60}
@@ -356,7 +354,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
-                                    {debtorData.map((entry, index) => (
+                                    {studentStats.debtorData.map((entry: any, index: number) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
                                     ))}
                                 </Pie>
@@ -368,7 +366,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
                             <div className="text-center">
                                 <p className="text-xs text-slate-400 font-bold uppercase">Paid</p>
                                 <p className="text-2xl font-bold text-emerald-600">
-                                    {Math.round((debtorData[0]?.value / debtorData.reduce((a, b) => a + b.value, 0)) * 100) || 0}%
+                                    {Math.round((studentStats.debtorData[0]?.value / studentStats.debtorData.reduce((a: any, b: any) => a + b.value, 0)) * 100) || 0}%
                                 </p>
                             </div>
                         </div>
@@ -386,7 +384,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
 
                     <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={classPopData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                            <BarChart data={studentStats.classPopData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                                 <XAxis type="number" hide />
                                 <YAxis
