@@ -419,7 +419,16 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
 
     // --- Handlers ---
-    const handleSaveConfig = (newConfig?: any) => saveConfigMutation.mutate(newConfig || examConfig);
+    const handleSaveConfig = (newConfig?: any) => {
+        const configToSave = newConfig || examConfig;
+        // Auto-select ALL classes and subjects
+        const finalConfig = {
+            ...configToSave,
+            target_classes: availableClasses,
+            target_subjects: allSubjects
+        };
+        saveConfigMutation.mutate(finalConfig);
+    };
     const toggleMarkEntry = (enable: boolean) => toggleMarkEntryMutation.mutate(enable);
 
     const publishResults = (className: string) => {
@@ -713,41 +722,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Classes & Subjects</h3>
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Participating Classes</label>
-                                    <div className="h-32 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1">
-                                        {availableClasses.map((cls: string) => (
-                                            <label key={cls} className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer">
-                                                <input type="checkbox" checked={localConfig.target_classes?.includes(cls)} onChange={(e) => {
-                                                    const current = localConfig.target_classes || [];
-                                                    const updated = e.target.checked ? [...current, cls] : current.filter((c: string) => c !== cls);
-                                                    setLocalConfig({ ...localConfig, target_classes: updated });
-                                                }} className="rounded text-primary-600" />
-                                                <span className="text-sm text-slate-700">{cls}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Subjects Tested</label>
-                                    <div className="h-32 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1">
-                                        {allSubjects.map((subj: string) => ( // Use allSubjects here for master list
-                                            <label key={subj} className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer">
-                                                <input type="checkbox" checked={localConfig.target_subjects?.includes(subj)} onChange={(e) => {
-                                                    const current = localConfig.target_subjects || [];
-                                                    const updated = e.target.checked ? [...current, subj] : current.filter((s: string) => s !== subj);
-                                                    setLocalConfig({ ...localConfig, target_subjects: updated });
-                                                }} className="rounded text-primary-600" />
-                                                <span className="text-sm text-slate-700">{subj}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+
 
                         <div className="flex justify-end pt-4">
                             <button onClick={() => handleSaveConfig(localConfig)} disabled={saveConfigMutation.isPending} className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-primary-700 transition-all flex items-center gap-2">
