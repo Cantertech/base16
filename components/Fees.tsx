@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Search, Banknote, CreditCard, Wallet, TrendingUp,
-    ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus
+    ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus, Trash2, ArrowLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -102,6 +102,8 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'owing'>('all');
     const [receiptData, setReceiptData] = useState<any>(null);
+    const [selectedFeeClass, setSelectedFeeClass] = useState<string>('General');
+    const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false); // Mobile Detail View State
 
     // Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -535,90 +537,191 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     </div>
                 </div>
             ) : (
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <h3 className="font-bold text-lg text-slate-800">Current Term Fee Structure</h3>
-                        <div className="flex gap-2">
+                <div className="flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-right-4 duration-300 h-[calc(100vh-12rem)]">
+
+                    {/* Class Selector Sidebar */}
+                    <div className={`w-full md:w-64 flex-shrink-0 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'}`}>
+                        <div className="p-4 bg-slate-50 border-b border-slate-100 font-bold text-slate-700 text-sm">
+                            Manage By Class
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-2 space-y-1">
                             <button
-                                onClick={() => setIsAddFeeModalOpen(true)}
-                                className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors flex items-center gap-2"
+                                onClick={() => { setSelectedFeeClass('General'); setIsMobileDetailOpen(true); }}
+                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-between ${selectedFeeClass === 'General'
+                                        ? 'bg-slate-900 text-white shadow-md'
+                                        : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
                             >
-                                <Plus className="h-4 w-4" /> Add Fee Item
+                                <span className="flex items-center gap-2">
+                                    <Wallet className="h-4 w-4 opacity-50" />
+                                    General Structure
+                                </span>
+                                {selectedFeeClass === 'General' ? (
+                                    <div className="h-2 w-2 rounded-full bg-blue-400"></div>
+                                ) : (
+                                    <ChevronRight className="h-4 w-4 text-slate-300 md:hidden" />
+                                )}
                             </button>
+
+                            <div className="py-2 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Classes</div>
+
+                            {classes.map((cls: any) => (
+                                <button
+                                    key={cls.id}
+                                    onClick={() => { setSelectedFeeClass(cls.name); setIsMobileDetailOpen(true); }}
+                                    className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-all flex items-center justify-between ${selectedFeeClass === cls.name
+                                            ? 'bg-primary-50 text-primary-700 font-bold border border-primary-100'
+                                            : 'text-slate-600 hover:bg-slate-50 group'
+                                        }`}
+                                >
+                                    <span>{cls.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        {feeStructure.filter((f: any) => f.target_class === cls.name).length > 0 && (
+                                            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold group-hover:bg-white transition-colors">
+                                                {feeStructure.filter((f: any) => f.target_class === cls.name).length}
+                                            </span>
+                                        )}
+                                        <ChevronRight className={`h-4 w-4 md:hidden ${selectedFeeClass === cls.name ? 'text-primary-400' : 'text-slate-300'}`} />
+                                    </div>
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    {/* Mobile List View for Fees */}
-                    <div className="md:hidden divide-y divide-slate-100">
-                        {feeStructure.length > 0 ? (
-                            feeStructure.map((fee) => (
-                                <div key={fee.id} className="p-4 flex justify-between items-center group">
-                                    <div>
-                                        <p className="font-bold text-slate-800">{fee.name}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-medium border border-blue-100">
-                                                {fee.target_class || 'All Students'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-slate-900 text-lg">{fee.amount.toFixed(2)}</p>
-                                        <button
-                                            onClick={() => handleDeleteFeeItem(fee.id)}
-                                            className="text-red-400 text-xs mt-1 hover:text-red-600 block ml-auto"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="p-8 text-center text-slate-500 text-sm">
-                                No fee structure defined.
-                            </div>
-                        )}
-                    </div>
 
-                    {/* Desktop Table */}
-                    <div className="overflow-x-auto hidden md:block">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 border-b border-slate-100">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Fee Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Target Class</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Amount ({currency.code})</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {feeStructure.length > 0 ? (
-                                    feeStructure.map((fee) => (
-                                        <tr key={fee.id} className="hover:bg-slate-50">
-                                            <td className="px-6 py-4 font-bold text-slate-800">{fee.name}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-600">
-                                                <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium border border-blue-100">
-                                                    {fee.target_class || 'All Students'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-900">{fee.amount.toFixed(2)}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button
-                                                    onClick={() => handleDeleteFeeItem(fee.id)}
-                                                    className="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition-colors"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                                            No fee structure defined. Click "Add Fee Item" to start.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                    {/* Fee List Area */}
+                    <div className={`
+                        flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col
+                        ${isMobileDetailOpen ? 'fixed inset-0 z-50 rounded-none border-0' : 'hidden md:flex'}
+                        md:static md:block md:border md:rounded-xl md:shadow-sm
+                    `}>
+                        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 safe-area-top">
+                            <div className="flex items-center gap-3">
+                                {/* Mobile Back Button */}
+                                <button
+                                    onClick={() => setIsMobileDetailOpen(false)}
+                                    className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors"
+                                >
+                                    <ArrowLeft className="h-5 w-5" />
+                                </button>
+
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-800">
+                                        {selectedFeeClass === 'General' ? 'General Fee Structure' : `${selectedFeeClass} Fees`}
+                                    </h3>
+                                    <p className="text-slate-500 text-xs hidden md:block">
+                                        {selectedFeeClass === 'General'
+                                            ? 'Fees applied to every student in the school.'
+                                            : `Managing fees specific to ${selectedFeeClass} + General fees.`}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsAddFeeModalOpen(true)}
+                                className="bg-primary-600 text-white px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 shadow-sm shadow-primary-200"
+                            >
+                                <Plus className="h-4 w-4" />
+                                <span className="hidden md:inline">{selectedFeeClass === 'General' ? 'Add General Fee' : `Add Fee for ${selectedFeeClass}`}</span>
+                                <span className="md:hidden">Add Fee</span>
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-4 md:p-6 space-y-6 bg-slate-50/30">
+
+                            {/* General Fees Section */}
+                            {(selectedFeeClass === 'General' || feeStructure.some((f: any) => f.target_class === null)) && (
+                                <div className="space-y-3">
+                                    {selectedFeeClass !== 'General' && (
+                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-1">
+                                            <Wallet className="h-3 w-3" /> General Fees
+                                        </div>
+                                    )}
+
+                                    {feeStructure.filter((f: any) => f.target_class === null).length > 0 ? (
+                                        feeStructure.filter((f: any) => f.target_class === null).map((fee: any) => (
+                                            <div key={fee.id} className="group flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl hover:border-slate-300 transition-all shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-10 w-10 min-w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                                        <Wallet className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm md:text-base">{fee.name}</p>
+                                                        <p className="text-xs text-slate-400">Universal</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4 md:gap-6">
+                                                    <span className="font-bold text-slate-800 text-base md:text-lg">{formatAmount(fee.amount)}</span>
+                                                    <button
+                                                        onClick={() => handleDeleteFeeItem(fee.id)}
+                                                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Delete Fee"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm bg-slate-50">
+                                            No general fees found.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Specific Fees Section */}
+                            {selectedFeeClass !== 'General' && (
+                                <div className="space-y-3 pt-6 border-t border-slate-100">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-primary-600 uppercase tracking-wider mb-2 px-1">
+                                        <TrendingUp className="h-3 w-3" /> {selectedFeeClass} Only
+                                    </div>
+
+                                    {feeStructure.filter((f: any) => f.target_class === selectedFeeClass).length > 0 ? (
+                                        feeStructure.filter((f: any) => f.target_class === selectedFeeClass).map((fee: any) => (
+                                            <div key={fee.id} className="group flex items-center justify-between p-4 bg-primary-50/40 border border-primary-100 rounded-xl hover:border-primary-300 transition-all shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-10 w-10 min-w-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
+                                                        <Banknote className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm md:text-base">{fee.name}</p>
+                                                        <p className="text-xs text-primary-600 font-medium">Class Specific</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4 md:gap-6">
+                                                    <span className="font-bold text-primary-700 text-base md:text-lg">{formatAmount(fee.amount)}</span>
+                                                    <button
+                                                        onClick={() => handleDeleteFeeItem(fee.id)}
+                                                        className="p-2 text-primary-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Delete Fee"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-8 border-2 border-dashed border-primary-100 bg-primary-50/20 rounded-xl text-primary-400 text-sm">
+                                            No specific fees for {selectedFeeClass}.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Summary Footer */}
+                            <div className="mt-8 pt-6 pb-20 md:pb-0 border-t border-slate-100">
+                                <div className="flex justify-between items-center text-sm p-4 bg-slate-900 text-white rounded-xl shadow-lg">
+                                    <span className="font-medium opacity-80">Total for {selectedFeeClass}</span>
+                                    <span className="text-xl font-bold">
+                                        {formatAmount(
+                                            feeStructure
+                                                .filter((f: any) => f.target_class === null || f.target_class === (selectedFeeClass === 'General' ? null : selectedFeeClass))
+                                                .reduce((sum: number, f: any) => sum + f.amount, 0)
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
                 </div>
             )}
@@ -651,6 +754,7 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     onClose={() => setIsAddFeeModalOpen(false)}
                     onConfirm={handleAddFeeItem}
                     classes={classes}
+                    initialClass={selectedFeeClass}
                 />
             )}
 
@@ -803,12 +907,17 @@ const PaymentModal = ({ student, onClose, onConfirm, onGenerateReceipt }: { stud
 };
 
 // --- Sub-component: Add Fee Modal ---
-const AddFeeItemModal = ({ onClose, onConfirm, classes }: any) => {
+const AddFeeItemModal = ({ onClose, onConfirm, classes, initialClass }: any) => {
     const { currency } = useCurrency();
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');
-    const [applyToAll, setApplyToAll] = useState(true);
-    const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
+
+    // Logic to pre-select class if provided
+    const isSpecific = initialClass && initialClass !== 'General';
+    const [applyToAll, setApplyToAll] = useState(!isSpecific);
+    const [selectedClasses, setSelectedClasses] = useState<Set<string>>(
+        isSpecific ? new Set([initialClass]) : new Set()
+    );
 
     const toggleClass = (cls: string) => {
         const newSet = new Set(selectedClasses);

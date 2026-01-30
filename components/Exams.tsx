@@ -27,6 +27,11 @@ interface Student {
     class: string;
     attendance: number;
     photo?: string;
+    parent_phone?: string;
+    parent_name?: string;
+    admission_no?: string;
+    pin?: string;
+    balance?: number;
 }
 
 interface ExamsProps {
@@ -124,7 +129,12 @@ const fetchStudents = async (schoolId: string) => {
         name: s.name,
         class: s.class,
         attendance: 100, // Mock
-        photo: s.photo_url
+        photo: s.photo_url,
+        parent_phone: s.parent_phone,
+        parent_name: s.parent_name,
+        admission_no: s.admission_no,
+        pin: s.pin,
+        balance: s.balance
     })) as Student[] : [];
 };
 
@@ -210,6 +220,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [viewingSubmission, setViewingSubmission] = useState<any>(null);
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number }>>({});
+    const [releaseModalData, setReleaseModalData] = useState<{ className: string, studentCount: number, validPhones: number } | null>(null);
 
 
 
@@ -363,6 +374,68 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         }
     });
 
+    const sendResultNotifications = async (className: string) => {
+        try {
+            const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
+            const PORTAL_LINK = 'https://base16.sixzones.com/login';
+
+            // 1. Get recipients
+            const targetStudents = students.filter(s => s.class === className && s.parent_phone);
+
+            if (targetStudents.length === 0) return; // No parents to notify
+
+            // 2. Prepare Data
+            const recipientsData = targetStudents.map(s => ({
+                phone: cleanPhone(s.parent_phone!),
+                vars: {
+                    '{Parent Name}': s.parent_name || 'Parent',
+                    '{Student Name}': s.name,
+                    '{Student ID}': s.admission_no || s.id.substring(0, 8).toUpperCase(),
+                    '{PIN}': s.pin || 'N/A',
+                    '{Total Score}': 'CHECK PORTAL',
+                    '{Link}': PORTAL_LINK
+                }
+            })).filter(r => r.phone.length >= 9);
+
+            if (recipientsData.length === 0) return;
+
+            const message = "Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}";
+            const finalMessage = schoolInfo?.name ? `${schoolInfo.name}\n${message}` : message;
+
+            // 3. Send SMS
+            const { error } = await supabase.functions.invoke('send-sms', {
+                body: {
+                    recipients: recipientsData,
+                    message: finalMessage,
+                    hubtelKeys: {
+                        clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
+                        clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
+                        senderId: import.meta.env.VITE_HUBTEL_SENDER_ID
+                    }
+                }
+            });
+
+            if (error) throw error;
+
+            // 4. Billing & Logging
+            await supabase.rpc('deduct_sms_credits', { p_school_id: schoolId, p_count: recipientsData.length });
+
+            await supabase.from('message_logs').insert({
+                school_id: schoolId,
+                date: new Date().toISOString().split('T')[0],
+                type: 'Result Notification',
+                recipient: `Parents of ${className}`,
+                content: message,
+                status: 'Delivered'
+            });
+
+            // success (silent)
+        } catch (err) {
+            console.error("Failed to send result notifications:", err);
+            alert("Results released, but failed to send SMS notifications. Please check your SMS balance.");
+        }
+    };
+
     const publishResultsMutation = useMutation({
         mutationFn: async (className: string) => {
             const { error } = await supabase.rpc('publish_class_results', {
@@ -374,9 +447,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             return className;
         },
         // We'll manually update releasedClasses via cache invalidation or update
-        onSuccess: () => {
+        onSuccess: (className) => {
             queryClient.invalidateQueries({ queryKey: ['releasedClasses', schoolId] });
-            alert(`Results released successfully!`);
+            // Notification is now handled by the UI handler manually if selected
         },
         onError: (error: any) => {
             alert(`Failed to publish results: ${error.message}`);
@@ -433,10 +506,23 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     };
     const toggleMarkEntry = (enable: boolean) => toggleMarkEntryMutation.mutate(enable);
 
-    const publishResults = (className: string) => {
-        if (!confirm(`Are you sure you want to release results for ${className}? This will notify all parents.`)) return;
-        publishResultsMutation.mutate(className);
+    const handleConfirmRelease = async (className: string, sendSms: boolean) => {
+        try {
+            await publishResultsMutation.mutateAsync(className);
+            if (sendSms) {
+                await sendResultNotifications(className);
+                alert(`Results released & notifications sent to parents!`);
+            } else {
+                alert(`Results released successfully!`);
+            }
+            setReleaseModalData(null);
+        } catch (e) {
+            // Error alert handled by mutation onError or sendResultNotifications catch
+        }
     };
+
+    // Deprecated but keeping for reference if needed, functionality moved to handleConfirmRelease
+    const publishResults = (className: string) => { };
 
     const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore', value: string) => {
         let numValue = Number(value);
@@ -910,7 +996,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => { setViewingClassList(cls); setSelectedClass(cls); }} className="flex-1 py-2 text-xs font-bold text-primary-700 bg-primary-50 rounded hover:bg-primary-100 transition-colors">View Reports</button>
-                                            <button onClick={() => publishResults(cls)} disabled={isReleased || publishResultsMutation.isPending} className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isReleased ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}>
+                                            <button
+                                                onClick={() => setReleaseModalData({ className: cls, studentCount: students.filter(s => s.class === cls).length, validPhones: students.filter(s => s.class === cls && s.parent_phone && s.parent_phone.length >= 9).length })}
+                                                disabled={isReleased || publishResultsMutation.isPending}
+                                                className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isReleased ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}
+                                            >
                                                 {isReleased ? <><CheckCircle className="w-3 h-3" /> Released</> : <><Send className="w-3 h-3" /> Release</>}
                                             </button>
                                         </div>
@@ -920,6 +1010,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {releaseModalData && (
+                <ReleaseConfigModal
+                    data={releaseModalData}
+                    onClose={() => setReleaseModalData(null)}
+                    onConfirm={handleConfirmRelease}
+                    isProcessing={publishResultsMutation.isPending}
+                />
             )}
 
             {/* Conditional Modals */}
@@ -959,6 +1058,65 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     schoolId={schoolId}
                 />
             )}
+        </div>
+    );
+};
+
+const ReleaseConfigModal = ({ data, onClose, onConfirm, isProcessing }: any) => {
+    const [sendSms, setSendSms] = useState(true);
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50">
+                    <h3 className="font-bold text-lg text-slate-800">Release Results</h3>
+                    <p className="text-slate-500 text-sm">Configure release options for <span className="font-bold text-slate-700">{data.className}</span>.</p>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    <div className="flex items-start gap-3 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                        <p className="text-sm text-blue-800">
+                            Releasing results will make them visible to students and parents on the portal immediately.
+                        </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="font-bold text-slate-700 text-sm">Send SMS Notification</label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" className="sr-only peer" checked={sendSms} onChange={e => setSendSms(e.target.checked)} />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                            </label>
+                        </div>
+
+                        {sendSms && (
+                            <div className="bg-slate-50 p-3 rounded border border-slate-200 text-xs space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Recipients (Valid Phones):</span>
+                                    <span className="font-bold text-slate-800">{data.validPhones} / {data.studentCount}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Est. SMS Cost:</span>
+                                    <span className="font-bold text-slate-800">{data.validPhones} units</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                    <button onClick={onClose} disabled={isProcessing} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-bold text-sm transition-colors">Cancel</button>
+                    <button
+                        onClick={() => onConfirm(data.className, sendSms)}
+                        disabled={isProcessing}
+                        className="px-6 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg font-bold text-sm shadow-lg flex items-center gap-2"
+                    >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {isProcessing ? 'Processing...' : 'Confirm Release'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

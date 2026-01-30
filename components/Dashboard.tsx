@@ -24,7 +24,9 @@ import {
     Megaphone,
     Calendar,
     X,
-    Utensils
+    Utensils,
+    History,
+    ChevronRight
 } from 'lucide-react';
 import {
     AreaChart,
@@ -50,7 +52,8 @@ import Feeding from './Feeding';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+
 
 interface DashboardProps {
     onLogout: () => void;
@@ -261,6 +264,58 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     // Combined Loading State
     const loading = configLoading || statsLoading;
 
+    // --- Session Management State ---
+    const [showSessionModal, setShowSessionModal] = useState(false);
+    const [targetTerm, setTargetTerm] = useState('First Term');
+    const [targetYear, setTargetYear] = useState(new Date().getFullYear() + '/' + (new Date().getFullYear() + 1));
+    const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
+    const [copyFeesState, setCopyFeesState] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    // Reset target defaults when modal opens
+    useEffect(() => {
+        if (showSessionModal && schoolConfig) {
+            // Default to next logical term
+            const terms = ['First Term', 'Second Term', 'Third Term'];
+            const nextIdx = (terms.indexOf(schoolConfig.current_term) + 1) % 3;
+            setTargetTerm(terms[nextIdx]);
+            setTargetYear(schoolConfig.academic_year); // Default to current year for continuity
+            setShowConfirmSwitch(false); // Reset confirmation step
+            setCopyFeesState(false); // Reset checkbox
+        }
+    }, [showSessionModal, schoolConfig]);
+
+    // Force Setup if no term is set (Onboarding)
+    useEffect(() => {
+        if (schoolConfig && !schoolConfig.current_term) {
+            setShowSessionModal(true);
+        }
+    }, [schoolConfig]);
+
+    const startNewTermMutation = useMutation({
+        mutationFn: async ({ term, year, copyFees }: { term: string, year: string, copyFees: boolean }) => {
+            const { error } = await supabase.rpc('start_new_term', {
+                p_school_id: currentUser.school_id,
+                p_new_term: term,
+                p_new_year: year,
+                p_copy_fees: copyFees
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['schoolConfig', currentUser.school_id] });
+            queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+            queryClient.invalidateQueries({ queryKey: ['feeStructure'] });
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+
+            setShowSessionModal(false);
+            setShowSuccessModal(true); // Reusing general success or need specific one?
+            // Alert for now as logic in Settings used `setShowSuccessModal` which we added to state above
+            setTimeout(() => setShowSuccessModal(false), 3000);
+        },
+        onError: (err: any) => alert("Error starting new term: " + err.message)
+    });
+
     // --- Effects ---
 
     useEffect(() => {
@@ -404,6 +459,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                         <h1 className="text-xl md:text-2xl font-bold text-slate-800">Dashboard Overview</h1>
                         <p className="text-slate-500 text-xs md:text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
                     </div>
+
+                    {/* ACADEMIC SESSION CARD */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <p className="text-xs font-bold text-slate-500 uppercase">Current Session</p>
+                                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3" /> Active
+                                </span>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <h3 className="text-xl font-bold text-slate-800">{schoolConfig?.current_term || 'Not Set'}</h3>
+                                <span className="text-slate-600 font-medium">{schoolConfig?.academic_year}</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowSessionModal(true)}
+                            className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg flex items-center gap-2 whitespace-nowrap"
+                        >
+                            <History className="h-4 w-4" /> Manage Session
+                        </button>
+                    </div>
+
                     {/* Stats Cards - Grid optimized for mobile (2cols) vs desktop (4cols) */}
                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6">
                         {[
@@ -659,6 +737,170 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Session Management Modal */}
+            {showSessionModal && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">
+                                    {schoolConfig?.current_term ? 'Switch Academic Session' : 'Setup Academic Session'}
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {schoolConfig?.current_term ? 'Select the term you want to activate/switch to.' : 'Please set up your first academic term to continue.'}
+                                </p>
+                            </div>
+                            {schoolConfig?.current_term && (
+                                <button onClick={() => setShowSessionModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {!showConfirmSwitch ? (
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!targetTerm || !targetYear) return alert("Please fill in all fields.");
+                                    setShowConfirmSwitch(true);
+                                }}
+                                className="p-6 space-y-6"
+                            >
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Term Name</label>
+                                        <div className="relative">
+                                            <select
+                                                name="term"
+                                                value={targetTerm}
+                                                onChange={(e) => setTargetTerm(e.target.value)}
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 outline-none appearance-none"
+                                            >
+                                                <option value="First Term">First Term</option>
+                                                <option value="Second Term">Second Term</option>
+                                                <option value="Third Term">Third Term</option>
+                                            </select>
+                                            <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Academic Year</label>
+                                        <div className="relative">
+                                            <select
+                                                name="year"
+                                                value={targetYear}
+                                                onChange={(e) => setTargetYear(e.target.value)}
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 outline-none appearance-none"
+                                            >
+                                                {(() => {
+                                                    const currentYear = new Date().getFullYear();
+                                                    const years = [];
+                                                    for (let i = -1; i < 4; i++) {
+                                                        const y = currentYear + i;
+                                                        years.push(`${y}/${y + 1}`);
+                                                    }
+                                                    return years.map(y => <option key={y} value={y}>{y}</option>);
+                                                })()}
+                                            </select>
+                                            <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Logic to determine if "Future" (New Term) */}
+                                    {(() => {
+                                        const terms = ['First Term', 'Second Term', 'Third Term'];
+                                        const currentYearStart = parseInt(schoolConfig?.academic_year?.split('/')[0] || '0');
+                                        const targetYearStart = parseInt(targetYear.split('/')[0]);
+                                        const currentTermIdx = terms.indexOf(schoolConfig?.current_term || '');
+                                        const targetTermIdx = terms.indexOf(targetTerm);
+
+                                        const isFuture = targetYearStart > currentYearStart || (targetYearStart === currentYearStart && targetTermIdx > currentTermIdx);
+
+                                        if (isFuture) {
+                                            return (
+                                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                                                    <div className="mt-0.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={copyFeesState}
+                                                            onChange={(e) => setCopyFeesState(e.target.checked)}
+                                                            id="copyFees"
+                                                            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                        />
+                                                    </div>
+                                                    <label htmlFor="copyFees" className="text-sm cursor-pointer select-none">
+                                                        <span className="font-bold text-blue-900 block mb-0.5">Copy Fee Structure</span>
+                                                        <span className="text-blue-700/80">
+                                                            Since you are starting a new term, checking this will copy fees from the current term.
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
+
+                                <div className="pt-2 flex justify-end gap-3">
+                                    {schoolConfig?.current_term && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSessionModal(false)}
+                                            className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all active:scale-95"
+                                    >
+                                        Continue
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="p-6 animate-in fade-in slide-in-from-right-8">
+                                <div className="text-center mb-6">
+                                    <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <History className="h-8 w-8 text-blue-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">Confirm Session Switch</h3>
+                                    <div className="text-sm text-slate-500 max-w-xs mx-auto">
+                                        You are about to switch the dashboard context to:
+                                        <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 mt-3 font-bold text-slate-800 text-lg">
+                                            {targetTerm} <span className="text-slate-400 font-light">|</span> {targetYear}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-4">
+                                        The dashboard will refresh to show data specifically for this period. Existing data for other terms will be preserved.
+                                    </p>
+                                </div>
+
+                                <div className="flex justify-center gap-3">
+                                    <button
+                                        onClick={() => setShowConfirmSwitch(false)}
+                                        className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            startNewTermMutation.mutate({ term: targetTerm, year: targetYear, copyFees: copyFeesState });
+                                            setShowSessionModal(false);
+                                        }}
+                                        className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
+                                    >
+                                        Confirm Switch
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

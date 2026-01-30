@@ -60,6 +60,20 @@ const fetchSMSTransactions = async (schoolId: string) => {
     return data || [];
 };
 
+const fetchStudentCount = async (schoolId: string) => {
+    const { count, error } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('school_id', schoolId);
+
+    if (error) throw error;
+    return count || 0;
+};
+
+
+
+
+
 
 const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hiddenMenuItems, toggleHiddenMenu, availableMenus }) => {
     const queryClient = useQueryClient();
@@ -80,25 +94,11 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [showPlanModal, setShowPlanModal] = useState(false);
     const [showInvoice, setShowInvoice] = useState<any>(null);
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-    const [showSessionModal, setShowSessionModal] = useState(false);
-    const [targetTerm, setTargetTerm] = useState('First Term');
-    const [targetYear, setTargetYear] = useState(new Date().getFullYear() + '/' + (new Date().getFullYear() + 1));
-    const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
-    const [copyFeesState, setCopyFeesState] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<any>(null);
 
-    // Reset target defaults when modal opens
-    useEffect(() => {
-        if (showSessionModal && config) {
-            // Default to next logical term
-            const terms = ['First Term', 'Second Term', 'Third Term'];
-            const nextIdx = (terms.indexOf(config.current_term) + 1) % 3;
-            setTargetTerm(terms[nextIdx]);
-            setTargetYear(config.academic_year); // Default to current year for continuity
-            setShowConfirmSwitch(false); // Reset confirmation step
-            setCopyFeesState(false); // Reset checkbox
-        }
-    }, [showSessionModal, config]);
+
 
 
     // --- Queries ---
@@ -121,6 +121,14 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         enabled: !!schoolId && !isTeacher && activeTab === 'billing'
     });
 
+    const { data: studentCount = 0 } = useQuery({
+        queryKey: ['studentCount', schoolId],
+        queryFn: () => fetchStudentCount(schoolId!),
+        enabled: !!schoolId
+    });
+
+
+
     // Sync Query Data to Local Config State
     useEffect(() => {
         if (schoolData) {
@@ -138,15 +146,14 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 plan: schoolData.subscription_plan || 'Small School',
                 nextPaymentDue: schoolData.next_payment_due,
                 paymentConfig: schoolData.payment_config || {},
-                // Balance is directly from schoolData usually? 
-                // Original code fetched separate balance + transactions in one effect.
-                // Re-mapping slightly.
-                sms_balance: schoolData.sms_balance || 0
+                sms_balance: schoolData.sms_balance || 0,
+                admin: currentUser?.name || '',
+                isExpired: schoolData.next_payment_due ? new Date(schoolData.next_payment_due) < new Date() : false
             });
 
             // If referral code is missing in DB, we could trigger an update here, but let's just display generated for now.
         }
-    }, [schoolData]);
+    }, [schoolData, currentUser]);
 
 
     // -- Mutations --
@@ -174,6 +181,22 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             alert('School settings updated successfully!');
         },
         onError: (err: any) => alert('Error updating settings: ' + err.message)
+    });
+
+    const updateProfileMutation = useMutation({
+        mutationFn: async (newName: string) => {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ name: newName })
+                .eq('id', currentUser?.id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            // We can't easily force App.tsx to reload user without a refresh or context update.
+            // But we can alert success.
+            alert('Administrator name updated successfully. Please re-login to see changes in the header.');
+        },
+        onError: (err: any) => alert('Error updating profile: ' + err.message)
     });
 
     const updatePaymentConfigMutation = useMutation({
@@ -241,28 +264,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         onError: (err: any) => alert("Error: " + err.message)
     });
 
-    const startNewTermMutation = useMutation({
-        mutationFn: async ({ term, year, copyFees }: { term: string, year: string, copyFees: boolean }) => {
-            const { error } = await supabase.rpc('start_new_term', {
-                p_school_id: schoolId,
-                p_new_term: term,
-                p_new_year: year,
-                p_copy_fees: copyFees
-            });
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['feeStructure', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['transactions', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['students', schoolId] }); // Refresh balances
 
-            setShowSessionModal(false);
-            setShowSuccessModal(true);
-            setTimeout(() => setShowSuccessModal(false), 3000);
-        },
-        onError: (err: any) => alert("Error starting new term: " + err.message)
-    });
 
 
     // -- Handlers --
@@ -291,13 +293,22 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         updateGeneralSettingsMutation.mutate(config);
     };
 
-    const handleSecuritySave = (e: React.FormEvent) => {
+    const handleSecuritySave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (passwords.new !== passwords.confirm) {
-            alert("New passwords do not match.");
-            return;
+
+        // Update Name
+        if (config.admin && config.admin !== currentUser?.name) {
+            updateProfileMutation.mutate(config.admin);
         }
-        updatePasswordMutation.mutate(passwords.new);
+
+        // Update Password
+        if (passwords.new) {
+            if (passwords.new !== passwords.confirm) {
+                alert("New passwords do not match.");
+                return;
+            }
+            updatePasswordMutation.mutate(passwords.new);
+        }
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,31 +519,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             </div>
                         </form>
 
-                        {/* ACADEMIC SESSION MANAGEMENT */}
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                            <h2 className="text-2xl font-bold text-slate-800 mb-2">Academic Session</h2>
-                            <p className="text-slate-500 text-sm mb-6">Manage the current term and academic year. Starting a new term will archive current data.</p>
 
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                                <div>
-                                    <p className="text-xs font-bold text-slate-500 uppercase">Current Session</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <h3 className="text-xl font-bold text-slate-800">{config.current_term || 'Not Set'}</h3>
-                                        <span className="text-slate-600 font-medium">{config.academic_year}</span>
-                                    </div>
-                                    <p className="text-xs text-green-600 font-bold mt-1 flex items-center gap-1">
-                                        <CheckCircle className="h-3 w-3" /> Active
-                                    </p>
-                                </div>
-                                <button
-                                    disabled={startNewTermMutation.isPending}
-                                    onClick={() => setShowSessionModal(true)}
-                                    className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg flex items-center gap-2"
-                                >
-                                    <History className="h-4 w-4" /> Manage Session
-                                </button>
-                            </div>
-                        </div>
 
                         {/* App Installation Card */}
                         {!window.matchMedia('(display-mode: standalone)').matches && (
@@ -597,177 +584,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     </div>
                 )}
 
-                {/* Session Management Modal */}
-                {showSessionModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-                        <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-xl font-bold text-slate-800">Switch Academic Session</h3>
-                                    <p className="text-xs text-slate-500 mt-1">Select the term you want to activate/switch to.</p>
-                                </div>
-                                <button onClick={() => setShowSessionModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                                    <X className="h-5 w-5" />
-                                </button>
-                            </div>
 
-                            {!showConfirmSwitch ? (
-                                <form
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        if (!targetTerm || !targetYear) return alert("Please fill in all fields.");
-                                        setShowConfirmSwitch(true);
-                                    }}
-                                    className="p-6 space-y-6"
-                                >
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Term Name</label>
-                                            <div className="relative">
-                                                <select
-                                                    name="term"
-                                                    value={targetTerm}
-                                                    onChange={(e) => setTargetTerm(e.target.value)}
-                                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 outline-none appearance-none"
-                                                >
-                                                    <option value="First Term">First Term</option>
-                                                    <option value="Second Term">Second Term</option>
-                                                    <option value="Third Term">Third Term</option>
-                                                </select>
-                                                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Academic Year</label>
-                                            <div className="relative">
-                                                <select
-                                                    name="year"
-                                                    value={targetYear}
-                                                    onChange={(e) => setTargetYear(e.target.value)}
-                                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 outline-none appearance-none"
-                                                >
-                                                    {(() => {
-                                                        const currentYear = new Date().getFullYear();
-                                                        const years = [];
-                                                        for (let i = -1; i < 4; i++) {
-                                                            const y = currentYear + i;
-                                                            years.push(`${y}/${y + 1}`);
-                                                        }
-                                                        return years.map(y => <option key={y} value={y}>{y}</option>);
-                                                    })()}
-                                                </select>
-                                                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
-                                            </div>
-                                        </div>
-
-                                        {/* Logic to determine if "Future" (New Term) */}
-                                        {(() => {
-                                            const terms = ['First Term', 'Second Term', 'Third Term'];
-                                            const currentYearStart = parseInt(config?.academic_year?.split('/')[0] || '0');
-                                            const targetYearStart = parseInt(targetYear.split('/')[0]);
-                                            const currentTermIdx = terms.indexOf(config?.current_term || '');
-                                            const targetTermIdx = terms.indexOf(targetTerm);
-
-                                            const isFuture = targetYearStart > currentYearStart || (targetYearStart === currentYearStart && targetTermIdx > currentTermIdx);
-
-                                            if (isFuture) {
-                                                return (
-                                                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                                                        <div className="mt-0.5">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={copyFeesState}
-                                                                onChange={(e) => setCopyFeesState(e.target.checked)}
-                                                                id="copyFees"
-                                                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                                            />
-                                                        </div>
-                                                        <label htmlFor="copyFees" className="text-sm cursor-pointer select-none">
-                                                            <span className="font-bold text-blue-900 block mb-0.5">Copy Fee Structure</span>
-                                                            <span className="text-blue-700/80">
-                                                                Since you are starting a new term, checking this will copy fees from the current term.
-                                                            </span>
-                                                        </label>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
-                                    </div>
-
-                                    <div className="pt-2 flex justify-end gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowSessionModal(false)}
-                                            className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all active:scale-95"
-                                        >
-                                            Continue
-                                        </button>
-                                    </div>
-                                </form>
-                            ) : (
-                                <div className="p-6 animate-in fade-in slide-in-from-right-8">
-                                    <div className="text-center mb-6">
-                                        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <History className="h-8 w-8 text-blue-600" />
-                                        </div>
-                                        <h3 className="text-xl font-bold text-slate-800 mb-2">Confirm Session Switch</h3>
-                                        <div className="text-sm text-slate-500 max-w-xs mx-auto">
-                                            You are about to switch the dashboard context to:
-                                            <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 mt-3 font-bold text-slate-800 text-lg">
-                                                {targetTerm} <span className="text-slate-400 font-light">|</span> {targetYear}
-                                            </div>
-                                        </div>
-                                        <p className="text-xs text-slate-400 mt-4">
-                                            The dashboard will refresh to show data specifically for this period. Existing data for other terms will be preserved.
-                                        </p>
-                                    </div>
-
-                                    <div className="flex justify-center gap-3">
-                                        <button
-                                            onClick={() => setShowConfirmSwitch(false)}
-                                            className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                                        >
-                                            Back
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                // Get the checkbox value if it existed in the form steps, 
-                                                // but since we are in a new view, we need to pass it or store it in state.
-                                                // Simpler: Just grab it from DOM if it exists, or better, store `copyFees` in state too.
-                                                // I'll update Step 1 to add `copyFees` state or just use a ref. 
-                                                // Actually, simpler: I'll accept that if I hide the checkbox, it's false.
-                                                // If it was shown, the user might have checked it.
-                                                // REVISION: I need `copyFees` state to persist across this view switch.
-                                                // I will assume `false` for now to be safe, or quickly add logic.
-                                                // Okay, strictly speaking I should have added `const [copyFees, setCopyFees] = useState(false)`.
-                                                // I'll add a `useRef` or just assume false for old terms (which is correct).
-                                                // For NEW terms, the user might want it.
-                                                // I will default `copyFees` to FALSE in the mutation call here for safety unless I add state.
-                                                // Wait, the user WANTS to copy fees for new terms.
-                                                // I will adding `const [copyFees, setCopyFees]` is better.
-                                                // I'll inject that into the previous tool call or just use `document.getElementById('copyFees')?.checked`? No, component unmounts.
-                                                // I WILL ADD ONE MORE STATE TO STEP 1.
-                                                startNewTermMutation.mutate({ term: targetTerm, year: targetYear, copyFees: copyFeesState });
-                                                setShowSessionModal(false);
-                                            }}
-                                            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
-                                        >
-                                            Confirm Switch
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {/* --- TAB 2: SECURITY --- */}
                 {activeTab === 'security' && (
@@ -878,10 +695,21 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                             </div>
                                             <div className="flex justify-between text-sm border-b border-white/10 pb-2">
                                                 <span className="text-slate-300">Next Billing</span>
-                                                <span className="font-bold">{config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}</span>
+                                                <span className={`font-bold ${config.isExpired ? 'text-red-400' : ''}`}>
+                                                    {config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}
+                                                    {config.isExpired && ' (Expired)'}
+                                                </span>
                                             </div>
                                         </div>
-                                        <button onClick={() => setShowPlanModal(true)} className="w-full bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors">Manage Subscription</button>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setShowPlanModal(true)} className="flex-1 bg-white/10 text-white border border-white/20 py-2 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">Change Plan</button>
+                                            <button
+                                                onClick={() => { setSelectedPlanForPayment(currentPlan); setShowPaymentModal(true); }}
+                                                className="flex-1 bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
+                                            >
+                                                {config.isExpired ? 'Renew Now' : 'Extend'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1093,48 +921,82 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             {/* Plan Upgrade Modal */}
             {showPlanModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Manage Subscription</h3>
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Choose Your Plan</h3>
+                                <p className="text-slate-500 text-sm">Upgrade anytime. Downgrades available only upon renewal.</p>
+                            </div>
                             <button onClick={() => setShowPlanModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="h-5 w-5 text-slate-500" /></button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {plans.map((plan) => (
-                                <div key={plan.name} className={`border-2 rounded-xl p-6 relative flex flex-col ${config.plan === plan.name ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-slate-200 hover:border-slate-300'}`}>
-                                    {config.plan === plan.name && (
-                                        <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-lg">
-                                            CURRENT PLAN
-                                        </div>
-                                    )}
-                                    <h4 className="font-bold text-lg text-slate-800 mb-1">{plan.name}</h4>
-                                    <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500"> / student / term</span></p>
+                            {plans.map((plan) => {
+                                const isCurrent = config.plan === plan.name;
+                                const currentPlanObj = plans.find(p => p.name === config.plan) || plans[0];
+                                const isUpgrade = plan.rank > currentPlanObj.rank;
+                                const isSame = plan.rank === currentPlanObj.rank;
+                                const canSelect = isUpgrade || isSame || config.isExpired;
 
-                                    <ul className="space-y-2 mb-6 flex-1">
-                                        {plan.features.map((feat, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                                                <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                <span>{feat}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                return (
+                                    <div key={plan.name} className={`border-2 rounded-xl p-6 relative flex flex-col ${isCurrent ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600 scale-[1.02] shadow-lg' : 'border-slate-200 hover:border-slate-300'}`}>
+                                        {isCurrent && (
+                                            <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-lg">
+                                                CURRENT PLAN
+                                            </div>
+                                        )}
+                                        <h4 className="font-bold text-lg text-slate-800 mb-1">{plan.name}</h4>
+                                        <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500"> / student / term</span></p>
 
-                                    <button
-                                        disabled={updatePlanMutation.isPending || config.plan === plan.name}
-                                        onClick={() => updatePlanMutation.mutate(plan.name)}
-                                        className={`w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${config.plan === plan.name ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-200'}`}
-                                    >
-                                        {updatePlanMutation.isPending ? 'Processing...' : config.plan === plan.name ? 'Active Plan' : 'Switch to ' + plan.name}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                                        <ul className="space-y-2 mb-6 flex-1">
+                                            {plan.features.map((feat, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                                                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                                                    <span>{feat}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
 
-                        <div className="mt-6 p-4 bg-slate-50 rounded-xl text-center">
-                            <p className="text-sm text-slate-500">Need a custom enterprise plan? <button className="text-primary-600 font-bold hover:underline">Contact Sales</button></p>
+                                        {isCurrent && !config.isExpired ? (
+                                            <button disabled className="w-full py-2.5 rounded-lg font-bold text-sm bg-slate-200 text-slate-400 cursor-not-allowed">
+                                                Current Active Plan
+                                            </button>
+                                        ) : (
+                                            <button
+                                                disabled={!canSelect}
+                                                onClick={() => {
+                                                    // If switching to a new plan, we assume they need to pay/confirm. 
+                                                    // For now, let's open payment modal for the selected plan.
+                                                    setSelectedPlanForPayment(plan);
+                                                    setShowPaymentModal(true);
+                                                    setShowPlanModal(false);
+                                                }}
+                                                className={`w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${canSelect ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                            >
+                                                {!canSelect ? 'Available on Renewal' : isCurrent ? 'Renew Current Plan' : isUpgrade ? 'Upgrade Now' : 'Switch & Renew'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showPaymentModal && selectedPlanForPayment && (
+                <PaymentDetailsModal
+                    plan={selectedPlanForPayment}
+                    studentCount={studentCount}
+                    onClose={() => setShowPaymentModal(false)}
+                    schoolName={config.name}
+                    isUpgrade={selectedPlanForPayment.name !== config.plan}
+                    onConfirmSub={() => {
+                        // After successful payment (hypothetically), update the plan
+                        updatePlanMutation.mutate(selectedPlanForPayment.name);
+                        setShowPaymentModal(false);
+                    }}
+                />
             )}
 
             {/* Invoice Modal */}
@@ -1195,6 +1057,7 @@ const plans = [
     {
         name: "Foundation Package",
         price: "4",
+        rank: 1,
         limit: "Per Student / Term",
         features: [
             "School Management (Records, Classes)",
@@ -1207,6 +1070,7 @@ const plans = [
     {
         name: "Performance Package",
         price: "20",
+        rank: 2,
         limit: "Per Student / Term",
         isPopular: true,
         features: [
@@ -1219,5 +1083,164 @@ const plans = [
         ]
     }
 ];
+
+const PaymentDetailsModal = ({ plan, studentCount, onClose, schoolName, isUpgrade, onConfirmSub }: any) => {
+    const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card');
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Billing Calculation
+    const pricePerStudent = Number(plan.price);
+    const count = studentCount || 0;
+    const totalBill = pricePerStudent * count;
+
+    // Installment State
+    const [amountToPay, setAmountToPay] = useState<string>(totalBill.toString());
+
+    const handlePaystack = () => {
+        setIsProcessing(true);
+        const payAmount = Number(amountToPay);
+
+        if (payAmount <= 0) {
+            alert("Please enter a valid amount.");
+            setIsProcessing(false);
+            return;
+        }
+
+        // Mock Paystack integration with dynamic amount
+        setTimeout(() => {
+            const isPartial = payAmount < totalBill;
+            const message = isPartial
+                ? `Partial Payment of GH¢ ${payAmount.toFixed(2)} Received.\nOutstanding Balance: GH¢ ${(totalBill - payAmount).toFixed(2)}`
+                : `Full Payment of GH¢ ${payAmount.toFixed(2)} Successful!`;
+
+            alert(`Paystack Payment Gateway Integration Coming Soon!\nPAYMENT SIMULATED: SUCCESS\n\n${message}`);
+            onConfirmSub();
+            setIsProcessing(false);
+        }, 1500);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 bg-slate-900 text-white border-b border-white/10 flex justify-between items-start">
+                    <div>
+                        <h3 className="font-bold text-xl">{isUpgrade ? 'Upgrade Subscription' : 'Renew Subscription'}</h3>
+                        <p className="text-slate-400 text-sm mt-1">{schoolName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><X className="h-5 w-5" /></button>
+                </div>
+
+                <div className="p-6 bg-slate-50 border-b border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-slate-500 font-bold text-xs uppercase tracking-wider">Plan Selected</span>
+                        <span className="text-primary-600 font-bold text-xs bg-primary-50 px-2 py-1 rounded shadow-sm">{plan.name}</span>
+                    </div>
+
+                    {/* Bill Breakdown */}
+                    <div className="space-y-2 mb-4">
+                        <div className="flex justify-between text-sm text-slate-600">
+                            <span>Rate per Student</span>
+                            <span>GH¢ {plan.price}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-slate-600">
+                            <span>Total Students</span>
+                            <span>x {count}</span>
+                        </div>
+                        <div className="border-t border-slate-200 my-2"></div>
+                        <div className="flex justify-between items-end">
+                            <span className="font-bold text-slate-700">Total Bill</span>
+                            <span className="text-slate-900 font-black text-2xl">GH¢ {totalBill.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                    </div>
+
+                    {/* Installment Input */}
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Amount you want to pay now (GH¢)</label>
+                        <input
+                            type="number"
+                            value={amountToPay}
+                            onChange={(e) => setAmountToPay(e.target.value)}
+                            className="w-full p-2 text-lg font-bold text-blue-900 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {Number(amountToPay) < totalBill && Number(amountToPay) > 0 && (
+                            <div className="mt-2 space-y-1">
+                                <p className="text-xs text-blue-600 font-medium">
+                                    Balance to carry forward: <span className="font-bold">GH¢ ${(totalBill - Number(amountToPay)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </p>
+                                <p className="text-[10px] text-blue-400">Installment payment acknowledged.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                        <button onClick={() => setPayMethod('card')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${payMethod === 'card' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Mobile Money / Card</button>
+                        <button onClick={() => setPayMethod('bank')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${payMethod === 'bank' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Bank Transfer</button>
+                    </div>
+
+                    {payMethod === 'card' ? (
+                        <div className="space-y-6 text-center py-4">
+                            <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-2">
+                                <CreditCard className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-slate-800 mb-2">Pay Securely with Paystack</h4>
+                                <p className="text-slate-500 text-sm max-w-xs mx-auto">Click below to initiate payment of <span className="font-bold text-slate-900">GH¢ {Number(amountToPay).toLocaleString()}</span> via MM/Card.</p>
+                            </div>
+                            <button
+                                onClick={handlePaystack}
+                                disabled={isProcessing || Number(amountToPay) <= 0}
+                                className="w-full bg-[#00C3F7] text-white hover:brightness-95 py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200/50 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lock className="w-4 h-4" />}
+                                {isProcessing ? 'Processing...' : `Pay GH¢ ${Number(amountToPay).toLocaleString()}`}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                                <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3">
+                                    <Building2 className="w-5 h-5 text-slate-400" />
+                                    <span className="font-bold text-slate-700">Bank Details</span>
+                                </div>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Bank Name</span>
+                                        <span className="font-bold text-slate-800">Zenith Bank</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Account Name</span>
+                                        <span className="font-bold text-slate-800">Orbit Education Systems</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Account Number</span>
+                                        <span className="font-bold text-slate-800 font-mono text-base">1234567890123</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Branch</span>
+                                        <span className="font-bold text-slate-800">Accra Main</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Amount Due</span>
+                                        <span className="font-bold text-primary-600">GH¢ {Number(amountToPay).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Reference</span>
+                                        <span className="font-bold text-slate-800">Please use School Name</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded-lg border border-yellow-100 flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                <p>After transfer, please send proof of payment to billing@orbit.edu.gh or call 0200000000 for activation.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default Settings;

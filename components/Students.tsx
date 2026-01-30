@@ -3,7 +3,8 @@ import {
   Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
-  Table as TableIcon, LayoutList, Camera, UploadCloud, Lock
+  Table as TableIcon, LayoutList, Camera, UploadCloud, Lock,
+  Mail, MapPin, Shield, Copy, GraduationCap, School, CreditCard
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
@@ -814,43 +815,99 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       )}
 
       {isImportModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4">Import Students via CSV</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Upload a CSV file with columns: Name, Class, Gender, Parent Name, Parent Phone, (Optional) Balance.
-              <br /><span className="text-xs text-slate-400 italic">Duplicates matching by Name will update existing records.</span>
-            </p>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImportCSV(file);
-              }}
-              className="block w-full text-sm text-slate-500
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-full file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-primary-50 file:text-primary-700
-                    hover:file:bg-primary-100"
-            />
-            {importProgress && (
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs font-medium text-slate-600">
-                  <span>{importProgress.status}</span>
-                  <span>{Math.round((importProgress.current / (importProgress.total || 1)) * 100)}%</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary-600 transition-all duration-300"
-                    style={{ width: `${(importProgress.current / (importProgress.total || 1)) * 100}%` }}
-                  ></div>
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Import Students</h3>
+                <p className="text-slate-500 text-sm">Bulk add students by uploading a CSV file.</p>
+              </div>
+              <button onClick={() => setIsImportModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+                <h4 className="text-blue-800 font-bold text-sm mb-2 flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" /> Required CSV Format
+                </h4>
+                <p className="text-blue-600 text-xs mb-4">
+                  Your CSV file <strong>must</strong> have the headers in the exact order shown below. The first row is skipped as a header row.
+                </p>
+
+                <div className="overflow-x-auto border border-blue-200 rounded-lg bg-white">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-blue-100">
+                      <tr>
+                        <th className="px-3 py-2 border-r border-slate-100">Name <span className="text-red-500">*</span></th>
+                        <th className="px-3 py-2 border-r border-slate-100">Class <span className="text-red-500">*</span></th>
+                        <th className="px-3 py-2 border-r border-slate-100">Gender</th>
+                        <th className="px-3 py-2 border-r border-slate-100">Parent Name</th>
+                        <th className="px-3 py-2 border-r border-slate-100">Parent Phone</th>
+                        <th className="px-3 py-2">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-600">
+                      <tr className="border-b border-slate-50">
+                        <td className="px-3 py-2 border-r border-slate-50">John Doe</td>
+                        <td className="px-3 py-2 border-r border-slate-50">JHS 1</td>
+                        <td className="px-3 py-2 border-r border-slate-50">Male</td>
+                        <td className="px-3 py-2 border-r border-slate-50">Mary Doe</td>
+                        <td className="px-3 py-2 border-r border-slate-50">0541234567</td>
+                        <td className="px-3 py-2">0</td>
+                      </tr>
+                      <tr>
+                        <td className="px-3 py-2 border-r border-slate-50">Jane Smith</td>
+                        <td className="px-3 py-2 border-r border-slate-50">Class 6</td>
+                        <td className="px-3 py-2 border-r border-slate-50">Female</td>
+                        <td className="px-3 py-2 border-r border-slate-50">Peter Smith</td>
+                        <td className="px-3 py-2 border-r border-slate-50">0209876543</td>
+                        <td className="px-3 py-2">150.00</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            )}
-            <div className="flex justify-end mt-4">
-              <button onClick={() => setIsImportModalOpen(false)} className="text-slate-500 hover:text-slate-700 text-sm font-medium">Close</button>
+
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center hover:border-primary-500 hover:bg-primary-50/50 transition-all cursor-pointer group relative">
+                  <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-primary-500 mb-2 transition-colors" />
+                  <p className="text-sm font-medium text-slate-700 group-hover:text-primary-700">Click to upload CSV file</p>
+                  <p className="text-xs text-slate-400 mt-1">or drag and drop here</p>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImportCSV(file);
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+
+                {importProgress && (
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-2">
+                      <span>{importProgress.status}</span>
+                      <span>{Math.round((importProgress.current / (importProgress.total || 1)) * 100)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary-600 transition-all duration-300 ease-out"
+                        style={{ width: `${(importProgress.current / (importProgress.total || 1)) * 100}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 text-center">Processing record {importProgress.current} of {importProgress.total}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-white hover:shadow-sm rounded-lg transition-all border border-transparent hover:border-slate-200">
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -872,7 +929,6 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting }: any
     onSave(formData);
   };
 
-  // Set default class if available
   useEffect(() => {
     if (classes.length > 0 && !formData.class) {
       setFormData(prev => ({ ...prev, class: classes[0].name }));
@@ -880,71 +936,171 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting }: any
   }, [classes]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-slate-800">Add New Student</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="h-5 w-5 text-slate-500" /></button>
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Add New Student</h2>
+            <p className="text-slate-500 text-sm">Enter the student's information to create a new record.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 hover:text-slate-700">
+            <X className="h-5 w-5" />
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Form fields simplified for brevity - assume identical to original but using formData state */}
-          <div className="flex gap-4 items-center">
-            <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center border-2 border-dashed border-slate-300 hover:border-primary-400 cursor-pointer relative overflow-hidden group">
-              {formData.photoFile ? (
-                <img src={URL.createObjectURL(formData.photoFile)} className="w-full h-full object-cover" />
-              ) : <Camera className="h-6 w-6 text-slate-400" />}
-              <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
-                if (e.target.files?.[0]) setFormData({ ...formData, photoFile: e.target.files[0] });
-              }} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-700">Student Photo</p>
-              <p className="text-xs text-slate-400">Click to upload (Optional)</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Full Name</label>
-              <input required type="text" className="input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Class</label>
-              <select className="input" value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>
-                {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {/* Section 1: Identity */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <User className="h-4 w-4 text-primary-600" /> Student Identity
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-6">
+              {/* Photo Upload */}
+              <div className="flex flex-col items-center space-y-2">
+                <div className="relative group">
+                  <div className="h-28 w-28 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden hover:border-primary-500 transition-colors">
+                    {formData.photoFile ? (
+                      <img src={URL.createObjectURL(formData.photoFile)} className="w-full h-full object-cover" alt="Preview" />
+                    ) : (
+                      <Camera className="h-8 w-8 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={e => {
+                      if (e.target.files?.[0]) setFormData({ ...formData, photoFile: e.target.files[0] });
+                    }}
+                  />
+                  <div className="absolute bottom-0 right-0 bg-primary-600 text-white p-1.5 rounded-full shadow-lg border-2 border-white">
+                    <Edit className="h-3 w-3" />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 font-medium text-center">Tap to upload photo</p>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
+              {/* Bio Fields */}
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name <span className="text-red-500">*</span></label>
+                  <input
+                    required
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm font-medium"
+                    placeholder="e.g. John Doe"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Class/Grade</label>
+                  <div className="relative">
+                    <select
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm appearance-none"
+                      value={formData.class}
+                      onChange={e => setFormData({ ...formData, class: e.target.value })}
+                    >
+                      {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                    <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Gender</label>
+                  <div className="relative">
+                    <select
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm appearance-none"
+                      value={formData.gender}
+                      onChange={e => setFormData({ ...formData, gender: e.target.value as any })}
+                    >
+                      <option>Male</option>
+                      <option>Female</option>
+                    </select>
+                    <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Date of Birth</label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm text-slate-600"
+                    value={formData.dob}
+                    onChange={e => setFormData({ ...formData, dob: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 2: Guardian */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <Phone className="h-4 w-4 text-primary-600" /> Guardian Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Parent/Guardian Name <span className="text-red-500">*</span></label>
+                <input
+                  required
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm"
+                  placeholder="e.g. Mary Doe"
+                  value={formData.parentName}
+                  onChange={e => setFormData({ ...formData, parentName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number <span className="text-red-500">*</span></label>
+                <input
+                  required
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm"
+                  placeholder="e.g. 020 123 4567"
+                  value={formData.parentPhone}
+                  onChange={e => setFormData({ ...formData, parentPhone: e.target.value })}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Section 3: Financials */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary-600" /> Initial Data
+            </h3>
             <div>
-              <label className="label">Gender</label>
-              <select className="input" value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value as any })}>
-                <option>Male</option><option>Female</option>
-              </select>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Outstanding Balance (Optional)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">GHS</span>
+                <input
+                  type="number"
+                  className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm font-mono"
+                  placeholder="0.00"
+                  value={formData.balance}
+                  onChange={e => setFormData({ ...formData, balance: e.target.value })}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Leave empty to use default class fees.</p>
             </div>
-            <div>
-              <label className="label">Date of Birth</label>
-              <input type="date" className="input" value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })} />
-            </div>
-          </div>
+          </section>
 
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-sm font-bold text-slate-800 mb-3">Parent / Guardian Details</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="label">Parent Name</label><input required className="input" value={formData.parentName} onChange={e => setFormData({ ...formData, parentName: e.target.value })} /></div>
-              <div><label className="label">Phone Number</label><input required className="input" value={formData.parentPhone} onChange={e => setFormData({ ...formData, parentPhone: e.target.value })} /></div>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-100 pt-4">
-            <div className="flex justify-between mb-2"><label className="label">Previous Fees Balance (Optional)</label></div>
-            <input type="number" className="input" placeholder="0.00" value={formData.balance} onChange={e => setFormData({ ...formData, balance: e.target.value })} />
-          </div>
-
-          <div className="pt-4 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={isSubmitting} className="btn-primary">{isSubmitting ? 'Saving...' : 'Save Student'}</button>
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700 shadow-sm shadow-primary-200 transition-all text-sm flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Saving Use...</> : <><Plus className="h-4 w-4" /> Add Student</>}
+            </button>
           </div>
         </form>
       </div>
@@ -966,46 +1122,108 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
     photoFile: null as File | null
   });
 
-  // ... Similar structure to AddStudentModal but pre-filled
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave(formData); };
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="text-xl font-bold text-slate-800">Edit Student</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-500" /></button>
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Edit Student</h2>
+            <p className="text-sm text-slate-500">Update student information and settings.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="h-5 w-5 text-slate-500" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* ... Inputs matching Add Modal ... */}
-          <div className="flex gap-4 items-center">
-            <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center border-2 border-dashed border-slate-300 relative overflow-hidden">
-              {(formData.photoFile || student.photo_url) ? (
-                <img src={formData.photoFile ? URL.createObjectURL(formData.photoFile) : student.photo_url} className="w-full h-full object-cover" />
-              ) : <User className="h-8 w-8 text-slate-300" />}
-              <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
-                if (e.target.files?.[0]) setFormData({ ...formData, photoFile: e.target.files[0] });
-              }} />
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {/* Section 1: Profile & Bio */}
+          <div className="flex flex-col sm:flex-row gap-6">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="relative group">
+                <div className="h-28 w-28 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden hover:border-primary-500 transition-colors">
+                  {(formData.photoFile || student.photo_url) ? (
+                    <img src={formData.photoFile ? URL.createObjectURL(formData.photoFile) : student.photo_url} className="w-full h-full object-cover" alt="Student" />
+                  ) : <User className="h-8 w-8 text-slate-300" />}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={e => {
+                    if (e.target.files?.[0]) setFormData({ ...formData, photoFile: e.target.files[0] });
+                  }}
+                />
+                <div className="absolute bottom-0 right-0 bg-white text-primary-600 p-1.5 rounded-full shadow border border-slate-200 cursor-pointer">
+                  <Camera className="h-3 w-3" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name</label>
+                  <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Class</label>
+                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>
+                    {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Gender</label>
+                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value as any })}>
+                    <option>Male</option><option>Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Date of Birth</label>
+                  <input type="date" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm text-slate-600" value={formData.dob} onChange={e => setFormData({ ...formData, dob: e.target.value })} />
+                </div>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <input className="input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Name" />
-            <select className="input" value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>
-              {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
+
+          {/* Guardian */}
+          <div className="pt-4 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Guardian Details</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Parent Name</label>
+                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.parentName} onChange={e => setFormData({ ...formData, parentName: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Parent Phone</label>
+                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.parentPhone} onChange={e => setFormData({ ...formData, parentPhone: e.target.value })} />
+              </div>
+            </div>
           </div>
-          {/* For brevity, assuming other fields exist similar to Add Modal */}
-          <div className="grid grid-cols-2 gap-4">
-            <input className="input" value={formData.parentName} onChange={e => setFormData({ ...formData, parentName: e.target.value })} placeholder="Parent Name" />
-            <input className="input" value={formData.parentPhone} onChange={e => setFormData({ ...formData, parentPhone: e.target.value })} placeholder="Phone" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <input className="input" value={formData.admission_no} onChange={e => setFormData({ ...formData, admission_no: e.target.value })} placeholder="Admission No" />
-            <input className="input" value={formData.pin} onChange={e => setFormData({ ...formData, pin: e.target.value })} placeholder="PIN" />
+
+          {/* Admin Data */}
+          <div className="pt-4 border-t border-slate-100 bg-orange-50/50 p-4 rounded-xl">
+            <h4 className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-4 flex items-center gap-2"><Lock className="h-3 w-3" /> System Data (Caution)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Admission No.</label>
+                <input className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.admission_no} onChange={e => setFormData({ ...formData, admission_no: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Login PIN</label>
+                <input className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.pin} onChange={e => setFormData({ ...formData, pin: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
+                <input type="number" className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.balance} onChange={e => setFormData({ ...formData, balance: e.target.value })} />
+              </div>
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={isSubmitting} className="btn-primary">{isSubmitting ? 'Updating...' : 'Update Student'}</button>
+            <button type="button" onClick={onClose} className="px-5 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors">Cancel</button>
+            <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm transition-colors">{isSubmitting ? 'Updating...' : 'Update Student'}</button>
           </div>
         </form>
       </div>
@@ -1014,42 +1232,178 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
 };
 
 const StudentProfileDrawer = ({ student, onClose, onEdit }: any) => {
-  // Simplified Profile Drawer
+  const { formatAmount } = useCurrency();
+  const [showPin, setShowPin] = useState(false);
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex justify-end backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300">
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">Student Profile</h2>
-          <button onClick={onClose}><X className="h-6 w-6 text-slate-400" /></button>
-        </div>
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-32 w-32 rounded-full bg-slate-100 border-4 border-white shadow-lg overflow-hidden mb-4">
-            {student.photo_url ? <img src={student.photo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-slate-300">{student.name.charAt(0)}</div>}
-          </div>
-          <h3 className="text-xl font-bold text-slate-800">{student.name}</h3>
-          <p className="text-slate-500 font-medium">{student.class} • {student.admission_no}</p>
+    <div className="fixed inset-0 bg-black/40 z-[70] flex justify-end backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div
+        className="bg-white w-full max-w-lg h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300 relative"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Cover / Header */}
+        {/* Cover / Header */}
+        <div className="relative h-40 bg-gradient-to-tr from-primary-700 via-primary-600 to-blue-500 overflow-hidden shrink-0">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay z-0"></div>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/30 text-white rounded-full transition-colors backdrop-blur-md z-50 flex items-center justify-center"
+            title="Close Profile"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><User className="h-4 w-4" /> Personal Info</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="block text-slate-400 text-xs uppercase">Gender</span>{student.gender}</div>
-              <div><span className="block text-slate-400 text-xs uppercase">DOB</span>{student.dob || 'N/A'}</div>
-              <div><span className="block text-slate-400 text-xs uppercase">Status</span><span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-bold">{student.status}</span></div>
+        {/* Profile Content */}
+        <div className="px-6 relative -mt-16 pb-10">
+          {/* Avatar & Header Info */}
+          <div className="flex flex-col items-center mb-6">
+            <div className="h-32 w-32 rounded-full border-4 border-white shadow-xl bg-slate-100 flex items-center justify-center overflow-hidden mb-3">
+              {student.photo_url ? (
+                <img src={student.photo_url} className="w-full h-full object-cover" alt={student.name} />
+              ) : (
+                <span className="text-4xl font-bold text-slate-300">{student.name.charAt(0)}</span>
+              )}
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 text-center">{student.name}</h2>
+            <div className="flex gap-2 items-center mt-1">
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-medium text-xs border border-slate-200">
+                {student.class}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${student.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                }`}>
+                {student.status || 'Active'}
+              </span>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><Phone className="h-4 w-4" /> Guardian Info</h4>
-            <div className="space-y-3 text-sm">
-              <div><span className="block text-slate-400 text-xs uppercase">Parent Name</span>{student.parentName}</div>
-              <div><span className="block text-slate-400 text-xs uppercase">Phone Number</span>{student.parentPhone}</div>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-3 gap-3 mb-8">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+              <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Fee Balance</div>
+              <div className={`font-bold text-sm sm:text-base ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                {formatAmount(student.balance)}
+              </div>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+              <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Gender</div>
+              <div className="font-bold text-slate-700 text-sm sm:text-base">{student.gender}</div>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+              <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Attendance</div>
+              <div className="font-bold text-slate-700 text-sm sm:text-base">{student.attendance || 100}%</div>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button onClick={onEdit} className="flex-1 bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700">Edit Profile</button>
+          <div className="space-y-6">
+
+            {/* Credentials Card */}
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-3 opacity-10"><Shield className="h-16 w-16" /></div>
+              <h4 className="flex items-center gap-2 font-bold mb-4 text-slate-200 text-sm tracking-wide">
+                <Lock className="h-4 w-4" /> STUDENT CREDENTIALS
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
+                <div>
+                  <span className="block text-slate-400 text-xs mb-1">Admission Number</span>
+                  <div className="font-mono text-lg font-bold tracking-wider flex items-center gap-2">
+                    {student.admission_no}
+                    <button className="text-slate-500 hover:text-white transition-colors" onClick={() => navigator.clipboard.writeText(student.admission_no || '')}><Copy className="h-3 w-3" /></button>
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-slate-400 text-xs mb-1">Login PIN</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-lg font-bold tracking-wider">
+                      {showPin ? student.pin : '••••'}
+                    </span>
+                    <button onClick={() => setShowPin(!showPin)} className="text-slate-400 hover:text-white transition-colors">
+                      {showPin ? <Eye className="h-3 w-3" /> : <Eye className="h-3 w-3 off" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="col-span-1 sm:col-span-2 pt-2 border-t border-slate-700/50">
+                  <span className="block text-slate-500 text-[10px] uppercase tracking-wider mb-1">System ID</span>
+                  <div className="font-mono text-xs text-slate-400 break-all select-all cursor-text">
+                    {student.id}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Personal Information */}
+            <div className="border border-slate-100 rounded-xl p-5 shadow-sm">
+              <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <User className="h-4 w-4 text-primary-500" /> Personal Information
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+                  <span className="text-slate-500 text-sm">Full Name</span>
+                  <span className="font-medium text-slate-700 text-sm">{student.name}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+                  <span className="text-slate-500 text-sm">Target Class</span>
+                  <span className="font-medium text-slate-700 text-sm">{student.class}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+                  <span className="text-slate-500 text-sm">Date of Birth</span>
+                  <span className="font-medium text-slate-700 text-sm">{student.dob || 'Not Set'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+                  <span className="text-slate-500 text-sm">Gender</span>
+                  <span className="font-medium text-slate-700 text-sm">{student.gender}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-slate-50 last:border-0 last:pb-0">
+                  <span className="text-slate-500 text-sm">Account Status</span>
+                  <span className={`font-bold text-sm ${student.status === 'Active' ? 'text-green-600' : 'text-red-500'}`}>{student.status || 'Active'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Guardian Information */}
+            <div className="border border-slate-100 rounded-xl p-5 shadow-sm">
+              <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Phone className="h-4 w-4 text-primary-500" /> Guardian Details
+              </h4>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="h-10 w-10 rounded-full bg-primary-50 flex items-center justify-center text-primary-600 font-bold">
+                  {student.parentName.charAt(0)}
+                </div>
+                <div>
+                  <div className="font-bold text-slate-700 text-sm">{student.parentName}</div>
+                  <div className="text-slate-400 text-xs">Primary Guardian</div>
+                </div>
+                <a href={`tel:${student.parentPhone}`} className="ml-auto p-2 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors">
+                  <Phone className="h-4 w-4" />
+                </a>
+              </div>
+              <div className="flex justify-between py-2 border-t border-slate-50">
+                <span className="text-slate-500 text-sm">Contact Number</span>
+                <span className="font-mono font-medium text-slate-700 text-sm">{student.parentPhone}</span>
+              </div>
+            </div>
+
+            \n
+
+            {/* Actions */}
+            <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-2 border-t border-slate-50 mt-4">
+              <button
+                onClick={onClose}
+                className="px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                title="Close"
+              >
+                Close
+              </button>
+              <button
+                onClick={onEdit}
+                className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-lg shadow-slate-200 flex items-center justify-center gap-2"
+              >
+                <Edit className="h-4 w-4" /> Edit Profile
+              </button>
+              <button className="px-4 py-3 border border-red-200 text-red-600 bg-red-50 rounded-xl font-bold hover:bg-red-100 transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
