@@ -10,13 +10,13 @@ const Features: React.FC = () => {
       icon: Users
     },
     {
-      title: "Fee Management",
-      description: "Track payments, partial payments, and arrears instantly. Know who owes you at a glance.",
+      title: "School Fees & Bill Payment",
+      description: "Track payments, partial payments, and arrears instantly. Manage school fees collection in Ghana effortlessly.",
       icon: Banknote
     },
     {
-      title: "Academics & Reports",
-      description: "Generate beautiful, GES-compliant terminal report cards without the Excel headache.",
+      title: "Academics & GES Reports",
+      description: "Generate beautiful, GES-compliant terminal report cards including BECE mocks without the Excel headache.",
       icon: BookOpen
     },
     {
@@ -26,7 +26,7 @@ const Features: React.FC = () => {
     },
     {
       title: "SMS Messaging",
-      description: "Send fee reminders, meeting notices, and holiday wishes directly to parents' phones.",
+      description: "Send fee reminders, meeting notices, and holiday wishes directly to parents' phones via SMS.",
       icon: MessageSquare
     },
     {
@@ -40,8 +40,8 @@ const Features: React.FC = () => {
     <section id="features" className="py-20 bg-slate-50 scroll-mt-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Everything You Need to Run Your School</h2>
-          <p className="text-lg text-gray-600">The "Big 6" modules designed to simplify your administration.</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Complete School Management System Features</h2>
+          <p className="text-lg text-gray-600">The "Big 6" modules designed to simplify school administration in Ghana.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">

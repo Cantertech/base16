@@ -6,12 +6,12 @@ const WhyUs: React.FC = () => {
     {
       icon: WifiOff,
       title: "Works Offline / Slow Net",
-      description: "Bad network? No problem. Base16 is built as a Progressive Web App. Keep working and the system syncs automatically when the connection returns."
+      description: "Bad network? No problem. Base16 is optimized for Ghanaian internet conditions. Keep working and the system syncs automatically when the connection returns."
     },
     {
       icon: Send,
       title: "Automated Fee Chase",
-      description: "Stop calling parents one by one. Send professional bulk SMS reminders to all debtors with a single click. Improving collection rates by up to 40%."
+      description: "Stop calling parents one by one. Send professional bulk SMS reminders to all debtors in Ghana with a single click. Improving collection rates by up to 40%."
     },
     {
       icon: UserCheck,

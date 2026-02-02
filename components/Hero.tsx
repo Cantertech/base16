@@ -14,10 +14,10 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
           {/* Text Content */}
           <div className="lg:w-1/2 text-center lg:text-left">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 leading-tight mb-6">
-              Manage Your School with <span className="text-primary-800">Confidence & Ease</span>.
+              The Best <span className="text-primary-800">School Management System</span> in Ghana.
             </h1>
             <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              The all-in-one platform to streamline admissions, automate fee collection, and generate reports. Base16 simplifies administration so you can focus on education.
+              The all-in-one platform to streamline admissions, automate fee collection, and generate GES-compliant reports. Base16 simplifies school administration in Ghana.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -42,7 +42,7 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
               {/* Using the placeholder as requested */}
               <img
                 src="/orbit_dashboard.png"
-                alt="Base16 Dashboard"
+                alt="Base16 School Management System Dashboard Ghana"
                 className="w-full h-auto object-cover"
               />
             </div>
