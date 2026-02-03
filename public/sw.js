@@ -1,5 +1,7 @@
 const CACHE_NAME = 'base16-v2';
 const urlsToCache = [
+    '/',
+    '/index.html',
     '/manifest.json',
     '/favicon.png'
 ];

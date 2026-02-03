@@ -16,6 +16,7 @@ import Loading from './components/Loading';
 import About from './components/About';
 import Contact from './components/Contact';
 import Legal from './components/Legal';
+import InstallPrompt from './components/InstallPrompt';
 import { supabase } from './utils/supabaseClient';
 
 interface User {
@@ -299,6 +300,7 @@ const AppContent: React.FC = () => {
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      <InstallPrompt />
     </CurrencyProvider>
   );
 };

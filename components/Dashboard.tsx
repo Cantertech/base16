@@ -176,15 +176,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         queryFn: async () => {
             if (!currentUser.school_id) return null;
             const { data: school } = await supabase.from('schools').select('*').eq('id', currentUser.school_id).single();
-            return school ? {
-                name: school.name,
-                motto: school.motto,
-                logo: school.logo_url,
-                color: school.theme_color || 'blue',
-                next_payment_due: school.next_payment_due,
-                current_term: school.current_term || 'First Term',
-                academic_year: school.academic_year
-            } : null;
+
+            if (school) {
+                const config = {
+                    name: school.name,
+                    motto: school.motto,
+                    logo: school.logo_url,
+                    color: school.theme_color || 'blue',
+                    next_payment_due: school.next_payment_due,
+                    current_term: school.current_term || 'First Term',
+                    academic_year: school.academic_year
+                };
+                // Cache the config to prevent flashing on reload
+                localStorage.setItem(`orbit_school_config_${currentUser.school_id}`, JSON.stringify(config));
+                return config;
+            }
+            return null;
+        },
+        initialData: () => {
+            // Try to load from cache immediately to prevent theme flash
+            try {
+                const saved = localStorage.getItem(`orbit_school_config_${currentUser.school_id}`);
+                return saved ? JSON.parse(saved) : undefined;
+            } catch (e) {
+                return undefined;
+            }
         },
         enabled: !!currentUser.school_id
     });

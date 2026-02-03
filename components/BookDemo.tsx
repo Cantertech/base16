@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, CheckCircle, ArrowLeft, Phone, Mail, MapPin } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, ArrowLeft, Phone, Mail, MapPin, Loader2 } from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
 
 interface BookDemoProps {
   onBack: () => void;
@@ -7,14 +8,58 @@ interface BookDemoProps {
 
 const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Simulate API submission
-    setTimeout(() => {
+    setIsSubmitting(true);
+
+    const formData = new FormData(e.currentTarget);
+    const bookingData = {
+      full_name: formData.get('full_name') as string,
+      school_name: formData.get('school_name') as string,
+      phone_number: formData.get('phone_number') as string,
+      role: formData.get('role') as string,
+      email: formData.get('email') as string,
+      message: formData.get('message') as string,
+    };
+
+    try {
+      // 1. Save to Database
+      const { error: dbError } = await supabase
+        .from('demo_bookings')
+        .insert([bookingData]);
+
+      if (dbError) throw dbError;
+
+      // 2. Send SMS Notification
+      const smsMessage = `New Demo Booking 🚀\n\nName: ${bookingData.full_name}\nSchool: ${bookingData.school_name}\nPhone: ${bookingData.phone_number}\nRole: ${bookingData.role}`;
+
+      const { error: smsError } = await supabase.functions.invoke('send-sms', {
+        body: {
+          phoneNumbers: ["0502560760"],
+          message: smsMessage,
+          hubtelKeys: {
+            clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
+            clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
+            senderId: import.meta.env.VITE_HUBTEL_SENDER_ID,
+          }
+        },
+      });
+
+      if (smsError) {
+        console.error('SMS Notification failed:', smsError);
+        // We don't block success UI if only SMS fails, but good to know
+      }
+
       setSubmitted(true);
       window.scrollTo(0, 0);
-    }, 500);
+    } catch (error) {
+      console.error('Error processing booking:', error);
+      alert('Something went wrong. Please try again or contact us directly.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -111,22 +156,43 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Full Name</label>
-                    <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all" placeholder="e.g. John Doe" />
+                    <input
+                      name="full_name"
+                      required
+                      type="text"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all"
+                      placeholder="e.g. John Doe"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">School Name</label>
-                    <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all" placeholder="e.g. Great Minds Academy" />
+                    <input
+                      name="school_name"
+                      required
+                      type="text"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all"
+                      placeholder="e.g. Great Minds Academy"
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Phone Number</label>
-                    <input required type="tel" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all" placeholder="024..." />
+                    <input
+                      name="phone_number"
+                      required
+                      type="tel"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all"
+                      placeholder="024..."
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Role</label>
-                    <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all">
+                    <select
+                      name="role"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all"
+                    >
                       <option>Headmaster / Proprietor</option>
                       <option>Administrator</option>
                       <option>Teacher</option>
@@ -137,16 +203,37 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1.5">Email Address <span className="font-normal text-slate-400">(Optional)</span></label>
-                  <input type="email" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all" placeholder="john@example.com" />
+                  <input
+                    name="email"
+                    type="email"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all"
+                    placeholder="john@example.com"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1.5">How can we help? <span className="font-normal text-slate-400">(Optional)</span></label>
-                  <textarea className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all h-24 resize-none" placeholder="e.g. I need help with fee tracking..."></textarea>
+                  <textarea
+                    name="message"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 focus:bg-white outline-none transition-all h-24 resize-none"
+                    placeholder="e.g. I need help with fee tracking..."
+                  ></textarea>
                 </div>
 
-                <button type="submit" className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-transform active:scale-[0.99] shadow-lg flex justify-center items-center gap-2">
-                  Confirm Booking <ArrowLeft className="h-5 w-5 rotate-180" />
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-transform active:scale-[0.99] shadow-lg flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" /> Processing...
+                    </>
+                  ) : (
+                    <>
+                      Confirm Booking <ArrowLeft className="h-5 w-5 rotate-180" />
+                    </>
+                  )}
                 </button>
 
                 <p className="text-center text-xs text-slate-400 mt-4">
