@@ -26,6 +26,7 @@ interface AttendanceProps {
         role: 'admin' | 'teacher';
         assignedClass?: string | null;
     };
+    theme?: any;
 }
 
 // --- Fetch Functions ---
@@ -156,9 +157,17 @@ const fetchViewResults = async (schoolId: string, className: string, date: strin
 };
 
 
-const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
+const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     const queryClient = useQueryClient();
     const schoolId = currentUser?.school_id;
+
+    // Default theme fallback if not provided
+    const activeTheme = theme || {
+        bg: 'bg-slate-800',
+        text: 'text-slate-800',
+        bgLight: 'bg-slate-100',
+        custom: null
+    };
 
     // --- Shared State ---
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -339,7 +348,9 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                         {/* Summary Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
                             <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
-                                <div className="p-2 md:p-3 bg-blue-50 text-blue-600 rounded-full"><Users className="h-5 w-5 md:h-6 md:w-6" /></div>
+                                <div className={`p-2 md:p-3 rounded-full ${activeTheme.bgLight} ${activeTheme.text}`} style={activeTheme.custom ? { backgroundColor: activeTheme.custom.bgLight, color: activeTheme.custom.text } : {}}>
+                                    <Users className="h-5 w-5 md:h-6 md:w-6" />
+                                </div>
                                 <div><p className="text-[10px] md:text-sm font-medium text-slate-500">Total Marked</p><h3 className="text-lg md:text-2xl font-bold text-slate-800">{totalMarked}</h3></div>
                             </div>
                             {dailyStats.map((stat: any) => (
@@ -497,19 +508,24 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser }) => {
                 <div className="max-w-7xl mx-auto w-full">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                            <h1
+                                className={`text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${activeTheme.custom ? '' : 'from-slate-800 to-slate-600'}`}
+                                style={activeTheme.custom ? { backgroundImage: `linear-gradient(to right, ${activeTheme.custom.text}, ${activeTheme.custom.textDark})`, color: 'transparent', WebkitBackgroundClip: 'text' } : {}}
+                            >
                                 Class Attendance
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <button
                                     onClick={() => setViewMode('mark')}
-                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'mark' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'mark' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
+                                    style={viewMode === 'mark' && activeTheme.custom ? { backgroundColor: activeTheme.custom.bg } : {}}
                                 >
                                     Daily Marking
                                 </button>
                                 <button
                                     onClick={() => setViewMode('monthly')}
-                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'monthly' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'monthly' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
+                                    style={viewMode === 'monthly' && activeTheme.custom ? { backgroundColor: activeTheme.custom.bg } : {}}
                                 >
                                     Monthly Register
                                 </button>

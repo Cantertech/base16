@@ -52,8 +52,13 @@ const fetchTeachers = async (schoolId: string) => {
     return data || [];
 };
 
-const fetchClassTimetable = async (classId: string) => {
-    const { data, error } = await supabase
+const fetchSchoolConfig = async (schoolId: string) => {
+    const { data } = await supabase.from('schools').select('current_term, academic_year').eq('id', schoolId).single();
+    return data;
+};
+
+const fetchClassTimetable = async (classId: string, term?: string, year?: string) => {
+    let query = supabase
         .from('timetable_entries')
         .select(`
             *,
@@ -61,23 +66,31 @@ const fetchClassTimetable = async (classId: string) => {
             subjects(name),
             teachers:teacher_id(name:full_name) 
         `)
-        .eq('class_id', classId)
-        .order('start_time');
+        .eq('class_id', classId);
+
+    if (term) query = query.eq('term', term);
+    if (year) query = query.eq('academic_year', year);
+
+    const { data, error } = await query.order('start_time');
 
     if (error) throw error;
     return data as TimetableEntry[] || [];
 };
 
-const fetchTeacherTimetable = async (teacherId: string) => {
-    const { data, error } = await supabase
+const fetchTeacherTimetable = async (teacherId: string, term?: string, year?: string) => {
+    let query = supabase
         .from('timetable_entries')
         .select(`
             *,
             classes(name),
             subjects(name)
         `)
-        .eq('teacher_id', teacherId)
-        .order('start_time');
+        .eq('teacher_id', teacherId);
+
+    if (term) query = query.eq('term', term);
+    if (year) query = query.eq('academic_year', year);
+
+    const { data, error } = await query.order('start_time');
 
     if (error) throw error;
     return data as TimetableEntry[] || [];
@@ -129,6 +142,12 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
         enabled: !!schoolId
     });
 
+    const { data: schoolConfig } = useQuery({
+        queryKey: ['schoolConfig', schoolId],
+        queryFn: () => fetchSchoolConfig(schoolId),
+        enabled: !!schoolId
+    });
+
     // Auto-select class for admin
     useEffect(() => {
         if (currentUser.role === 'admin' && classes.length > 0 && !selectedClassId) {
@@ -138,17 +157,17 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
     // Timetable Data Query
     const { data: timetableData = [], isLoading: timetableLoading } = useQuery({
-        queryKey: ['timetable', viewMode, viewMode === 'class' ? selectedClassId : currentUser.id],
+        queryKey: ['timetable', viewMode, viewMode === 'class' ? selectedClassId : currentUser.id, schoolConfig?.current_term, schoolConfig?.academic_year],
         queryFn: () => {
             if (viewMode === 'class') {
                 if (!selectedClassId) return [];
-                return fetchClassTimetable(selectedClassId);
+                return fetchClassTimetable(selectedClassId, schoolConfig?.current_term, schoolConfig?.academic_year);
             } else {
                 if (!currentUser.id) return [];
-                return fetchTeacherTimetable(currentUser.id);
+                return fetchTeacherTimetable(currentUser.id, schoolConfig?.current_term, schoolConfig?.academic_year);
             }
         },
-        enabled: (viewMode === 'class' ? !!selectedClassId : !!currentUser.id)
+        enabled: (viewMode === 'class' ? !!selectedClassId : !!currentUser.id) && !!schoolConfig
     });
 
 
@@ -212,7 +231,9 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null,
             teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null,
             room_number: formData.room_number,
-            activity_name: formData.type === 'Other' ? formData.activity_name : null
+            activity_name: formData.type === 'Other' ? formData.activity_name : null,
+            term: schoolConfig?.current_term,
+            academic_year: schoolConfig?.academic_year
         };
         saveMutation.mutate(payload);
     };
