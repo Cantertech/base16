@@ -287,6 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [copyFeesState, setCopyFeesState] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [showBillingModal, setShowBillingModal] = useState(false);
 
     // Reset target defaults when modal opens
     useEffect(() => {
@@ -325,9 +326,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
 
             setShowSessionModal(false);
-            setShowSuccessModal(true); // Reusing general success or need specific one?
-            // Alert for now as logic in Settings used `setShowSuccessModal` which we added to state above
-            setTimeout(() => setShowSuccessModal(false), 3000);
+            setShowBillingModal(true);
         },
         onError: (err: any) => alert("Error starting new term: " + err.message)
     });
@@ -943,6 +942,68 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     >
                         Exit Mode
                     </button>
+                </div>
+            )}
+
+            {/* Billing Notification Modal */}
+            {showBillingModal && (
+                <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95">
+                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 text-white text-center">
+                            <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+                                <CheckCircle className="h-8 w-8 text-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold">New Term Started!</h2>
+                            <p className="text-emerald-100 mt-1">Academic session successfully updated.</p>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                                <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                                    <Banknote className="h-4 w-4" /> Term Information
+                                </h3>
+                                <p className="text-sm text-blue-800/80 mb-3">
+                                    Please note that the billing for this term is calculated at:
+                                </p>
+                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100 shadow-sm mb-2">
+                                    <span className="text-sm font-medium text-slate-600">Rate per Student</span>
+                                    <span className="font-bold text-slate-900">GH¢ 4.00</span>
+                                </div>
+                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                                    <span className="text-sm font-medium text-slate-600">Estimated Total</span>
+                                    <span className="font-bold text-slate-900">GH¢ {formatAmount(stats.students * 4)}</span>
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 text-amber-900 text-sm">
+                                <Clock className="h-5 w-5 shrink-0 text-amber-600" />
+                                <div>
+                                    <p className="font-bold">Payment Due Date</p>
+                                    <p className="opacity-80 mt-1">
+                                        Payment for this term is due in 8 weeks on <span className="font-bold">{new Date(Date.now() + 8 * 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                <button
+                                    onClick={() => setShowBillingModal(false)}
+                                    className="px-4 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowBillingModal(false);
+                                        setActiveMenu('Settings');
+                                    }}
+                                    className="px-4 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-colors"
+                                >
+                                    Go to Billing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

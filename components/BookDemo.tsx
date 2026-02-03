@@ -137,7 +137,7 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
                   <Phone className="h-4 w-4" /> +233 24 123 4567
                 </div>
                 <div className="flex items-center gap-3 text-sm text-blue-100">
-                  <Mail className="h-4 w-4" /> sales@brainwave.com
+                  <Mail className="h-4 w-4" /> sixzonesglobal@gmail.com
                 </div>
                 <div className="flex items-center gap-3 text-sm text-blue-100">
                   <MapPin className="h-4 w-4" /> East Legon, Accra, Ghana
