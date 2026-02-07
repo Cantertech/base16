@@ -45,14 +45,14 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 .from('profiles')
                 .select('school_id')
                 .eq('id', user.id)
-                .single();
+                .maybeSingle();
 
             if (profile?.school_id) {
                 const { data: school } = await supabase
                     .from('schools')
                     .select('currency')
                     .eq('id', profile.school_id)
-                    .single();
+                    .maybeSingle();
 
                 if (school?.currency) {
                     const found = CURRENCIES.find(c => c.code === school.currency);

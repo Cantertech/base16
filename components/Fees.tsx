@@ -548,8 +548,8 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                             <button
                                 onClick={() => { setSelectedFeeClass('General'); setIsMobileDetailOpen(true); }}
                                 className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-between ${selectedFeeClass === 'General'
-                                        ? 'bg-slate-900 text-white shadow-md'
-                                        : 'text-slate-600 hover:bg-slate-50'
+                                    ? 'bg-slate-900 text-white shadow-md'
+                                    : 'text-slate-600 hover:bg-slate-50'
                                     }`}
                             >
                                 <span className="flex items-center gap-2">
@@ -570,8 +570,8 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                     key={cls.id}
                                     onClick={() => { setSelectedFeeClass(cls.name); setIsMobileDetailOpen(true); }}
                                     className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-all flex items-center justify-between ${selectedFeeClass === cls.name
-                                            ? 'bg-primary-50 text-primary-700 font-bold border border-primary-100'
-                                            : 'text-slate-600 hover:bg-slate-50 group'
+                                        ? 'bg-primary-50 text-primary-700 font-bold border border-primary-100'
+                                        : 'text-slate-600 hover:bg-slate-50 group'
                                         }`}
                                 >
                                     <span>{cls.name}</span>
@@ -592,7 +592,7 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     <div className={`
                         flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col
                         ${isMobileDetailOpen ? 'fixed inset-0 z-50 rounded-none border-0' : 'hidden md:flex'}
-                        md:static md:block md:border md:rounded-xl md:shadow-sm
+                        md:static md:flex md:border md:rounded-xl md:shadow-sm
                     `}>
                         <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 safe-area-top">
                             <div className="flex items-center gap-3">
@@ -708,7 +708,7 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                             )}
 
                             {/* Summary Footer */}
-                            <div className="mt-8 pt-6 pb-20 md:pb-0 border-t border-slate-100">
+                            <div className="mt-8 pt-6 pb-20 md:pb-8 border-t border-slate-100">
                                 <div className="flex justify-between items-center text-sm p-4 bg-slate-900 text-white rounded-xl shadow-lg">
                                     <span className="font-medium opacity-80">Total for {selectedFeeClass}</span>
                                     <span className="text-xl font-bold">

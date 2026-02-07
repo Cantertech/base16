@@ -162,15 +162,35 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     enabled: !!schoolId,
   });
 
+  const { data: teacherClasses = [] } = useQuery({
+    queryKey: ['teacherClasses', currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser?.id) return [];
+      const { data: assignments } = await supabase
+        .from('teacher_assignments')
+        .select('classes(name)')
+        .eq('teacher_id', currentUser.id);
+
+      const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
+      // Combine with legacy assignedClass if present and not already in list
+      if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
+        assigned.push(currentUser.assignedClass);
+      }
+      return assigned;
+    },
+    enabled: !!currentUser?.id && isTeacher
+  });
+
   // Automatically set class filter for teachers
   useEffect(() => {
-    if (isTeacher && students.length > 0 && classFilter === 'All') {
-      const uniqueClasses = [...new Set(students.map(s => s.class))];
-      if (uniqueClasses.length > 0) {
-        setClassFilter(uniqueClasses[0]);
+    if (isTeacher && classFilter === 'All') {
+      if (teacherClasses.length > 0) {
+        setClassFilter(teacherClasses[0]);
+      } else if (currentUser?.assignedClass) {
+        setClassFilter(currentUser.assignedClass);
       }
     }
-  }, [isTeacher, students, classFilter]);
+  }, [isTeacher, teacherClasses, currentUser, classFilter]);
 
 
   // --- Mutations ---
@@ -522,25 +542,31 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             </button>
 
             {/* Filter */}
-            {!isTeacher && (
-              <div className="relative min-w-[120px]">
-                <select
-                  value={classFilter}
-                  onChange={(e) => setClassFilter(e.target.value)}
-                  className="w-full pl-4 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none appearance-none bg-white text-sm"
-                >
-                  <option value="All">All Classes</option>
-                  {classes.length > 0 ? classes.map((c: any) => (
+            <div className="relative min-w-[120px]">
+              <select
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="w-full pl-4 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none appearance-none bg-white text-sm"
+              >
+                <option value="All">All Classes</option>
+                {isTeacher ? (
+                  teacherClasses.length > 0 ? teacherClasses.map((c: string) => (
+                    <option key={c} value={c}>{c}</option>
+                  )) : (
+                    currentUser?.assignedClass && <option value={currentUser.assignedClass}>{currentUser.assignedClass}</option>
+                  )
+                ) : (
+                  classes.length > 0 ? classes.map((c: any) => (
                     <option key={c.id} value={c.name}>{c.name}</option>
                   )) : (
                     ['JHS 3', 'JHS 2', 'JHS 1', 'Class 6', 'Class 5', 'Class 4'].map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))
-                  )}
-                </select>
-                <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
-              </div>
-            )}
+                  )
+                )}
+              </select>
+              <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+            </div>
 
             {/* Actions */}
             {selectedStudents.size > 0 && (

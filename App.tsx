@@ -57,7 +57,7 @@ const AppContent: React.FC = () => {
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
 
           if (profile) {
             let schoolLogo = null;
@@ -66,7 +66,7 @@ const AppContent: React.FC = () => {
                 .from('schools')
                 .select('logo_url')
                 .eq('id', profile.school_id)
-                .single();
+                .maybeSingle();
               schoolLogo = school?.logo_url;
             }
 
@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
         .eq('school_id', schoolId)
         .eq('role', 'admin')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error || !adminProfile) {
         alert('Could not find an admin for this school.');

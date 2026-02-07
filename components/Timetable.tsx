@@ -143,7 +143,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
     });
 
     const { data: schoolConfig } = useQuery({
-        queryKey: ['schoolConfig', schoolId],
+        queryKey: ['schoolTermConfig', schoolId],
         queryFn: () => fetchSchoolConfig(schoolId),
         enabled: !!schoolId
     });

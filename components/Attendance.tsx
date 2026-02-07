@@ -22,6 +22,7 @@ interface Student {
 
 interface AttendanceProps {
     currentUser?: {
+        id: string;
         school_id: string;
         role: 'admin' | 'teacher';
         assignedClass?: string | null;
@@ -196,7 +197,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     });
 
     const { data: schoolConfig } = useQuery({
-        queryKey: ['schoolConfig', schoolId],
+        queryKey: ['schoolTermConfig', schoolId],
         queryFn: () => fetchSchoolConfig(schoolId!),
         enabled: !!schoolId
     });
@@ -234,10 +235,32 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     // 6. View Results (Verification)
     // Only fetch when explicitly triggered? Or just reactive?
     // Original code had a button trigger. We can make it reactive easily.
+    // 6. View Results (Verification)
     const { data: viewResults = [], isLoading: viewLoading } = useQuery({
         queryKey: ['attendanceVerification', schoolId, viewClass, viewDate],
         queryFn: () => fetchViewResults(schoolId!, viewClass, viewDate),
         enabled: !!schoolId && !!viewClass && !!viewDate
+    });
+
+    const { data: teacherClasses = [] } = useQuery({
+        queryKey: ['teacherAttendanceClasses', currentUser?.id],
+        queryFn: async () => {
+            // Find user ID from auth if not passed strictly (though props should have it)
+            // But we added ID to props, so let's use it.
+            if (!currentUser?.id) return [];
+
+            const { data: assignments } = await supabase
+                .from('teacher_assignments')
+                .select('classes(name)')
+                .eq('teacher_id', currentUser.id);
+
+            const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
+            if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
+                assigned.push(currentUser.assignedClass);
+            }
+            return assigned;
+        },
+        enabled: !!currentUser?.id && currentUser?.role === 'teacher'
     });
 
 
@@ -253,14 +276,16 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
 
     // Initial class selection
     useEffect(() => {
-        if (!selectedClass && classes.length > 0) {
+        if (!selectedClass) {
             if (currentUser?.assignedClass) {
                 setSelectedClass(currentUser.assignedClass);
-            } else if (currentUser?.role === 'teacher' || currentUser?.role === 'admin') {
+            } else if (currentUser?.role === 'teacher' && teacherClasses.length > 0) {
+                setSelectedClass(teacherClasses[0]);
+            } else if (currentUser?.role === 'admin' && classes.length > 0) {
                 setSelectedClass(classes[0]);
             }
         }
-    }, [classes, currentUser, selectedClass]);
+    }, [classes, teacherClasses, currentUser, selectedClass]);
 
 
     // --- Mutations ---
@@ -533,7 +558,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                            {!currentUser?.assignedClass && (
+                            {(currentUser?.role === 'admin' || (currentUser?.role === 'teacher' && teacherClasses.length > 0)) && (
                                 <div className="relative group w-full md:w-auto">
                                     <select
                                         value={selectedClass}
@@ -541,7 +566,11 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                         className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-medium transition-all hover:bg-slate-200 cursor-pointer"
                                     >
                                         <option value="">Select Class</option>
-                                        {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                        {currentUser?.role === 'teacher' ? (
+                                            teacherClasses.map((c: string) => <option key={c} value={c}>{c}</option>)
+                                        ) : (
+                                            classes.map((c: string) => <option key={c} value={c}>{c}</option>)
+                                        )}
                                     </select>
                                     <div className="absolute right-3 top-3 pointer-events-none">
                                         <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
