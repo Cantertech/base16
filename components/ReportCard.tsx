@@ -95,7 +95,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     .eq('student_id', student.id)
                     .eq('term', term)
                     .eq('academic_year', year)
-                    .single();
+                    .maybeSingle();
                 if (data) {
                     if (data.teacher_remark) setTeacherRemark(data.teacher_remark);
                     if (data.principal_remark) setPrincipalRemark(data.principal_remark);

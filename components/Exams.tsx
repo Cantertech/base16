@@ -81,7 +81,7 @@ const GRADING_PRESETS = {
 };
 
 const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
-    const { data: configData } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).single();
+    const { data: configData } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).maybeSingle();
 
     // Default Config
 
