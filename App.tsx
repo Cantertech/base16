@@ -18,6 +18,7 @@ import Contact from './components/Contact';
 import Legal from './components/Legal';
 import InstallPrompt from './components/InstallPrompt';
 import { supabase } from './utils/supabaseClient';
+import { InstallProvider } from './contexts/InstallContext';
 
 interface User {
   id: string;
@@ -194,113 +195,115 @@ const AppContent: React.FC = () => {
 
   return (
     <CurrencyProvider>
-      <ScrollToTop />
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main>
-              <Hero onStartWizard={() => navigate('/setup')} />
-              <WhyUs />
-              <Features />
-              <Pricing />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/features" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main className="pt-16">
-              <Features />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/pricing" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main className="pt-16">
-              <Pricing />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/about" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main className="pt-16">
-              <About />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/contact" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main className="pt-16">
-              <Contact />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/legal" element={
-          <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            <Navbar />
-            <main className="pt-16">
-              <Legal />
-            </main>
-            <Footer />
-          </div>
-        } />
-
-        <Route path="/demo" element={<BookDemo onBack={() => navigate('/')} />} />
-
-        <Route path="/login" element={
-          currentUser ? <Navigate to="/dashboard" /> :
-            <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
-        } />
-
-        <Route path="/setup" element={
-          <div>
-            <Navbar showLinks={false} />
-            <div className="pt-16">
-              <SetupWizard onComplete={handleCompleteWizard} />
+      <InstallProvider>
+        <ScrollToTop />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main>
+                <Hero onStartWizard={() => navigate('/setup')} />
+                <WhyUs />
+                <Features />
+                <Pricing />
+              </main>
+              <Footer />
             </div>
-          </div>
-        } />
+          } />
 
-        {/* Protected Routes */}
-        <Route path="/dashboard/*" element={
-          currentUser ? (
-            currentUser.role === 'super_admin' && !realUser ? (
-              <SuperAdminDashboard
-                onLogout={handleLogout}
-                onImpersonate={handleImpersonate}
-              />
+          <Route path="/features" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main className="pt-16">
+                <Features />
+              </main>
+              <Footer />
+            </div>
+          } />
+
+          <Route path="/pricing" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main className="pt-16">
+                <Pricing />
+              </main>
+              <Footer />
+            </div>
+          } />
+
+          <Route path="/about" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main className="pt-16">
+                <About />
+              </main>
+              <Footer />
+            </div>
+          } />
+
+          <Route path="/contact" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main className="pt-16">
+                <Contact />
+              </main>
+              <Footer />
+            </div>
+          } />
+
+          <Route path="/legal" element={
+            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+              <Navbar />
+              <main className="pt-16">
+                <Legal />
+              </main>
+              <Footer />
+            </div>
+          } />
+
+          <Route path="/demo" element={<BookDemo onBack={() => navigate('/')} />} />
+
+          <Route path="/login" element={
+            currentUser ? <Navigate to="/dashboard" /> :
+              <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+          } />
+
+          <Route path="/setup" element={
+            <div>
+              <Navbar showLinks={false} />
+              <div className="pt-16">
+                <SetupWizard onComplete={handleCompleteWizard} />
+              </div>
+            </div>
+          } />
+
+          {/* Protected Routes */}
+          <Route path="/dashboard/*" element={
+            currentUser ? (
+              currentUser.role === 'super_admin' && !realUser ? (
+                <SuperAdminDashboard
+                  onLogout={handleLogout}
+                  onImpersonate={handleImpersonate}
+                />
+              ) : (
+                <Dashboard
+                  onLogout={handleLogout}
+                  currentUser={currentUser}
+                  isImpersonating={!!realUser}
+                  onExitImpersonation={handleExitImpersonation}
+                />
+              )
             ) : (
-              <Dashboard
-                onLogout={handleLogout}
-                currentUser={currentUser}
-                isImpersonating={!!realUser}
-                onExitImpersonation={handleExitImpersonation}
-              />
+              <Navigate to="/login" />
             )
-          ) : (
-            <Navigate to="/login" />
-          )
-        } />
+          } />
 
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-      <InstallPrompt />
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+        <InstallPrompt />
+      </InstallProvider>
     </CurrencyProvider>
   );
 };

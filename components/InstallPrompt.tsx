@@ -1,52 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Download, X, Share, PlusSquare } from 'lucide-react';
+import { useInstall } from '../contexts/InstallContext';
 
 const InstallPrompt: React.FC = () => {
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const { isInstallable, showInstallPrompt, isIOS, isAppInstalled } = useInstall();
     const [isVisible, setIsVisible] = useState(false);
-    const [isIOS, setIsIOS] = useState(false);
 
     useEffect(() => {
-        // Check if device is iOS
-        const isIosDevice = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        // Check if app is already installed (standalone mode)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-
-        if (isIosDevice && !isStandalone) {
-            setIsIOS(true);
+        // Show prompt if installable and not already installed
+        if (isInstallable && !isAppInstalled) {
+            // Check if user dismissed it in this session (optional, or just use local state)
             setIsVisible(true);
+        } else {
+            setIsVisible(false);
         }
-
-        const handleBeforeInstallPrompt = (e: any) => {
-            // Prevent Chrome 67 and earlier from automatically showing the prompt
-            e.preventDefault();
-            // Stash the event so it can be triggered later.
-            setDeferredPrompt(e);
-            // Update UI to notify the user they can add to home screen
-            setIsVisible(true);
-        };
-
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-        return () => {
-            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        };
-    }, []);
-
-    const handleInstallClick = async () => {
-        if (!deferredPrompt) return;
-
-        // Show the install prompt
-        deferredPrompt.prompt();
-
-        // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-
-        // We've used the prompt, so clear it
-        setDeferredPrompt(null);
-        setIsVisible(false);
-    };
+    }, [isInstallable, isAppInstalled]);
 
     if (!isVisible) return null;
 
@@ -109,7 +77,7 @@ const InstallPrompt: React.FC = () => {
                         <X className="h-5 w-5" />
                     </button>
                     <button
-                        onClick={handleInstallClick}
+                        onClick={showInstallPrompt}
                         className="bg-white text-primary-900 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors shadow-sm"
                     >
                         Install

@@ -26,7 +26,8 @@ import {
     X,
     Utensils,
     History,
-    ChevronRight
+    ChevronRight,
+    Download
 } from 'lucide-react';
 import {
     AreaChart,
@@ -53,6 +54,7 @@ import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useInstall } from '../contexts/InstallContext';
 
 
 interface DashboardProps {
@@ -142,6 +144,7 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImpersonating, onExitImpersonation }) => {
     const queryClient = useQueryClient();
     const { formatAmount, currency } = useCurrency();
+    const { isInstallable, showInstallPrompt } = useInstall();
     const [activeMenu, setActiveMenu] = useState('Dashboard');
 
     // Sidebar Customization State
@@ -409,6 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Notice', icon: Bell },
         { name: 'Help center', icon: HelpCircle },
         { name: 'Settings', icon: SettingsIcon },
+        { name: 'Install App', icon: Download },
     ];
 
     const teacherMenuItems = [
@@ -419,10 +423,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Mark Entry & Reports', icon: FileText },
         { name: 'Notice Board', icon: Bell },
         { name: 'Settings & Profile', icon: SettingsIcon },
+        { name: 'Install App', icon: Download },
     ];
 
     const currentMenuItems = (currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems)
-        .filter(item => !hiddenMenuItems.includes(item.name) || item.name === 'Settings' || item.name === 'Dashboard' || item.name === 'Settings & Profile');
+        .filter(item => {
+            if (item.name === 'Install App' && !isInstallable) return false;
+            return !hiddenMenuItems.includes(item.name) || item.name === 'Settings' || item.name === 'Dashboard' || item.name === 'Settings & Profile' || item.name === 'Install App';
+        });
 
 
     const CustomTooltip = ({ active, payload, label }: any) => {
@@ -632,7 +640,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     {currentMenuItems.map((item) => (
                         <button
                             key={item.name}
-                            onClick={() => setActiveMenu(item.name)}
+                            onClick={() => {
+                                if (item.name === 'Install App') {
+                                    showInstallPrompt();
+                                } else {
+                                    setActiveMenu(item.name);
+                                }
+                            }}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeMenu === item.name ? `${theme.bg} text-white shadow-md shadow-blue-200` : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
                             style={activeMenu === item.name && theme.custom ? { backgroundColor: theme.custom.bg, boxShadow: `0 4px 6px -1px ${theme.custom.shadow}` } : {}}
                         >
