@@ -104,7 +104,7 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 onClick={() => onRenew(school.id)}
                                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                             >
-                                <RefreshCw className="h-4 w-4" /> Extend 30 Days
+                                <RefreshCw className="h-4 w-4" /> Approve Term Payment
                             </button>
                             <button
                                 onClick={() => onToggleStatus(school.id, school.status)}
@@ -213,7 +213,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     const approveSchoolMutation = useMutation({
         mutationFn: async (schoolId: string) => {
             const nextDue = new Date();
-            nextDue.setDate(nextDue.getDate() + 30);
+            nextDue.setDate(nextDue.getDate() + 84); // 12 Weeks (Term)
             const { error } = await supabase.from('schools')
                 .update({
                     status: 'active',
@@ -225,7 +225,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
-            alert('School approved successfully!');
+            alert('School approved successfully! Term started.');
         },
         onError: (err: any) => alert('Error approving school: ' + err.message)
     });
@@ -233,7 +233,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     const renewSubscriptionMutation = useMutation({
         mutationFn: async (schoolId: string) => {
             const nextDue = new Date();
-            nextDue.setDate(nextDue.getDate() + 30);
+            nextDue.setDate(nextDue.getDate() + 84); // 12 Weeks (Term)
             const { error } = await supabase.from('schools')
                 .update({
                     next_payment_due: nextDue.toISOString(),
@@ -245,7 +245,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
-            alert('Subscription renewed successfully!');
+            alert('Term payment approved! Access extended for 12 weeks.');
             setSelectedSchool(null);
         },
         onError: (err: any) => alert('Error renewing subscription: ' + err.message)
@@ -298,7 +298,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     const approveSchool = (schoolId: string) => approveSchoolMutation.mutate(schoolId);
 
     const renewSubscription = (schoolId: string) => {
-        if (confirm('Confirm payment received and renew subscription for 30 days?')) {
+        if (confirm('Confirm payment received for the NEW TERM? This will extend access by 12 weeks.')) {
             renewSubscriptionMutation.mutate(schoolId);
         }
     };
