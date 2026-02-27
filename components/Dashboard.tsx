@@ -280,6 +280,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         enabled: !!currentUser.school_id
     });
 
+    // 5. Active Modules
+    const { data: activeModules = [] } = useQuery({
+        queryKey: ['activeModules', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return [];
+            const { data } = await supabase
+                .from('school_subscriptions')
+                .select('module_id')
+                .eq('school_id', currentUser.school_id)
+                .eq('status', 'active');
+
+            return data ? data.map(sub => sub.module_id) : [];
+        },
+        enabled: !!currentUser.school_id
+    });
+
     // Combined Loading State
     const loading = configLoading || statsLoading;
 
@@ -426,13 +442,37 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Install App', icon: Download },
     ];
 
-    const currentMenuItems = (currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems)
+    const allowedMenuItems = (currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems)
         .filter(item => {
             if (item.name === 'Install App' && !isInstallable) return false;
-            return !hiddenMenuItems.includes(item.name) || item.name === 'Settings' || item.name === 'Dashboard' || item.name === 'Settings & Profile' || item.name === 'Install App';
+
+            // Module-based Access Control
+            const REQUIRES_MODULE: Record<string, string[]> = {
+                'Fees': ['revenue_guard', 'complete_bundle'],
+                'Analytics': ['academic_engine', 'complete_bundle'],
+                'Exam': ['academic_engine', 'complete_bundle'],
+                'Mark Entry & Reports': ['academic_engine', 'complete_bundle'],
+                'Feeding': ['daily_tracker', 'complete_bundle'],
+                'Notice': ['prestige_pack', 'complete_bundle'],
+                'Notice Board': ['prestige_pack', 'complete_bundle']
+            };
+
+            const requiredModules = REQUIRES_MODULE[item.name];
+            if (requiredModules) {
+                // Return true if school has AT LEAST one of the required modules active
+                return requiredModules.some(mod => activeModules.includes(mod));
+            }
+
+            return true; // Core modules are always visible
         });
 
+    const currentMenuItems = allowedMenuItems.filter(item => {
+        // Check if the menu is hidden via Menu Customization settings
+        const isHiddenFromSettings = hiddenMenuItems.includes(item.name) &&
+            !['Settings', 'Dashboard', 'Settings & Profile', 'Install App'].includes(item.name);
 
+        return !isHiddenFromSettings;
+    });
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             return (
@@ -461,7 +501,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
-                case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={teacherMenuItems} />;
+                case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
             }
         }
@@ -479,7 +519,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
-            case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={adminMenuItems} />;
+            case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
             default: return (
                 <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div>

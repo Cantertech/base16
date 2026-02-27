@@ -60,6 +60,34 @@ const fetchSMSTransactions = async (schoolId: string) => {
     return data || [];
 };
 
+const fetchWallet = async (schoolId: string) => {
+    const { data: wallet, error } = await supabase
+        .from('school_wallets')
+        .select('*')
+        .eq('school_id', schoolId)
+        .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return wallet || { balance: 0 };
+};
+
+const fetchModules = async () => {
+    const { data, error } = await supabase.from('system_modules').select('*').order('price_ghs', { ascending: true });
+    if (error) throw error;
+    return data || [];
+};
+
+const fetchSubscriptions = async (schoolId: string) => {
+    const { data, error } = await supabase
+        .from('school_subscriptions')
+        .select(`
+            *,
+            system_modules (*)
+        `)
+        .eq('school_id', schoolId);
+    if (error) throw error;
+    return data || [];
+};
+
 const fetchStudentCount = async (schoolId: string) => {
     const { count, error } = await supabase
         .from('students')
@@ -89,6 +117,10 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [config, setConfig] = useState<any>({});
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [smsCalc, setSmsCalc] = useState({ amount: '', qty: '' });
+
+    // Top Up Context
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [topUpAmount, setTopUpAmount] = useState('');
 
     // -- UI States --
     const [showPlanModal, setShowPlanModal] = useState(false);
@@ -125,6 +157,24 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         queryKey: ['studentCount', schoolId],
         queryFn: () => fetchStudentCount(schoolId!),
         enabled: !!schoolId
+    });
+
+    const { data: wallet } = useQuery({
+        queryKey: ['wallet', schoolId],
+        queryFn: () => fetchWallet(schoolId!),
+        enabled: !!schoolId && !isTeacher && activeTab === 'billing'
+    });
+
+    const { data: modules = [] } = useQuery({
+        queryKey: ['modules'],
+        queryFn: fetchModules,
+        enabled: !isTeacher && activeTab === 'billing'
+    });
+
+    const { data: subscriptions = [] } = useQuery({
+        queryKey: ['subscriptions', schoolId],
+        queryFn: () => fetchSubscriptions(schoolId!),
+        enabled: !!schoolId && !isTeacher && activeTab === 'billing'
     });
 
 
@@ -265,7 +315,37 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     });
 
 
+    const topUpMutation = useMutation({
+        mutationFn: async (amount: number) => {
+            const { error } = await supabase.rpc('top_up_wallet', {
+                p_school_id: schoolId,
+                p_amount: amount,
+                p_reference: `mock-paystack-${Date.now()}`
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
+            alert("Wallet topped up successfully!");
+        },
+        onError: (err: any) => alert("Error topping up: " + err.message)
+    });
 
+    const activateModuleMutation = useMutation({
+        mutationFn: async (moduleId: string) => {
+            const { error } = await supabase.rpc('activate_module', {
+                p_school_id: schoolId,
+                p_module_id: moduleId
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['subscriptions', schoolId] });
+            alert("Module activated successfully!");
+        },
+        onError: (err: any) => alert("Activation error: " + err.message)
+    });
 
     // -- Handlers --
 
@@ -674,77 +754,79 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                         {/* SUB-TAB: OVERVIEW */}
                         {billingTab === 'overview' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Subscription Card */}
-                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                                {/* Wallet Card */}
+                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden md:col-span-2">
                                     <div className="absolute top-0 right-0 p-4 opacity-10">
                                         <CreditCard className="h-32 w-32 transform rotate-12" />
                                     </div>
-                                    <div className="relative z-10">
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div>
-                                                <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Current Plan</p>
-                                                <h3 className="text-2xl font-bold mt-1">{currentPlan.name}</h3>
-                                                <p className="text-slate-400 text-xs mt-1">{currentPlan.limit}</p>
-                                            </div>
-                                            <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-bold border border-green-500/30">Active</span>
-                                        </div>
-                                        <div className="space-y-4 mb-8">
-                                            <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                                <span className="text-slate-300">Amount</span>
-                                                <span className="font-bold">GH¢ {currentPlan.price} / mo</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm border-b border-white/10 pb-2">
-                                                <span className="text-slate-300">Next Billing</span>
-                                                <span className={`font-bold ${config.isExpired ? 'text-red-400' : ''}`}>
-                                                    {config.nextPaymentDue ? new Date(config.nextPaymentDue).toLocaleDateString() : 'N/A'}
-                                                    {config.isExpired && ' (Expired)'}
-                                                </span>
-                                            </div>
+                                    <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-6">
+                                        <div>
+                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Wallet Balance</p>
+                                            <h3 className="text-4xl font-black mt-1">GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}</h3>
+                                            <p className="text-slate-400 text-sm mt-2">Top up your wallet to activate modules independently.</p>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => setShowPlanModal(true)} className="flex-1 bg-white/10 text-white border border-white/20 py-2 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">Change Plan</button>
-                                            <button
-                                                onClick={() => { setSelectedPlanForPayment(currentPlan); setShowPaymentModal(true); }}
-                                                className="flex-1 bg-white text-slate-900 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
-                                            >
-                                                {config.isExpired ? 'Renew Now' : 'Extend'}
+                                            <button onClick={() => {
+                                                setIsTopUpModalOpen(true);
+                                                setTopUpAmount('');
+                                            }} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-100 transition-colors">
+                                                Top Up Wallet
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Payment History */}
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden col-span-1 md:col-span-2">
-                                    <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-                                        <History className="h-5 w-5 text-slate-500" />
-                                        <h3 className="font-bold text-slate-800">Subscription History</h3>
+                                {/* Modules List */}
+                                <div className="md:col-span-2 space-y-4">
+                                    <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-2">
+                                        <Layout className="h-5 w-5 text-slate-500" />
+                                        <h3 className="font-bold text-slate-800">System Modules</h3>
                                     </div>
-                                    <div className="hidden md:block overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-slate-50 border-b border-slate-100">
-                                                <tr>
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Amount</th>
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {billingHistory.map((item: any) => (
-                                                    <tr key={item.id} className="hover:bg-slate-50">
-                                                        <td className="px-6 py-4 text-sm text-slate-600">{item.date}</td>
-                                                        <td className="px-6 py-4 text-sm font-medium text-slate-800">{item.description}</td>
-                                                        <td className="px-6 py-4 text-sm text-slate-600">GH¢ {item.amount.toFixed(2)}</td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
-                                                                <CheckCircle className="h-3 w-3" /> {item.status}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {billingHistory.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-400">No history available</td></tr>}
-                                            </tbody>
-                                        </table>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {modules.map((module: any) => {
+                                            const sub = subscriptions.find((s: any) => s.module_id === module.id);
+                                            const isActive = sub?.status === 'active';
+
+                                            const isFree = module.price_ghs === 0;
+                                            const isActivating = activateModuleMutation.isPending && activateModuleMutation.variables === module.id;
+
+                                            return (
+                                                <div key={module.id} className={`bg-white rounded-xl border p-5 flex flex-col justify-between ${isActive ? 'border-primary-500 ring-1 ring-primary-500 shadow-md' : 'border-slate-200'}`}>
+                                                    <div>
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <h4 className="font-bold text-slate-800">{module.name}</h4>
+                                                            {isActive && <span className="text-[10px] font-bold uppercase tracking-widest bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">Active</span>}
+                                                            {!isActive && isFree && <span className="text-[10px] font-bold uppercase tracking-widest bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Free Always</span>}
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 mb-4">{module.description}</p>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-end justify-between mb-4">
+                                                            <div className="font-black text-lg text-slate-800">GH¢ {module.price_ghs} <span className="text-xs font-medium text-slate-500">/ 30 days</span></div>
+                                                        </div>
+
+                                                        {isActive && sub.expires_at ? (
+                                                            <div className="text-xs text-slate-500 mb-3 bg-slate-50 px-3 py-2 rounded-lg">
+                                                                Expires: <span className="font-bold text-slate-700">{new Date(sub.expires_at).toLocaleDateString()}</span>
+                                                                {module.price_ghs > 0 && <div className="text-[10px] text-slate-400 mt-1">Will auto-renew if balance is sufficient.</div>}
+                                                            </div>
+                                                        ) : null}
+
+                                                        <button
+                                                            disabled={isActive || isActivating || (wallet?.balance < module.price_ghs && !isFree)}
+                                                            onClick={() => {
+                                                                if (confirm(`Activate ${module.name} for GH¢ ${module.price_ghs}?`)) {
+                                                                    activateModuleMutation.mutate(module.id);
+                                                                }
+                                                            }}
+                                                            className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all ${isActive ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : wallet?.balance >= module.price_ghs || isFree ? 'bg-slate-900 text-white shadow-md hover:bg-slate-800' : 'bg-red-50 text-red-500 cursor-not-allowed border border-red-200'}`}
+                                                        >
+                                                            {isActive ? 'Currently Active' : isActivating ? 'Activating...' : wallet?.balance >= module.price_ghs || isFree ? 'Activate Module' : 'Insufficient Funds'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -1045,6 +1127,58 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                         <div>
                             <h3 className="text-lg font-bold text-slate-800">Success!</h3>
                             <p className="text-slate-500 text-sm">Academic session updated successfully.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Top Up Wallet Modal */}
+            {isTopUpModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 relative">
+                        <button
+                            onClick={() => setIsTopUpModalOpen(false)}
+                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="text-center mb-6">
+                            <div className="mx-auto w-12 h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
+                                <CreditCard className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800">Top Up Wallet</h3>
+                            <p className="text-sm text-slate-500 mt-2">Enter the amount you wish to add to your virtual wallet.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount (GH¢)</label>
+                                <input
+                                    type="number"
+                                    value={topUpAmount}
+                                    onChange={e => setTopUpAmount(e.target.value)}
+                                    placeholder="e.g. 500.00"
+                                    className="w-full text-center text-3xl font-black text-slate-800 py-4 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all placeholder:text-slate-300"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <button
+                                disabled={!topUpAmount || Number(topUpAmount) <= 0 || topUpMutation.isPending}
+                                onClick={() => {
+                                    topUpMutation.mutate(Number(topUpAmount), {
+                                        onSuccess: () => {
+                                            setIsTopUpModalOpen(false);
+                                            setTopUpAmount('');
+                                        }
+                                    });
+                                }}
+                                className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                            >
+                                {topUpMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                                {topUpMutation.isPending ? 'Processing...' : 'Proceed to Payment'}
+                            </button>
                         </div>
                     </div>
                 </div>

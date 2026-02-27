@@ -181,6 +181,23 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     enabled: !!currentUser?.id && isTeacher
   });
 
+  const { data: activeModules = [] } = useQuery({
+    queryKey: ['activeModules', schoolId],
+    queryFn: async () => {
+      if (!schoolId) return [];
+      const { data } = await supabase
+        .from('school_subscriptions')
+        .select('module_id')
+        .eq('school_id', schoolId)
+        .eq('status', 'active');
+
+      return data ? data.map(sub => sub.module_id) : [];
+    },
+    enabled: !!schoolId
+  });
+
+  const hasFeesModule = activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle');
+
   // Automatically set class filter for teachers
   useEffect(() => {
     if (isTeacher && classFilter === 'All') {
@@ -657,7 +674,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                   </div>
                 </div>
 
-                {!isTeacher && (
+                {(!isTeacher && hasFeesModule) && (
                   <div className="flex justify-between items-center text-xs pt-1">
                     <span className="font-semibold text-slate-600">Balance:</span>
                     <span className={`font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
@@ -686,7 +703,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                 {!isTeacher && <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Class</th>}
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Gender</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Parent Details</th>
-                {!isTeacher && <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Balance</th>}
+                {(!isTeacher && hasFeesModule) && <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Balance</th>}
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
               </tr>
@@ -735,7 +752,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
                         <p className="text-xs text-slate-500">{student.parentPhone}</p>
                       </div>
                     </td>
-                    {!isTeacher && (
+                    {(!isTeacher && hasFeesModule) && (
                       <td className="px-6 py-4">
                         <span className={`text-sm font-bold ${student.balance > 0 ? 'text-red-500' : 'text-green-600 bg-green-50 px-2 py-0.5 rounded'}`}>
                           {formatAmount(student.balance)}
@@ -811,6 +828,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           onSave={handleAddStudent}
           classes={classes}
           isSubmitting={addStudentMutation.isPending}
+          hasFeesModule={hasFeesModule}
         />
       )}
 
@@ -825,6 +843,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           onSave={(data: any) => handleEditStudent(studentToEdit.id, data)}
           classes={classes}
           isSubmitting={editStudentMutation.isPending}
+          hasFeesModule={hasFeesModule}
         />
       )}
 
@@ -837,6 +856,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
             setIsEditModalOpen(true);
             setSelectedStudent(null);
           }}
+          hasFeesModule={hasFeesModule}
         />
       )}
 
@@ -945,7 +965,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 // --- Sub-components (Modals) ---
 // Note: In a real refactor, these should be separate files. Keeping here for context.
 
-const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting }: any) => {
+const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting, hasFeesModule }: any) => {
   const [formData, setFormData] = useState({
     name: '', class: classes[0]?.name || '', gender: 'Male', parentName: '', parentPhone: '', balance: '', dob: '', photoFile: null as File | null
   });
@@ -1092,25 +1112,27 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting }: any
           </section>
 
           {/* Section 3: Financials */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary-600" /> Initial Data
-            </h3>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Outstanding Balance (Optional)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">GHS</span>
-                <input
-                  type="number"
-                  className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm font-mono"
-                  placeholder="0.00"
-                  value={formData.balance}
-                  onChange={e => setFormData({ ...formData, balance: e.target.value })}
-                />
+          {hasFeesModule && (
+            <section>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary-600" /> Initial Data
+              </h3>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Outstanding Balance (Optional)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">GHS</span>
+                  <input
+                    type="number"
+                    className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm font-mono"
+                    placeholder="0.00"
+                    value={formData.balance}
+                    onChange={e => setFormData({ ...formData, balance: e.target.value })}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Leave empty to use default class fees.</p>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Leave empty to use default class fees.</p>
-            </div>
-          </section>
+            </section>
+          )}
 
           <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <button
@@ -1134,7 +1156,7 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting }: any
   );
 };
 
-const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitting }: any) => {
+const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitting, hasFeesModule }: any) => {
   const [formData, setFormData] = useState({
     name: student.name,
     class: student.class,
@@ -1240,10 +1262,12 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Login PIN</label>
                 <input className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.pin} onChange={e => setFormData({ ...formData, pin: e.target.value })} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
-                <input type="number" className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.balance} onChange={e => setFormData({ ...formData, balance: e.target.value })} />
-              </div>
+              {hasFeesModule && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
+                  <input type="number" className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.balance} onChange={e => setFormData({ ...formData, balance: e.target.value })} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1257,7 +1281,7 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
   );
 };
 
-const StudentProfileDrawer = ({ student, onClose, onEdit }: any) => {
+const StudentProfileDrawer = ({ student, onClose, onEdit, hasFeesModule }: any) => {
   const { formatAmount } = useCurrency();
   const [showPin, setShowPin] = useState(false);
 
@@ -1304,13 +1328,15 @@ const StudentProfileDrawer = ({ student, onClose, onEdit }: any) => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-3 mb-8">
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
-              <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Fee Balance</div>
-              <div className={`font-bold text-sm sm:text-base ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                {formatAmount(student.balance)}
+          <div className={`grid ${hasFeesModule ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-8`}>
+            {hasFeesModule && (
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+                <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Fee Balance</div>
+                <div className={`font-bold text-sm sm:text-base ${student.balance > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                  {formatAmount(student.balance)}
+                </div>
               </div>
-            </div>
+            )}
             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
               <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Gender</div>
               <div className="font-bold text-slate-700 text-sm sm:text-base">{student.gender}</div>

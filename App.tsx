@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
+import KumasiOffer from './components/KumasiOffer';
 import WhyUs from './components/WhyUs';
 import Features from './components/Features';
 import Pricing from './components/Pricing';
@@ -204,6 +205,7 @@ const AppContent: React.FC = () => {
               <Navbar />
               <main>
                 <Hero onStartWizard={() => navigate('/setup')} />
+                <KumasiOffer />
                 <WhyUs />
                 <Features />
                 <Pricing />
