@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS public.sms_transactions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.wallet_transactions DROP CONSTRAINT IF EXISTS wallet_transactions_type_check;
+ALTER TABLE public.wallet_transactions ADD CONSTRAINT wallet_transactions_type_check CHECK (type IN ('topup', 'subscription_payment', 'refund', 'sms_purchase'));
+
 -- 3. Function to Purchase (Create Invoice Request)
 CREATE OR REPLACE FUNCTION request_sms_purchase(
     p_school_id UUID,
@@ -29,9 +32,35 @@ CREATE OR REPLACE FUNCTION request_sms_purchase(
 ) RETURNS UUID AS $$
 DECLARE
     v_id UUID;
+    v_wallet_balance NUMERIC;
 BEGIN
+    -- Check Wallet Balance
+    SELECT balance INTO v_wallet_balance 
+    FROM public.school_wallets 
+    WHERE school_id = p_school_id 
+    FOR UPDATE;
+
+    IF v_wallet_balance IS NULL OR v_wallet_balance < p_amount THEN
+        RAISE EXCEPTION 'Insufficient wallet balance for SMS purchase.';
+    END IF;
+
+    -- Deduct from wallet
+    UPDATE public.school_wallets 
+    SET balance = balance - p_amount 
+    WHERE school_id = p_school_id;
+
+    -- Log into wallet transactions
+    INSERT INTO public.wallet_transactions (school_id, amount, type, reference, description)
+    VALUES (p_school_id, -p_amount, 'sms_purchase', 'SMS', 'Purchased ' || p_quantity || ' SMS credits');
+
+    -- Credit the schools SMS balance
+    UPDATE public.schools 
+    SET sms_balance = COALESCE(sms_balance, 0) + p_quantity 
+    WHERE id = p_school_id;
+
+    -- Insert SMS receipt transaction as Verified
     INSERT INTO public.sms_transactions (school_id, quantity, amount, status)
-    VALUES (p_school_id, p_quantity, p_amount, 'Pending')
+    VALUES (p_school_id, p_quantity, p_amount, 'Verified')
     RETURNING id INTO v_id;
     
     RETURN v_id;

@@ -117,6 +117,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [config, setConfig] = useState<any>({});
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [smsCalc, setSmsCalc] = useState({ amount: '', qty: '' });
+    const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
 
     // Top Up Context
     const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -303,15 +304,14 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             return data; // ref code
         },
         onSuccess: (data, variables) => {
-            setShowInvoice({
-                ref: data,
-                amount: variables.amount,
-                qty: variables.qty
-            });
+            alert(`Successfully purchased ${variables.qty} SMS credits!`);
             setSmsCalc({ amount: '', qty: '' });
+            setIsSmsModalOpen(false);
             queryClient.invalidateQueries({ queryKey: ['smsTransactions', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
         },
-        onError: (err: any) => alert("Error: " + err.message)
+        onError: (err: any) => alert("Error processing SMS purchase: " + err.message)
     });
 
 
@@ -420,7 +420,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     <p className="text-slate-500 text-xs">Manage your account</p>
                 </div>
 
-                <div className="flex flex-row lg:flex-col p-2 lg:p-4 gap-2 overflow-x-auto">
+                <div className="flex flex-row lg:flex-col p-2 lg:p-4 gap-2 overflow-x-auto hide-scrollbar">
                     {!isTeacher && (
                         <button
                             onClick={() => setActiveTab('general')}
@@ -457,7 +457,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             </div>
 
             {/* Main Content Area (Right) */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8">
 
                 {/* --- TAB 4: MENU --- */}
                 {activeTab === 'menu' && (
@@ -502,8 +502,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                 <p className="text-slate-500 text-sm">Update your school's general information.</p>
                             </div>
 
-                            <div className="flex items-center gap-4">
-                                <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors">
+                            <div className="flex items-center gap-4 mt-6">
+                                <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors shrink-0">
                                     {config.logo ? (
                                         <img src={config.logo} alt="Logo" className="h-full w-full object-cover" />
                                     ) : (
@@ -516,7 +516,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-800">School Logo</h3>
-                                    <p className="text-slate-500 text-xs">Click to upload a new logo (PNG, JPG)</p>
+                                    <p className="text-slate-500 text-xs">Click to upload a new logo <br className="sm:hidden" />(PNG, JPG)</p>
                                 </div>
                             </div>
 
@@ -735,46 +735,47 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 {/* --- TAB 3: BILLING --- */}
                 {activeTab === 'billing' && !isTeacher && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex flex-col gap-2">
                             <div>
                                 <h2 className="text-2xl font-bold text-slate-800">Billing & Credits</h2>
                                 <p className="text-slate-500 text-sm">Manage subscription, SMS credits, and payment methods.</p>
                             </div>
+                        </div>
 
-                            {/* Sub Navigation */}
-                            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                                <button onClick={() => setBillingTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'overview' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Overview</button>
-                                <button onClick={() => setBillingTab('sms')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${billingTab === 'sms' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-500 hover:text-primary-600'}`}>
-                                    <Smartphone className="w-4 h-4" /> SMS Credits
-                                </button>
-                                <button onClick={() => setBillingTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'settings' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Settings</button>
+                        {/* Wallet Card */}
+                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <CreditCard className="h-32 w-32 transform rotate-12" />
                             </div>
+                            <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-6">
+                                <div>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Wallet Balance</p>
+                                    <h3 className="text-4xl font-black mt-1">GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}</h3>
+                                    <p className="text-slate-400 text-sm mt-2">Top up your wallet to activate modules and buy SMS credits.</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => {
+                                        setIsTopUpModalOpen(true);
+                                        setTopUpAmount('');
+                                    }} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-100 transition-colors">
+                                        Top Up Wallet
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sub Navigation */}
+                        <div className="flex flex-wrap gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-fit">
+                            <button onClick={() => setBillingTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'overview' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Overview</button>
+                            <button onClick={() => setBillingTab('sms')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${billingTab === 'sms' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-500 hover:text-primary-600'}`}>
+                                <Smartphone className="w-4 h-4" /> SMS Credits
+                            </button>
+                            <button onClick={() => setBillingTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'settings' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Settings</button>
                         </div>
 
                         {/* SUB-TAB: OVERVIEW */}
                         {billingTab === 'overview' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Wallet Card */}
-                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden md:col-span-2">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                        <CreditCard className="h-32 w-32 transform rotate-12" />
-                                    </div>
-                                    <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-6">
-                                        <div>
-                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Wallet Balance</p>
-                                            <h3 className="text-4xl font-black mt-1">GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}</h3>
-                                            <p className="text-slate-400 text-sm mt-2">Top up your wallet to activate modules independently.</p>
-                                        </div>
-                                        <div className="flex gap-3">
-                                            <button onClick={() => {
-                                                setIsTopUpModalOpen(true);
-                                                setTopUpAmount('');
-                                            }} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-100 transition-colors">
-                                                Top Up Wallet
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
 
                                 {/* Modules List */}
                                 <div className="md:col-span-2 space-y-4">
@@ -834,55 +835,28 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
                         {/* SUB-TAB: SMS CREDITS */}
                         {billingTab === 'sms' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Buy Credits */}
-                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                    <div>
-                                        <h3 className="font-bold text-slate-800 text-lg">Purchase SMS Credits</h3>
-                                        <p className="text-slate-500 text-sm">Top up your balance to send messages. <br /><span className="text-primary-600 font-bold">Rate: GH¢ 0.035 / SMS</span></p>
+                            <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6">
+                                {/* Buy Credits Info Card */}
+                                <div className="bg-transparent lg:bg-white p-0 lg:p-6 justify-center flex flex-col items-center rounded-2xl lg:border border-slate-200 lg:shadow-sm space-y-0 lg:space-y-6 text-center">
+                                    <div className="bg-primary-50 p-4 rounded-full text-primary-600 mb-2 hidden lg:flex">
+                                        <Smartphone className="w-10 h-10" />
                                     </div>
-
-                                    <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">I want to buy (Quantity)</label>
-                                            <input
-                                                type="number"
-                                                value={smsCalc.qty}
-                                                onChange={e => {
-                                                    const q = Number(e.target.value);
-                                                    setSmsCalc({ qty: e.target.value, amount: (q * 0.035).toFixed(2) });
-                                                }}
-                                                placeholder="e.g. 1000 SMS"
-                                                className="w-full p-3 font-bold text-lg border border-slate-300 rounded-lg outline-none focus:border-primary-500"
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-center text-slate-400">
-                                            <Layout className="w-4 h-4 rotate-90" /> {/* Exchange Icon Replacement */}
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">I want to pay (Amount GH¢)</label>
-                                            <input
-                                                type="number"
-                                                value={smsCalc.amount}
-                                                onChange={e => {
-                                                    const a = Number(e.target.value);
-                                                    setSmsCalc({ amount: e.target.value, qty: Math.floor(a / 0.035).toString() });
-                                                }}
-                                                placeholder="e.g. 50.00"
-                                                className="w-full p-3 font-bold text-lg border border-slate-300 rounded-lg outline-none focus:border-primary-500"
-                                            />
-                                        </div>
+                                    <div className="hidden lg:block">
+                                        <h3 className="font-bold text-slate-800 text-xl">Top Up SMS Balance</h3>
+                                        <p className="text-slate-500 text-sm mt-2 max-w-[250px] mx-auto">Purchase credits to send bulk messages to parents and staff.</p>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 px-6 py-2 rounded-lg hidden lg:inline-block">
+                                        <p className="text-primary-700 font-black tracking-wide">Rate: GH¢ 0.035 / SMS</p>
                                     </div>
 
                                     <button
-                                        disabled={!smsCalc.qty || Number(smsCalc.qty) <= 0 || requestSMSPurchaseMutation.isPending}
                                         onClick={() => {
-                                            if (!confirm(`Confirm purchase of ${smsCalc.qty} SMS for GH¢ ${smsCalc.amount}?`)) return;
-                                            requestSMSPurchaseMutation.mutate({ qty: Number(smsCalc.qty), amount: Number(smsCalc.amount) });
+                                            setSmsCalc({ amount: '', qty: '' });
+                                            setIsSmsModalOpen(true);
                                         }}
-                                        className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary-200 hover:bg-primary-700 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+                                        className="w-full max-w-[250px] bg-primary-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:scale-105 transition-all flex justify-center items-center gap-2"
                                     >
-                                        {requestSMSPurchaseMutation.isPending ? <Smartphone className="animate-pulse" /> : <CreditCard className="w-5 h-5" />} Buy Credits
+                                        <CreditCard className="w-5 h-5" /> Buy Credits via Wallet
                                     </button>
                                 </div>
 
@@ -1183,6 +1157,88 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     </div>
                 </div>
             )}
+
+            {/* Purchase SMS Modal */}
+            {isSmsModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 relative">
+                        <button
+                            onClick={() => setIsSmsModalOpen(false)}
+                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="text-center mb-6">
+                            <div className="mx-auto w-12 h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
+                                <Smartphone className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800">Purchase SMS Credits</h3>
+                            <p className="text-slate-500 text-sm mt-1">Deducting from your digital wallet balance.</p>
+                            <div className="mt-3 bg-slate-50 rounded-lg p-2 font-black text-primary-700 tracking-wide inline-block border border-slate-100">Rate: GH¢ 0.035 / SMS</div>
+                        </div>
+
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Quantity (SMS limit)</label>
+                                <input
+                                    type="number"
+                                    value={smsCalc.qty}
+                                    onChange={e => {
+                                        const q = Number(e.target.value);
+                                        setSmsCalc({ qty: e.target.value, amount: (q * 0.035).toFixed(2) });
+                                    }}
+                                    placeholder="e.g. 1000"
+                                    className="w-full px-4 py-3 bg-slate-50 font-bold text-lg border border-slate-200 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-100 rounded-xl outline-none transition-all"
+                                />
+                            </div>
+
+                            <div className="flex justify-center -my-1 relative z-10">
+                                <div className="bg-white border text-slate-400 border-slate-200 rounded-full p-1.5 shadow-sm transform">
+                                    <Layout className="w-4 h-4 rotate-90" />
+                                </div>
+                            </div>
+
+                            <div className="-mt-3">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Deducting Amount (GH¢)</label>
+                                <input
+                                    type="number"
+                                    value={smsCalc.amount}
+                                    onChange={e => {
+                                        const a = Number(e.target.value);
+                                        setSmsCalc({ amount: e.target.value, qty: Math.floor(a / 0.035).toString() });
+                                    }}
+                                    placeholder="e.g. 50.00"
+                                    className="w-full px-4 py-3 bg-slate-50 font-bold text-lg border border-slate-200 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-100 rounded-xl outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Current Wallet Context Block */}
+                        <div className="mb-6 bg-slate-100/50 rounded-xl p-3 border border-slate-200 border-dashed flex justify-between items-center text-sm">
+                            <span className="text-slate-500 font-medium tracking-tight">Your Wallet:</span>
+                            <span className={`font-black ${wallet?.balance < Number(smsCalc.amount) ? 'text-red-500' : 'text-slate-800'}`}>
+                                GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}
+                            </span>
+                        </div>
+
+                        <button
+                            disabled={!smsCalc.qty || Number(smsCalc.qty) <= 0 || requestSMSPurchaseMutation.isPending || (wallet?.balance < Number(smsCalc.amount))}
+                            onClick={() => {
+                                if (!confirm(`Confirm purchase of ${smsCalc.qty} SMS for GH¢ ${smsCalc.amount} from your wallet?`)) return;
+                                requestSMSPurchaseMutation.mutate({ qty: Number(smsCalc.qty), amount: Number(smsCalc.amount) });
+                            }}
+                            className={`w-full py-3.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 
+                            ${wallet?.balance >= Number(smsCalc.amount)
+                                    ? 'bg-slate-900 shadow-slate-900/20 text-white hover:bg-slate-800 disabled:opacity-70'
+                                    : 'bg-red-50 text-red-500 border-red-200 border cursor-not-allowed shadow-none'}`}
+                        >
+                            {requestSMSPurchaseMutation.isPending ? 'Processing Purchase...' : wallet?.balance >= Number(smsCalc.amount) ? 'Purchase SMS' : 'Insufficient Balance'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

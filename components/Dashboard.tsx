@@ -724,10 +724,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             <main className={`flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative ${subscriptionStatus === 'warning' ? 'mt-9' : ''}`}>
                 <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 md:hidden">
-                        <div
-                            className={`h-8 w-8 rounded-lg ${theme.bg} flex items-center justify-center text-white font-bold`}
-                            style={theme.custom ? { backgroundColor: theme.custom.bg } : {}}
-                        >{schoolConfig?.name?.[0] || 'O'}</div>
+                        {schoolConfig?.logo ? (
+                            <img src={schoolConfig.logo} alt="School Logo" className="h-8 w-8 rounded-lg object-cover" />
+                        ) : (
+                            <div
+                                className={`h-8 w-8 rounded-lg ${theme.bg} flex items-center justify-center text-white font-bold`}
+                                style={theme.custom ? { backgroundColor: theme.custom.bg } : {}}
+                            >{schoolConfig?.name?.[0] || 'O'}</div>
+                        )}
                     </div>
                     <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
                         <div className="relative w-full">
