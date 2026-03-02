@@ -1150,10 +1150,12 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             ) : (
                                 <PaystackButton
                                     className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                                    email={config.email || 'billing@orbit.edu.gh'}
-                                    amount={Number(topUpAmount) * 100}
+                                    email={(config.email && config.email.trim() !== '') ? config.email.trim() : 'billing@orbit.edu.gh'}
+                                    amount={Math.round(Number(topUpAmount) * 100)}
                                     publicKey={import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || ''}
                                     text="Proceed to Payment"
+                                    currency="GHS"
+                                    reference={`top-up-${new Date().getTime().toString()}`}
                                     onSuccess={(reference) => {
                                         topUpMutation.mutate(Number(topUpAmount), {
                                             onSuccess: () => {
