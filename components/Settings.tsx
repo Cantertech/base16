@@ -7,6 +7,7 @@ import {
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { PaystackButton } from 'react-paystack';
 import Loading from './Loading';
 
 interface SettingsProps {
@@ -1138,21 +1139,34 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                 />
                             </div>
 
-                            <button
-                                disabled={!topUpAmount || Number(topUpAmount) <= 0 || topUpMutation.isPending}
-                                onClick={() => {
-                                    topUpMutation.mutate(Number(topUpAmount), {
-                                        onSuccess: () => {
-                                            setIsTopUpModalOpen(false);
-                                            setTopUpAmount('');
-                                        }
-                                    });
-                                }}
-                                className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 flex items-center justify-center gap-2"
-                            >
-                                {topUpMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                                {topUpMutation.isPending ? 'Processing...' : 'Proceed to Payment'}
-                            </button>
+                            {(!topUpAmount || Number(topUpAmount) <= 0 || topUpMutation.isPending) ? (
+                                <button
+                                    disabled
+                                    className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg transition-all opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {topUpMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                                    {topUpMutation.isPending ? 'Processing...' : 'Proceed to Payment'}
+                                </button>
+                            ) : (
+                                <PaystackButton
+                                    className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                                    email={config.email || 'billing@orbit.edu.gh'}
+                                    amount={Number(topUpAmount) * 100}
+                                    publicKey={import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || ''}
+                                    text="Proceed to Payment"
+                                    onSuccess={(reference) => {
+                                        topUpMutation.mutate(Number(topUpAmount), {
+                                            onSuccess: () => {
+                                                setIsTopUpModalOpen(false);
+                                                setTopUpAmount('');
+                                            }
+                                        });
+                                    }}
+                                    onClose={() => {
+                                        console.log("Paystack dialog closed");
+                                    }}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
