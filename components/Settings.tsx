@@ -426,13 +426,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             <Building2 className="h-5 w-5" /> General
                         </button>
                     )}
-                    <button
-                        onClick={() => setActiveTab('security')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'security' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                        style={activeTab === 'security' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
-                    >
-                        <Lock className="h-5 w-5" /> Security
-                    </button>
                     {!isTeacher && (
                         <button
                             onClick={() => setActiveTab('billing')}
@@ -442,6 +435,13 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             <CreditCard className="h-5 w-5" /> Billing & Plans
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('security')}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'security' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                        style={activeTab === 'security' && config.color?.startsWith('#') ? { backgroundColor: `${config.color}15`, color: config.color } : {}}
+                    >
+                        <Lock className="h-5 w-5" /> Security
+                    </button>
                     <button
                         onClick={() => setActiveTab('menu')}
                         className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${activeTab === 'menu' ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50'}`}
