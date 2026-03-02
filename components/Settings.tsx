@@ -377,11 +377,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const handleSecuritySave = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Update Name
-        if (config.admin && config.admin !== currentUser?.name) {
-            updateProfileMutation.mutate(config.admin);
-        }
-
         // Update Password
         if (passwords.new) {
             if (passwords.new !== passwords.confirm) {
@@ -678,19 +673,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                         </div>
 
                         <form onSubmit={handleSecuritySave} className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                            {!isTeacher && (
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Administrator Name</label>
-                                    <input
-                                        type="text"
-                                        value={config.admin || ''}
-                                        onChange={e => setConfig({ ...config, admin: e.target.value })}
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-slate-50"
-                                    />
-                                </div>
-                            )}
-
-                            <div className={!isTeacher ? "pt-4 border-t border-slate-100" : ""}>
+                            <div className="">
                                 <h3 className="font-bold text-slate-800 mb-4">Change Password</h3>
                                 <div className="space-y-4">
                                     <div>
