@@ -287,6 +287,12 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
         }
     }, [classes, teacherClasses, currentUser, selectedClass]);
 
+    useEffect(() => {
+        if (!viewClass && classes.length > 0) {
+            setViewClass(classes[0]);
+        }
+    }, [classes, viewClass]);
+
 
     // --- Mutations ---
     const saveAttendanceMutation = useMutation({
@@ -390,23 +396,60 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
 
                         {/* Charts Area */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Class Breakdown (Bar Chart) */}
-                            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><BarChart2 className="h-5 w-5 text-slate-400" /> Class Performance</h3>
-                                <div className="h-80">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={classStats}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                            <YAxis axisLine={false} tickLine={false} />
-                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                                            <Legend />
-                                            <Bar dataKey="Present" fill="#16a34a" radius={[4, 4, 0, 0]} stackId="a" />
-                                            <Bar dataKey="Late" fill="#ca8a04" radius={[4, 4, 0, 0]} stackId="a" />
-                                            <Bar dataKey="Absent" fill="#dc2626" radius={[4, 4, 0, 0]} stackId="a" />
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                            {/* Verification Section (Now in Charts Area) */}
+                            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Search className="h-5 w-5 text-slate-400" /> Verify Class Attendance</h3>
+                                <div className="flex flex-col sm:flex-row gap-3 mb-4 shrink-0">
+                                    <select
+                                        value={viewClass}
+                                        onChange={e => setViewClass(e.target.value)}
+                                        className="p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 bg-slate-50"
+                                    >
+                                        <option value="">Select Class to View</option>
+                                        {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <input
+                                        type="date"
+                                        value={viewDate}
+                                        onChange={e => setViewDate(e.target.value)}
+                                        className="p-2.5 text-sm border border-slate-200 rounded-xl outline-none bg-slate-50"
+                                    />
                                 </div>
+
+                                {viewClass && (
+                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex-1 overflow-y-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-medium sticky top-0">
+                                                <tr>
+                                                    <th className="px-4 py-3">Student</th>
+                                                    <th className="px-4 py-3 text-right">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {viewLoading ? (
+                                                    <tr><td colSpan={2} className="p-8 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
+                                                ) : viewResults.length > 0 ? (
+                                                    viewResults.map((r: any) => (
+                                                        <tr key={r.id}>
+                                                            <td className="px-4 py-3 font-medium text-slate-700">{r.name}</td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <span className={`px-2.5 py-1 rounded inline-block text-xs font-bold ${r.status === 'Present' ? 'bg-green-100 text-green-700' :
+                                                                    r.status === 'Absent' ? 'bg-red-100 text-red-700' :
+                                                                        r.status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
+                                                                            'bg-slate-100 text-slate-500'
+                                                                    }`}>
+                                                                    {r.status}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400">No records found.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Overall Pie Chart */}
@@ -455,66 +498,23 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                     </>
                 )}
 
-                {/* Bottom Verification Section (Admin) */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-6 mb-20 mx-4 md:mx-0">
-                    <h3 className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                        <Search className="h-4 w-4 text-slate-400" /> Verify Attendance Records
-                    </h3>
-                    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                        <select
-                            value={viewClass}
-                            onChange={e => setViewClass(e.target.value)}
-                            className="p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-primary-500 bg-white"
-                        >
-                            <option value="">Select Class to View</option>
-                            {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <input
-                            type="date"
-                            value={viewDate}
-                            onChange={e => setViewDate(e.target.value)}
-                            className="p-2 text-sm border border-slate-200 rounded-lg outline-none bg-white"
-                        />
-                        {/* Button no longer needed given query enabled: !!viewClass && !!viewDate, but nice to have for refreshing? 
-                            Actually forcing a refetch on click is nice.
-                            For now let's just let it auto-fetch or manually refetch.
-                        */}
+                {/* Bottom Class Performance (Admin) */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6 mb-20 mx-4 md:mx-0">
+                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><BarChart2 className="h-5 w-5 text-slate-400" /> Class Performance</h3>
+                    <div className="h-80 bg-white p-4 rounded-xl border border-slate-200">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={classStats}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                                <YAxis axisLine={false} tickLine={false} />
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                                <Legend />
+                                <Bar dataKey="Present" fill="#16a34a" radius={[4, 4, 0, 0]} stackId="a" />
+                                <Bar dataKey="Late" fill="#ca8a04" radius={[4, 4, 0, 0]} stackId="a" />
+                                <Bar dataKey="Absent" fill="#dc2626" radius={[4, 4, 0, 0]} stackId="a" />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
-
-                    {viewClass && (
-                        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden max-h-60 overflow-y-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-medium sticky top-0">
-                                    <tr>
-                                        <th className="px-4 py-2">Student</th>
-                                        <th className="px-4 py-2">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {viewLoading ? (
-                                        <tr><td colSpan={2} className="p-4 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
-                                    ) : viewResults.length > 0 ? (
-                                        viewResults.map((r: any) => (
-                                            <tr key={r.id}>
-                                                <td className="px-4 py-2 font-medium text-slate-700">{r.name}</td>
-                                                <td className="px-4 py-2">
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${r.status === 'Present' ? 'bg-green-100 text-green-700' :
-                                                        r.status === 'Absent' ? 'bg-red-100 text-red-700' :
-                                                            r.status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
-                                                                'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                        {r.status}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr><td colSpan={2} className="p-4 text-center text-slate-400">No records found.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
                 </div>
             </div>
         );

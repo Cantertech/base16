@@ -1,0 +1,6 @@
+ALTER TABLE schools
+ADD COLUMN collect_daily_fees BOOLEAN DEFAULT FALSE,
+ADD COLUMN daily_fee_amount NUMERIC DEFAULT 0;
+
+ALTER TABLE feeding_logs
+ADD COLUMN fee_amount NUMERIC DEFAULT 0;

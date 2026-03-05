@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Search, Banknote, CreditCard, Wallet, TrendingUp,
-    ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus, Trash2, ArrowLeft, ChevronRight
+    ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus, Trash2, ArrowLeft, ChevronRight, Loader2
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -98,12 +98,18 @@ const fetchClasses = async (schoolId: string) => {
 const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const { formatAmount, currency } = useCurrency();
     const queryClient = useQueryClient();
-    const [activeTab, setActiveTab] = useState<'overview' | 'structure'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'structure' | 'analytics'>('overview');
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'owing'>('all');
     const [receiptData, setReceiptData] = useState<any>(null);
     const [selectedFeeClass, setSelectedFeeClass] = useState<string>('General');
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false); // Mobile Detail View State
+    const [analyticsStartDate, setAnalyticsStartDate] = useState<string>(
+        new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
+    );
+    const [analyticsEndDate, setAnalyticsEndDate] = useState<string>(
+        new Date().toISOString().split('T')[0]
+    );
 
     // Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -330,6 +336,12 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                     >
                         Fee Structure
                     </button>
+                    <button
+                        onClick={() => setActiveTab('analytics')}
+                        className={`flex-1 md:flex-none px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all whitespace-nowrap ${activeTab === 'analytics' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Analytics & Reports
+                    </button>
                 </div>
             </div>
 
@@ -536,7 +548,7 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                         </div>
                     </div>
                 </div>
-            ) : (
+            ) : activeTab === 'structure' ? (
                 <div className="flex flex-col md:flex-row gap-6 animate-in fade-in slide-in-from-right-4 duration-300 h-[calc(100vh-12rem)]">
 
                     {/* Class Selector Sidebar */}
@@ -724,7 +736,135 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                         </div>
                     </div>
                 </div>
-            )}
+            ) : activeTab === 'analytics' ? (
+                <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                    <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800">Financial Reports</h3>
+                                <p className="text-slate-500 text-sm">Analyze payments and outstanding balances over time.</p>
+                            </div>
+                            <div className="flex flex-col md:flex-row gap-3">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-slate-600">From:</label>
+                                    <input
+                                        type="date"
+                                        value={analyticsStartDate}
+                                        onChange={(e) => setAnalyticsStartDate(e.target.value)}
+                                        className="p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-slate-600">To:</label>
+                                    <input
+                                        type="date"
+                                        value={analyticsEndDate}
+                                        onChange={(e) => setAnalyticsEndDate(e.target.value)}
+                                        className="p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Analytic Stats */}
+                        {(() => {
+                            const startMatch = analyticsStartDate ? new Date(analyticsStartDate).getTime() : 0;
+                            const endMatch = analyticsEndDate ? new Date(analyticsEndDate).getTime() + (24 * 60 * 60 * 1000) - 1 : Infinity;
+
+                            const rangeTransactions = transactions.filter(t => {
+                                const tDate = new Date(t.date).getTime();
+                                return tDate >= startMatch && tDate <= endMatch;
+                            });
+
+                            const totalRevenueInRange = rangeTransactions.reduce((sum, t) => sum + t.amount, 0);
+                            const uniqueStudentsCount = new Set(rangeTransactions.map(t => t.studentId)).size;
+
+                            return (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-500">Revenue in Range</p>
+                                                <p className="text-2xl font-bold text-green-600">{formatAmount(totalRevenueInRange)}</p>
+                                            </div>
+                                            <div className="bg-green-100 text-green-600 p-3 rounded-full">
+                                                <TrendingUp className="h-6 w-6" />
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-500">Students Paid in Range</p>
+                                                <p className="text-2xl font-bold text-slate-800">{uniqueStudentsCount}</p>
+                                            </div>
+                                            <div className="bg-blue-100 text-blue-600 p-3 rounded-full">
+                                                <Banknote className="h-6 w-6" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                        <h4 className="font-bold text-slate-800">Transactions in Date Range</h4>
+                                        <button
+                                            onClick={() => {
+                                                const headers = ['Date', 'Student Name', 'Type', 'Amount', 'Method', 'Reference'];
+                                                const rows = rangeTransactions.map(t => [
+                                                    new Date(t.date).toLocaleDateString(),
+                                                    `"${(t.studentName || 'Unknown').replace(/"/g, '""')}"`,
+                                                    `"${(t.type || '').replace(/"/g, '""')}"`,
+                                                    t.amount,
+                                                    `"${(t.method || '').replace(/"/g, '""')}"`,
+                                                    `"${(t.reference || '').replace(/"/g, '""')}"`
+                                                ]);
+                                                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                                const link = document.createElement('a');
+                                                const url = URL.createObjectURL(blob);
+                                                link.setAttribute('href', url);
+                                                link.setAttribute('download', `financial_report_${analyticsStartDate || 'start'}_to_${analyticsEndDate || 'end'}.csv`);
+                                                link.style.visibility = 'hidden';
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                            }}
+                                            className="flex items-center gap-2 text-sm font-bold bg-white text-slate-700 hover:text-primary-600 px-3 py-1.5 rounded border border-slate-200 shadow-sm transition-colors"
+                                        >
+                                            <Download className="h-4 w-4" /> Export CSV
+                                        </button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student Name</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {rangeTransactions.length > 0 ? (
+                                                    rangeTransactions.map((t, idx) => (
+                                                        <tr key={t.id || idx} className="hover:bg-slate-50">
+                                                            <td className="px-4 py-3 text-sm text-slate-600">{new Date(t.date).toLocaleDateString()}</td>
+                                                            <td className="px-4 py-3 text-sm font-bold text-slate-800">{t.studentName}</td>
+                                                            <td className="px-4 py-3 text-sm text-slate-500">{t.type}</td>
+                                                            <td className="px-4 py-3 text-sm font-bold text-green-600 text-right">{formatAmount(t.amount)}</td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={4} className="px-4 py-8 text-center text-slate-500">No transactions found for this date range.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+                </div>
+            ) : null}
 
             {/* --- PAYMENT MODAL --- */}
             {isPaymentModalOpen && selectedStudent && (

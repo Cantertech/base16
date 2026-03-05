@@ -193,6 +193,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 current_term: schoolData.current_term,
                 academic_year: schoolData.academic_year,
                 color: schoolData.theme_color || 'blue',
+                feeding_fee_amount: schoolData.feeding_fee_amount || 5,
+                teachers_can_collect_feeding: schoolData.teachers_can_collect_feeding || false,
                 referralCode: schoolData.referral_code || `BW-${Math.floor(Math.random() * 900 + 100)}`, // Fallback display
                 referralPreference: schoolData.referral_preference || 'CASH',
                 plan: schoolData.subscription_plan || 'Small School',
@@ -220,7 +222,9 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     phone: newConfig.phone,
                     logo_url: newConfig.logo,
                     theme_color: newConfig.color,
-                    referral_preference: newConfig.referralPreference
+                    referral_preference: newConfig.referralPreference,
+                    feeding_fee_amount: newConfig.feeding_fee_amount,
+                    teachers_can_collect_feeding: newConfig.teachers_can_collect_feeding
                 })
                 .eq('id', schoolId);
             if (error) throw error;

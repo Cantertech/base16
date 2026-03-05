@@ -50,6 +50,7 @@ import Settings from './Settings';
 import Attendance from './Attendance';
 import Timetable from './Timetable';
 import Feeding from './Feeding';
+import MyPayroll from './MyPayroll';
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -188,7 +189,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     color: school.theme_color || 'blue',
                     next_payment_due: school.next_payment_due,
                     current_term: school.current_term || 'First Term',
-                    academic_year: school.academic_year
+                    academic_year: school.academic_year,
+                    teachers_can_collect_feeding: school.teachers_can_collect_feeding || false,
+                    feeding_fee_amount: school.feeding_fee_amount || 5,
                 };
                 // Cache the config to prevent flashing on reload
                 localStorage.setItem(`orbit_school_config_${currentUser.school_id}`, JSON.stringify(config));
@@ -269,6 +272,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         enabled: !!currentUser.school_id
     });
 
+    // Check if teacher has payslips
+    const { data: hasPayslips = false } = useQuery({
+        queryKey: ['checkPayslips', currentUser.id],
+        queryFn: async () => {
+            const { count, error } = await supabase
+                .from('payroll_records')
+                .select('*', { count: 'exact', head: true })
+                .eq('teacher_id', currentUser.id)
+                .eq('status', 'Paid');
+            if (error) return false;
+            return (count || 0) > 0;
+        },
+        enabled: currentUser.role === 'teacher'
+    });
+
     // 4. Recent Notices
     const { data: recentNotices = [] } = useQuery({
         queryKey: ['recentNotices', currentUser.school_id],
@@ -305,6 +323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const [targetYear, setTargetYear] = useState(new Date().getFullYear() + '/' + (new Date().getFullYear() + 1));
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [copyFeesState, setCopyFeesState] = useState(false);
+    const [carryForwardState, setCarryForwardState] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showBillingModal, setShowBillingModal] = useState(false);
 
@@ -318,6 +337,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             setTargetYear(schoolConfig.academic_year); // Default to current year for continuity
             setShowConfirmSwitch(false); // Reset confirmation step
             setCopyFeesState(false); // Reset checkbox
+            setCarryForwardState(false);
         }
     }, [showSessionModal, schoolConfig]);
 
@@ -329,12 +349,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     }, [schoolConfig]);
 
     const startNewTermMutation = useMutation({
-        mutationFn: async ({ term, year, copyFees }: { term: string, year: string, copyFees: boolean }) => {
+        mutationFn: async ({ term, year, copyFees, carryForward }: { term: string, year: string, copyFees: boolean, carryForward: boolean }) => {
             const { error } = await supabase.rpc('start_new_term', {
                 p_school_id: currentUser.school_id,
                 p_new_term: term,
                 p_new_year: year,
-                p_copy_fees: copyFees
+                p_copy_fees: copyFees,
+                p_carry_forward: carryForward
             });
             if (error) throw error;
         },
@@ -436,6 +457,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'Timetable', icon: Clock },
         { name: 'My Students', icon: Users },
         { name: 'Attendance', icon: Calendar },
+        ...(schoolConfig?.teachers_can_collect_feeding ? [{ name: 'Feeding', icon: Utensils }] : []),
+        ...(hasPayslips ? [{ name: 'My Payroll', icon: Banknote }] : []),
         { name: 'Mark Entry & Reports', icon: FileText },
         { name: 'Notice Board', icon: Bell },
         { name: 'Settings & Profile', icon: SettingsIcon },
@@ -497,6 +520,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Timetable': return <Timetable currentUser={currentUser} />;
                 case 'My Students': return <Students currentUser={currentUser} />;
                 case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
+                case 'Feeding': return <Feeding currentUser={currentUser} />;
+                case 'My Payroll': return <MyPayroll currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
@@ -896,22 +921,42 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
                                         if (isFuture) {
                                             return (
-                                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                                                    <div className="mt-0.5">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={copyFeesState}
-                                                            onChange={(e) => setCopyFeesState(e.target.checked)}
-                                                            id="copyFees"
-                                                            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                                        />
+                                                <div className="space-y-3">
+                                                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                                                        <div className="mt-0.5">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={copyFeesState}
+                                                                onChange={(e) => setCopyFeesState(e.target.checked)}
+                                                                id="copyFees"
+                                                                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                            />
+                                                        </div>
+                                                        <label htmlFor="copyFees" className="text-sm cursor-pointer select-none">
+                                                            <span className="font-bold text-blue-900 block mb-0.5">Copy Fee Structure</span>
+                                                            <span className="text-blue-700/80">
+                                                                Since you are starting a new term, checking this will copy fees from the current term.
+                                                            </span>
+                                                        </label>
                                                     </div>
-                                                    <label htmlFor="copyFees" className="text-sm cursor-pointer select-none">
-                                                        <span className="font-bold text-blue-900 block mb-0.5">Copy Fee Structure</span>
-                                                        <span className="text-blue-700/80">
-                                                            Since you are starting a new term, checking this will copy fees from the current term.
-                                                        </span>
-                                                    </label>
+
+                                                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-3">
+                                                        <div className="mt-0.5">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={carryForwardState}
+                                                                onChange={(e) => setCarryForwardState(e.target.checked)}
+                                                                id="carryForwardFees"
+                                                                className="w-4 h-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                                                            />
+                                                        </div>
+                                                        <label htmlFor="carryForwardFees" className="text-sm cursor-pointer select-none">
+                                                            <span className="font-bold text-orange-900 block mb-0.5">Carry Forward Arrears</span>
+                                                            <span className="text-orange-700/80">
+                                                                Checking this will automatically push all existing balances of owing students to the new term.
+                                                            </span>
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             );
                                         }
@@ -964,7 +1009,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                                     </button>
                                     <button
                                         onClick={() => {
-                                            startNewTermMutation.mutate({ term: targetTerm, year: targetYear, copyFees: copyFeesState });
+                                            startNewTermMutation.mutate({ term: targetTerm, year: targetYear, copyFees: copyFeesState, carryForward: carryForwardState });
                                             setShowSessionModal(false);
                                         }}
                                         className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
@@ -1012,48 +1057,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                         </div>
 
                         <div className="p-6 space-y-6">
-                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                                <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                                    <Banknote className="h-4 w-4" /> Term Information
-                                </h3>
-                                <p className="text-sm text-blue-800/80 mb-3">
-                                    Please note that the billing for this term is calculated at:
-                                </p>
-                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100 shadow-sm mb-2">
-                                    <span className="text-sm font-medium text-slate-600">Rate per Student</span>
-                                    <span className="font-bold text-slate-900">GH¢ 4.00</span>
-                                </div>
-                                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
-                                    <span className="text-sm font-medium text-slate-600">Estimated Total</span>
-                                    <span className="font-bold text-slate-900">GH¢ {formatAmount(stats.students * 4)}</span>
-                                </div>
+                            <div className="flex bg-slate-100 p-4 rounded-xl text-center items-center justify-center text-slate-700 font-medium">
+                                You can now begin using the system for the new academic period.
                             </div>
 
-                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 text-amber-900 text-sm">
-                                <Clock className="h-5 w-5 shrink-0 text-amber-600" />
-                                <div>
-                                    <p className="font-bold">Payment Due Date</p>
-                                    <p className="opacity-80 mt-1">
-                                        Payment for this term is due in 8 weeks on <span className="font-bold">{new Date(Date.now() + 8 * 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>.
-                                    </p>
-                                </div>
-                            </div>
+                            <div className="flex justify-center pt-2">
 
-                            <div className="grid grid-cols-2 gap-3 pt-2">
                                 <button
                                     onClick={() => setShowBillingModal(false)}
-                                    className="px-4 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                                    className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
                                 >
-                                    Close
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowBillingModal(false);
-                                        setActiveMenu('Settings');
-                                    }}
-                                    className="px-4 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-colors"
-                                >
-                                    Go to Billing
+                                    Continue to Dashboard
                                 </button>
                             </div>
                         </div>

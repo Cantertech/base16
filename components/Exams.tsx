@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Search, FileText, CheckCircle, Save, Printer,
     BarChart2, Filter, ChevronDown, User, ArrowRight,
@@ -8,6 +8,7 @@ import {
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useReactToPrint } from 'react-to-print';
 
 // --- Types ---
 interface Result {
@@ -221,6 +222,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number }>>({});
     const [releaseModalData, setReleaseModalData] = useState<{ className: string, studentCount: number, validPhones: number } | null>(null);
+    const [isBulkPrinting, setIsBulkPrinting] = useState(false);
+    const bulkPrintRef = useRef<HTMLDivElement>(null);
 
 
 
@@ -603,6 +606,25 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
             return grade ? grade.grade : 'F';
         }
         return 'F';
+    };
+
+    const handleBulkPrintTrigger = useReactToPrint({
+        contentRef: bulkPrintRef,
+        documentTitle: `Bulk_Reports_${viewingClassList}`,
+        onBeforeGetContent: () => {
+            // Delay to allow async attendance / report states to load
+            setIsBulkPrinting(true);
+            return new Promise<void>(resolve => setTimeout(resolve, 2000));
+        },
+        onAfterPrint: () => {
+            setIsBulkPrinting(false);
+        }
+    } as any);
+
+    const triggerBulkPrint = () => {
+        setIsBulkPrinting(true);
+        // slight UI delay to render the hidden elements before react-to-print grabs it
+        setTimeout(handleBulkPrintTrigger, 300);
     };
 
     // --- Loading State ---
@@ -1027,7 +1049,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     <div className="bg-white w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl flex flex-col">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <div><h3 className="font-bold text-lg text-slate-800">Students in {viewingClassList}</h3></div>
-                            <button onClick={() => setViewingClassList(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-6 h-6" /></button>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={triggerBulkPrint}
+                                    disabled={isBulkPrinting}
+                                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
+                                >
+                                    {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                                    {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
+                                </button>
+                                <button onClick={() => setViewingClassList(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-6 h-6" /></button>
+                            </div>
                         </div>
                         <div className="p-6 overflow-y-auto bg-slate-50/50">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1056,7 +1088,35 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                     onClose={() => setReportStudent(null)}
                     position={studentRank}
                     schoolId={schoolId}
+                    printMode={false}
                 />
+            )}
+
+            {/* Hidden Bulk Print Container */}
+            {isBulkPrinting && viewingClassList && (
+                <div style={{ display: 'none' }}>
+                    <div ref={bulkPrintRef} className="print:block">
+                        {students.filter(s => s.class === viewingClassList).map((student) => {
+                            // Optionally recalculate rank inline if we could, but right now we pass null or fetch it
+                            // For bulk print, rank isn't strictly requested per single report, or it may default to '-'
+                            // If needed, we'd pre-calculate an array of ranks.
+                            return (
+                                <ReportCard
+                                    key={student.id}
+                                    student={student}
+                                    results={results.filter((r: Result) => r.studentId === student.id)}
+                                    schoolConfig={{
+                                        ...schoolInfo,
+                                        ...examConfig,
+                                    }}
+                                    onClose={() => { }}
+                                    schoolId={schoolId}
+                                    printMode={true}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
             )}
         </div>
     );

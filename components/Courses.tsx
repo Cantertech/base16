@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, BookOpen, Layers, Edit, Trash2, Plus,
-    MoreHorizontal, Search, CheckSquare, Square, X, Check
+    MoreHorizontal, Search, CheckSquare, Square, X, Check, FastForward, Loader2
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
@@ -12,7 +12,8 @@ interface ClassItem {
     name: string;
     section?: string;
     studentCount: number;
-    teacherId?: string | null; // Stores Teacher Name for display
+    teacherId?: string | null;
+    teacherName?: string;
 }
 
 interface SubjectItem {
@@ -57,13 +58,13 @@ const fetchClasses = async (schoolId: string) => {
     // 3. Fetch Teachers for assignment
     const { data: teachersData } = await supabase
         .from('teachers')
-        .select('name, assigned_class')
+        .select('id, name, assigned_class')
         .eq('school_id', schoolId);
 
-    const classTeachers: Record<string, string> = {};
+    const classTeachers: Record<string, { id: string, name: string }> = {};
     teachersData?.forEach((t: any) => {
         if (t.assigned_class) {
-            classTeachers[t.assigned_class] = t.name;
+            classTeachers[t.assigned_class] = { id: t.id, name: t.name };
         }
     });
 
@@ -72,8 +73,18 @@ const fetchClasses = async (schoolId: string) => {
         name: c.name,
         section: c.section,
         studentCount: studentCounts[c.name] || 0,
-        teacherId: classTeachers[c.name] || 'Unassigned'
+        teacherId: classTeachers[c.name]?.id || null,
+        teacherName: classTeachers[c.name]?.name || 'Unassigned'
     })) as ClassItem[];
+};
+
+const fetchTeachers = async (schoolId: string) => {
+    const { data } = await supabase
+        .from('teachers')
+        .select('id, name')
+        .eq('school_id', schoolId)
+        .order('name');
+    return data || [];
 };
 
 const fetchSubjects = async (schoolId: string) => {
@@ -116,6 +127,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     // Modals
     const [isClassModalOpen, setIsClassModalOpen] = useState(false);
     const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+    const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
     const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
     const [editingSubject, setEditingSubject] = useState<SubjectItem | null>(null);
 
@@ -150,15 +162,23 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
         enabled: !!schoolId,
     });
 
+    const { data: allTeachers = [] } = useQuery({
+        queryKey: ['teachersList', schoolId],
+        queryFn: () => fetchTeachers(schoolId!),
+        enabled: !!schoolId,
+    });
+
     // Mutations - Classes
     const saveClassMutation = useMutation({
-        mutationFn: async (classData: Partial<ClassItem>) => {
+        mutationFn: async (classData: Partial<ClassItem> & { newTeacherId?: string | null }) => {
             if (!schoolId) throw new Error('No school ID');
             const payload = {
                 school_id: schoolId,
                 name: classData.name,
                 section: classData.section
             };
+
+            const targetClassName = classData.name;
 
             if (editingClass) {
                 const { error } = await supabase
@@ -171,6 +191,22 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                     .from('classes')
                     .insert(payload);
                 if (error) throw error;
+            }
+
+            // Update Teacher Assignment
+            if (classData.newTeacherId !== undefined && targetClassName) {
+                // Remove previous assignment for this class
+                await supabase.from('teachers')
+                    .update({ assigned_class: null })
+                    .eq('school_id', schoolId)
+                    .eq('assigned_class', targetClassName);
+
+                // Assign the new teacher
+                if (classData.newTeacherId) {
+                    await supabase.from('teachers')
+                        .update({ assigned_class: targetClassName })
+                        .eq('id', classData.newTeacherId);
+                }
             }
         },
         onSuccess: () => {
@@ -339,13 +375,24 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             {/* --- TAB 1: CLASSES --- */}
             {activeTab === 'classes' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="flex justify-end">
-                        <button
-                            onClick={() => { setEditingClass(null); setIsClassModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold text-sm shadow-md transition-colors"
-                        >
-                            <Plus className="h-4 w-4" /> Add New Class
-                        </button>
+                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
+                        <div className="text-sm font-medium text-slate-600 hidden sm:block">
+                            Organize your school's classes, sections, and assign teachers.
+                        </div>
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <button
+                                onClick={() => setIsPromotionModalOpen(true)}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold text-sm shadow-md transition-colors"
+                            >
+                                <FastForward className="h-4 w-4" /> <span className="hidden sm:inline">Bulk Promotion</span><span className="sm:hidden">Promote</span>
+                            </button>
+                            <button
+                                onClick={() => { setEditingClass(null); setIsClassModalOpen(true); }}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold text-sm shadow-md transition-colors"
+                            >
+                                <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add New Class</span><span className="sm:hidden">Add</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -369,7 +416,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                                         </div>
                                         <div className="flex items-center gap-3 text-sm text-slate-600">
                                             <BookOpen className="h-4 w-4 text-slate-400" />
-                                            <span className="truncate">Teacher: {cls.teacherId || 'Unassigned'}</span>
+                                            <span className="truncate">Teacher: {cls.teacherName || 'Unassigned'}</span>
                                         </div>
                                     </div>
 
@@ -533,6 +580,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             {isClassModalOpen && (
                 <AddClassModal
                     existingData={editingClass}
+                    availableTeachers={allTeachers}
                     onClose={() => setIsClassModalOpen(false)}
                     onSave={handleSaveClass}
                 />
@@ -546,19 +594,32 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                     onSave={handleSaveSubject}
                 />
             )}
+
+            {isPromotionModalOpen && (
+                <BulkPromotionModal
+                    classes={classes}
+                    schoolId={schoolId!}
+                    onClose={() => setIsPromotionModalOpen(false)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+                        setIsPromotionModalOpen(false);
+                    }}
+                />
+            )}
         </div>
     );
 };
 
 // --- Sub-components: Modals ---
 
-const AddClassModal = ({ existingData, onClose, onSave }: any) => {
+const AddClassModal = ({ existingData, availableTeachers, onClose, onSave }: any) => {
     const [name, setName] = useState(existingData?.name || '');
     const [section, setSection] = useState(existingData?.section || '');
+    const [teacherId, setTeacherId] = useState(existingData?.teacherId || '');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ name, section });
+        onSave({ name, section, newTeacherId: teacherId || null });
     };
 
     return (
@@ -566,7 +627,7 @@ const AddClassModal = ({ existingData, onClose, onSave }: any) => {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-lg text-slate-800">{existingData ? 'Edit Class' : 'Add New Class'}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                    <button onClick={onClose} type="button" className="text-slate-400 hover:text-slate-600">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
@@ -591,6 +652,19 @@ const AddClassModal = ({ existingData, onClose, onSave }: any) => {
                             placeholder="e.g. A"
                             className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Class Teacher</label>
+                        <select
+                            value={teacherId}
+                            onChange={e => setTeacherId(e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
+                        >
+                            <option value="">-- No Teacher Assigned --</option>
+                            {availableTeachers?.map((t: any) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="pt-4 flex justify-end gap-3">
                         <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
@@ -694,6 +768,208 @@ const AddSubjectModal = ({ existingData, availableClasses, onClose, onSave }: an
                 <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 flex-shrink-0">
                     <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
                     <button onClick={handleSubmit} type="button" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-bold">Save Subject</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: any) => {
+    const [sourceClass, setSourceClass] = useState('');
+    const [targetClass, setTargetClass] = useState('');
+    const [students, setStudents] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // studentId -> selected action/class
+    const [actions, setActions] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!sourceClass) {
+            setStudents([]);
+            setActions({});
+            return;
+        }
+
+        const fetchStudents = async () => {
+            setIsLoading(true);
+            const { data } = await supabase
+                .from('students')
+                .select('id, name, admission_no, class')
+                .eq('school_id', schoolId)
+                .eq('class', sourceClass)
+                .order('name');
+            setStudents(data || []);
+
+            // Auto-assign to targetClass if it exists
+            if (targetClass) {
+                const newActions: Record<string, string> = {};
+                (data || []).forEach(s => newActions[s.id] = targetClass);
+                setActions(newActions);
+            }
+            setIsLoading(false);
+        };
+        fetchStudents();
+    }, [sourceClass, schoolId]);
+
+    // Handle target class change: auto-update everyone currently set to the OLD target class
+    useEffect(() => {
+        if (!targetClass || students.length === 0) return;
+        setActions(prev => {
+            const next = { ...prev };
+            students.forEach(s => {
+                // If they haven't been manually set to something else, point to new target
+                if (!next[s.id] || next[s.id] === prev['__lastTarget']) {
+                    next[s.id] = targetClass;
+                }
+            });
+            next['__lastTarget'] = targetClass; // secret key to track what we bulk updated to
+            return next;
+        });
+    }, [targetClass]);
+
+    const handleActionChange = (id: string, newClass: string) => {
+        setActions(prev => ({ ...prev, [id]: newClass }));
+    };
+
+    const handleSave = async () => {
+        if (students.length === 0) return;
+        setIsSaving(true);
+        try {
+            // Group updates by target class mapping for efficiency
+            const updates = payloadGen();
+            for (const item of updates) {
+                if (item.newClass === 'Graduated') {
+                    await supabase.from('students')
+                        .update({ status: 'Graduated', class: 'Graduated' })
+                        .in('id', item.ids);
+                } else {
+                    await supabase.from('students')
+                        .update({ class: item.newClass })
+                        .in('id', item.ids);
+                }
+            }
+            alert('Bulk promotion completed successfully!');
+            onSuccess();
+        } catch (err: any) {
+            console.error(err);
+            alert(`Failed to promote: ${err.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const payloadGen = () => {
+        const groups: Record<string, string[]> = {};
+        Object.entries(actions).forEach(([id, target]) => {
+            if (id === '__lastTarget') return;
+            const targetStr = target as string;
+            if (!groups[targetStr]) groups[targetStr] = [];
+            groups[targetStr].push(id);
+        });
+        return Object.entries(groups).map(([newClass, ids]) => ({ newClass, ids }));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 flex-shrink-0 rounded-t-xl">
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                            <FastForward className="w-5 h-5 text-indigo-600" /> Bulk Student Promotion
+                        </h3>
+                        <p className="text-xs text-slate-500">Move students from one class to another at the end of the year.</p>
+                    </div>
+                    <button onClick={onClose} disabled={isSaving} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div className="p-4 border-b border-slate-200 bg-white grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Step 1: Select Source Class</label>
+                        <select
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white font-medium text-slate-700"
+                            value={sourceClass}
+                            onChange={e => setSourceClass(e.target.value)}
+                            disabled={isSaving}
+                        >
+                            <option value="">-- Choose Class to Promote From --</option>
+                            {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Step 2: Default Target Class</label>
+                        <select
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white font-medium text-indigo-700"
+                            value={targetClass}
+                            onChange={e => setTargetClass(e.target.value)}
+                            disabled={!sourceClass || isSaving}
+                        >
+                            <option value="">-- Choose Default Destination --</option>
+                            {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            <option value="Graduated">Mark as Graduated</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                            <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                            Loading students...
+                        </div>
+                    ) : students.length > 0 ? (
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <table className="w-full text-left border-collapse text-sm">
+                                <thead className="bg-slate-100 border-b border-slate-200 text-slate-600">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold">Student Name</th>
+                                        <th className="px-4 py-3 font-semibold">ID</th>
+                                        <th className="px-4 py-3 font-semibold w-1/3">Action / Next Class</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {students.map(student => (
+                                        <tr key={student.id} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3 font-medium text-slate-800">{student.name}</td>
+                                            <td className="px-4 py-3 text-slate-500 font-mono">{student.admission_no || student.id.substring(0, 8)}</td>
+                                            <td className="px-4 py-2">
+                                                <select
+                                                    className={`w-full p-1.5 border rounded-md text-sm outline-none font-medium ${actions[student.id] === sourceClass ? 'bg-orange-50 text-orange-700 border-orange-200' : actions[student.id] === 'Graduated' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                                                    value={actions[student.id] || targetClass || ''}
+                                                    onChange={(e) => handleActionChange(student.id, e.target.value)}
+                                                    disabled={isSaving}
+                                                >
+                                                    {classes.map((c: any) => <option key={c.id} value={c.name}>Promote/Move to {c.name}</option>)}
+                                                    <option value={sourceClass}>Repeat {sourceClass}</option>
+                                                    <option value="Graduated">Graduate / Leave</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : sourceClass ? (
+                        <div className="py-12 text-center text-slate-500 font-medium">No students found in {sourceClass}.</div>
+                    ) : (
+                        <div className="py-12 text-center text-slate-400">Select a Source Class to begin.</div>
+                    )}
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 flex-shrink-0 rounded-b-xl">
+                    <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold">
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || students.length === 0 || !sourceClass}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold shadow-md disabled:opacity-50 flex items-center gap-2 transition-colors"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        {isSaving ? 'Processing...' : `Confirm Promotion (${students.length})`}
+                    </button>
                 </div>
             </div>
         </div>
