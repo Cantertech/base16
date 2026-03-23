@@ -108,18 +108,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           throw new Error("Your school account is pending approval. Please complete payment.");
         }
 
-        // --- NEW: First Login Check ---
+        // Removed first login check to fix 400 Bad Request error
         let isFirstLogin = false;
-        if (profileData.role === 'admin' && !profileData.first_login_done) {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ first_login_done: true })
-            .eq('id', authData.user.id);
-
-          if (!updateError) {
-            isFirstLogin = true;
-          }
-        }
 
         // 5. Success
         onLogin({
@@ -144,7 +134,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
 
         {/* Header */}

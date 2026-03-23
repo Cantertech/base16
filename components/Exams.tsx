@@ -3,7 +3,8 @@ import {
     Search, FileText, CheckCircle, Save, Printer,
     BarChart2, Filter, ChevronDown, User, ArrowRight,
     ClipboardCheck, AlertCircle, Clock, BookOpen, Settings,
-    Lock, Unlock, PlayCircle, StopCircle, Eye, Send, Users, X, Loader2
+    Lock, Unlock, PlayCircle, StopCircle, Eye, Send, Users, X, Loader2,
+    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool
 } from 'lucide-react';
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
@@ -218,9 +219,19 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewingClassList, setViewingClassList] = useState<string | null>(null);
+    const [expandedMonitoringClass, setExpandedMonitoringClass] = useState<string | null>(null);
     const [viewingSubmission, setViewingSubmission] = useState<any>(null);
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number }>>({});
+    const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks'>('marks');
+    const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest'>('teacher_remark');
+    const [paintBrush, setPaintBrush] = useState<string>('');
+    const [userPresets, setUserPresets] = useState<string[]>([]);
+    const [conductPresets, setConductPresets] = useState<string[]>(["Excellent", "Very Good", "Satisfactory", "Good", "Fair", "Needs Improvement"]);
+    const [interestPresets, setInterestPresets] = useState<string[]>(["Reading / Comm.", "Mathematics", "Science & Tech", "Arts / Creatives", "Sports / Athletics", "Music"]);
+    const [newPresetValue, setNewPresetValue] = useState("");
+    const [pendingRemarks, setPendingRemarks] = useState<Record<string, Record<string, any>>>({});
+    const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
     const [releaseModalData, setReleaseModalData] = useState<{ className: string, studentCount: number, validPhones: number } | null>(null);
     const [isBulkPrinting, setIsBulkPrinting] = useState(false);
     const bulkPrintRef = useRef<HTMLDivElement>(null);
@@ -257,7 +268,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const { data: students = [] } = useQuery({
         queryKey: ['students', schoolId],
         queryFn: () => fetchStudents(schoolId!),
-        enabled: !!schoolId
+        enabled: !!schoolId,
+        staleTime: 5 * 60 * 1000
     });
 
     // Fetches dependent on Config
@@ -267,7 +279,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     const { data: results = [] } = useQuery({
         queryKey: ['examResults', schoolId, currentTerm, currentYear],
         queryFn: () => fetchResults(schoolId!, currentTerm, currentYear),
-        enabled: !!schoolId && !!examConfig
+        enabled: !!schoolId && !!examConfig,
+        staleTime: 5 * 60 * 1000
     });
 
     const { data: submissionOverview = [] } = useQuery({
@@ -475,6 +488,87 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
         }
     });
 
+    const { data: allReportCards = [] } = useQuery({
+        queryKey: ['reportCards', schoolId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('student_report_cards')
+                .select('*')
+                .eq('school_id', schoolId)
+                .eq('term', currentTerm)
+                .eq('academic_year', currentYear);
+
+            if (error) {
+                console.error("Supabase Fetch Error:", error);
+                alert("Database Read Error: " + error.message);
+            }
+            return data || [];
+        },
+        enabled: !!schoolId,
+        staleTime: 5 * 60 * 1000
+    });
+
+    const saveBulkRemarksMutation = useMutation({
+        mutationFn: async (updates: any[]) => {
+            const { error } = await supabase.rpc('save_student_reports_bulk', {
+                p_reports: updates
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['reportCards', schoolId] });
+            setPendingRemarks({});
+            alert("Remarks saved successfully!");
+        },
+        onError: (e: any) => {
+            alert("Failed to save remarks: " + e.message);
+        }
+    });
+
+    const handleRemarkChange = (studentId: string, field: string, value: any) => {
+        setPendingRemarks(prev => ({
+            ...prev,
+            [studentId]: {
+                ...(prev[studentId] || {}),
+                [field]: value
+            }
+        }));
+    };
+
+    const saveBulkRemarks = () => {
+        if (!selectedClass) return alert("Select Class");
+        const updates = Object.entries(pendingRemarks).map(([studentId, val]: [string, any]) => {
+            const sr = allReportCards.find((r: any) => r.student_id === studentId);
+            return {
+                school_id: schoolId,
+                student_id: studentId,
+                class: selectedClass,
+                term: currentTerm,
+                academic_year: currentYear,
+                teacher_remark: val.teacher_remark ?? sr?.teacher_remark,
+                principal_remark: sr?.principal_remark,
+                conduct: val.conduct ?? sr?.conduct,
+                interest: val.interest ?? sr?.interest,
+                attendance_present: sr?.attendance_present ?? 0,
+                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || 0)
+            };
+        });
+        if (updates.length > 0) {
+            saveBulkRemarksMutation.mutate(updates);
+        }
+    };
+
+    const remarkPresets = localConfig?.remark_presets || [
+        "Excellent performance, keep it up.",
+        "Very Good performance.",
+        "Good performance.",
+        "Can do better with more focus.",
+        "Consistent and hardworking.",
+        "Needs to participate more in class.",
+        "Satisfactory progress."
+    ];
+    const allPresets = [...remarkPresets, ...userPresets];
+
     const submitMarksMutation = useMutation({
         mutationFn: async () => {
             const { error } = await supabase.rpc('submit_exam_marks_v3', {
@@ -499,6 +593,37 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
     // --- Handlers ---
     const handleSaveConfig = (newConfig?: any) => {
         const configToSave = newConfig || examConfig;
+
+        // Validation: Ensure grading ranges do not overlap
+        if (configToSave.grading && Array.isArray(configToSave.grading)) {
+            const sorted = [...configToSave.grading].sort((a, b) => a.min - b.min);
+            for (let i = 0; i < sorted.length; i++) {
+                const current = sorted[i];
+
+                // 1. Min should be <= Max
+                if (current.min > current.max) {
+                    alert(`Invalid range for grade ${current.grade}: Min score (${current.min}) cannot be greater than Max score (${current.max}).`);
+                    return;
+                }
+
+                // 2. Check overlap with next
+                if (i < sorted.length - 1) {
+                    const next = sorted[i + 1];
+                    if (current.max >= next.min) {
+                        alert(`Overlapping grading ranges detected! Grade ${current.grade} (up to ${current.max}) overlaps with Grade ${next.grade} (from ${next.min}). Please fix the score ranges.`);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Validation: Weights must add to exactly 100
+        const totalWeight = (configToSave.weights?.class || 0) + (configToSave.weights?.exam || 0);
+        if (totalWeight !== 100) {
+            alert(`Class and Exam scores must add up to exactly 100%! Current total: ${totalWeight}%`);
+            return;
+        }
+
         // Auto-select ALL classes and subjects
         const finalConfig = {
             ...configToSave,
@@ -642,176 +767,428 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
     // --- TEACHER VIEW ---
     if (currentUser?.role === 'teacher') {
+        const isClassTeacher = myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
         return (
-            <div className="p-4 md:p-8 space-y-4 md:space-y-8 h-full pb-20 md:pb-0 overflow-y-auto">
+            <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full pb-20 md:pb-0 overflow-y-auto bg-slate-50/30">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Mark Entry</h1>
-                        <p className="text-slate-500 text-sm">
-                            {examConfig?.exam_name} • {currentTerm}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                            Current Year: {currentYear || 'Not Set'}
+                        <h1 className="text-2xl font-bold text-slate-900">Academic Hub</h1>
+                        <p className="text-slate-500 text-sm flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5" /> {examConfig?.exam_name} • {currentTerm}
                         </p>
                     </div>
+
+                    {isClassTeacher && !!selectedClass && (
+                        <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 flex gap-1">
+                            <button
+                                onClick={() => setTeacherTab('marks')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'marks' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <PlusCircle className="w-4 h-4" /> Mark Entry
+                            </button>
+                            <button
+                                onClick={() => setTeacherTab('remarks')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'remarks' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <MessageSquare className="w-4 h-4" /> Remarks & Conduct
+                            </button>
+                            <button
+                                onClick={() => setTeacherTab('reports')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'reports' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <FileText className="w-4 h-4" /> Class Reports
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[600px]">
                     {/* Toolbar */}
                     <div className="p-6 border-b border-slate-100 flex flex-col lg:flex-row gap-4 justify-between items-end lg:items-center bg-slate-50">
                         <div className="flex flex-wrap gap-4 w-full lg:w-auto">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
-                                <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-32">
+                                <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-32 cursor-pointer font-bold">
+                                    <option value="">-- Class --</option>
                                     {myAssignments.map((a: any, i: number) => <option key={i} value={a.className}>{a.className}</option>)}
-                                    {myAssignments.length === 0 && <option value="">No Classes</option>}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
-                                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48">
-                                    <option value="">Select Subject</option>
-                                    {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
+                            {teacherTab === 'marks' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
+                                    <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer disabled:opacity-50">
+                                        <option value="">Select Subject</option>
+                                        {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-2">
-                            <button
-                                onClick={saveMarks}
-                                disabled={Object.keys(pendingChanges).length === 0 || saveMarksMutation.isPending || submitMarksMutation.isPending}
-                                className="flex items-center gap-2 bg-slate-700 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {saveMarksMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                {saveMarksMutation.isPending ? 'Saving...' : 'Save Draft'}
-                            </button>
-                            <button
-                                onClick={handleSubmitMarks}
-                                disabled={saveMarksMutation.isPending || submitMarksMutation.isPending}
-                                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {submitMarksMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                {submitMarksMutation.isPending ? 'Submitting...' : 'Submit to Admin'}
-                            </button>
+                            {teacherTab === 'remarks' && (
+                                <button
+                                    onClick={saveBulkRemarks}
+                                    disabled={Object.keys(pendingRemarks).length === 0 || saveBulkRemarksMutation.isPending}
+                                    className="bg-slate-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-slate-900 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                                >
+                                    {saveBulkRemarksMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Remarks
+                                </button>
+                            )}
+                            {teacherTab === 'marks' && (
+                                <>
+                                    <button
+                                        onClick={saveMarks}
+                                        disabled={Object.keys(pendingChanges).length === 0 || saveMarksMutation.isPending || submitMarksMutation.isPending}
+                                        className="bg-slate-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-slate-900 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                                    >
+                                        {saveMarksMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Draft
+                                    </button>
+                                    <button
+                                        onClick={handleSubmitMarks}
+                                        disabled={saveMarksMutation.isPending || submitMarksMutation.isPending}
+                                        className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                                    >
+                                        Submit Marks
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    {(!selectedClass || !selectedSubject) ? (
-                        <div className="p-12 text-center text-slate-500 bg-white border border-slate-200 rounded-xl shadow-sm mt-4 flex flex-col items-center justify-center gap-3">
-                            <BookOpen className="w-12 h-12 text-slate-300" />
-                            <p className="text-lg font-medium">Please select a Class and Subject to start entering marks.</p>
+                    {teacherTab === 'remarks' ? (
+                        <div className="flex-1 flex flex-col min-h-[600px] bg-slate-50 relative pb-28">
+                            {/* Top Bar: Target Field */}
+                            <div className="bg-white border-b border-slate-200 p-3 md:p-4 sticky top-0 z-20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h4 className="font-black text-slate-800 tracking-tight mb-2 uppercase text-[10px] hidden md:block">1. Select Target Field</h4>
+                                    <div className="flex bg-slate-200/60 p-1 rounded-lg gap-1 max-w-md">
+                                        {[
+                                            { id: 'teacher_remark', label: 'Remarks' },
+                                            { id: 'conduct', label: 'Conduct' },
+                                            { id: 'interest', label: 'Interest' }
+                                        ].map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => { setActiveTool(t.id as any); setPaintBrush(''); }}
+                                                className={`flex-1 text-[10px] whitespace-nowrap font-bold py-1.5 px-3 rounded uppercase tracking-wider transition-all ${activeTool === t.id ? 'bg-white shadow-sm text-primary-600' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                                            >
+                                                {t.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="hidden md:flex flex-col items-end">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Brush</p>
+                                    <p className="font-bold text-primary-600 truncate max-w-[250px]">{paintBrush || 'None'}</p>
+                                </div>
+                            </div>
+
+                            {/* Main Content: Student Grid */}
+                            <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+                                <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div>
+                                        <h4 className="font-black text-slate-800 tracking-tight uppercase text-[10px] mb-1">2. Tap a Student to Assign</h4>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-2">
+                                            Current Brush: <span className="text-primary-600 border border-primary-100 bg-primary-50 px-2 py-1 rounded max-w-[200px] truncate block">{paintBrush || 'None'}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (!paintBrush) return;
+                                            classStudents.forEach(s => handleRemarkChange(s.id, activeTool, paintBrush));
+                                        }}
+                                        disabled={!paintBrush || classStudents.length === 0}
+                                        className="text-[10px] font-black uppercase bg-slate-800 text-white px-4 py-2.5 rounded shadow-sm hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                    >
+                                        Assign to All Students
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                    {classStudents.map(student => {
+                                        const saved = allReportCards.find((r: any) => r.student_id === student.id);
+                                        const pending = pendingRemarks[student.id] || {};
+
+                                        const currentVal = pending[activeTool] ?? saved?.[activeTool] ?? '';
+
+                                        return (
+                                            <button
+                                                key={student.id}
+                                                onClick={() => {
+                                                    if (paintBrush) handleRemarkChange(student.id, activeTool, paintBrush);
+                                                }}
+                                                className={`text-left p-4 rounded-xl border-2 transition-all flex flex-col justify-between group ${paintBrush && currentVal !== paintBrush ? 'hover:border-primary-400 hover:shadow-md cursor-pointer' : ''} ${currentVal ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}
+                                            >
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <h5 className="font-black text-slate-800 text-sm">{student.name}</h5>
+                                                        <span className="text-[9px] uppercase font-black text-slate-400 tracking-widest block">{student.id.substring(0, 8)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="w-full bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[44px] flex items-center justify-between group-hover:bg-primary-50/30 transition-colors mt-2">
+                                                    <span className={`text-xs font-bold leading-tight ${currentVal ? 'text-slate-600' : 'text-slate-400 italic'}`}>
+                                                        {currentVal || `No ${activeTool.replace('_', ' ')}`}
+                                                    </span>
+                                                    {paintBrush && currentVal !== paintBrush && (
+                                                        <div className="w-6 h-6 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                                            <Check className="w-3 h-3 text-primary-500" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
+                                </div>
+                            </div>
+
+                            {/* Floating Action Button */}
+                            <button
+                                onClick={() => setIsPresetModalOpen(true)}
+                                className="fixed bottom-24 right-4 md:bottom-8 md:right-8 bg-primary-600 text-white p-4 rounded-full shadow-2xl shadow-primary-500/50 hover:bg-primary-700 hover:scale-105 transition-all z-40 flex items-center justify-center group animate-bounce-slow border-2 border-white/20"
+                            >
+                                <PenTool className="w-7 h-7" />
+                                <span className="absolute right-full mr-4 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
+                                    Open Brush Palette
+                                </span>
+                            </button>
+
+                            {/* Preset Modal */}
+                            {isPresetModalOpen && (
+                                <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-end md:items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={(e) => { if (e.target === e.currentTarget) setIsPresetModalOpen(false); }}>
+                                    <div className="bg-white w-full max-w-md rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] mb-4 md:mb-0">
+                                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                            <div>
+                                                <h3 className="font-black text-slate-800 uppercase text-xs tracking-wider">Brush Palette</h3>
+                                                <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Select a value for {activeTool.replace('_', ' ')}</p>
+                                            </div>
+                                            <button onClick={() => setIsPresetModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+                                        </div>
+
+                                        <div className="p-5 flex-1 overflow-y-auto">
+                                            <div className="flex gap-2 shrink-0 mb-6">
+                                                <input
+                                                    type="text"
+                                                    value={newPresetValue}
+                                                    onChange={e => setNewPresetValue(e.target.value)}
+                                                    placeholder="Type custom here..."
+                                                    className="flex-1 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:border-primary-400 font-bold bg-slate-50"
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter' && newPresetValue) {
+                                                            if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
+                                                            if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
+                                                            if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
+                                                            setPaintBrush(newPresetValue);
+                                                            setNewPresetValue('');
+                                                            setIsPresetModalOpen(false);
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        if (newPresetValue) {
+                                                            if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
+                                                            if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
+                                                            if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
+                                                            setPaintBrush(newPresetValue);
+                                                            setNewPresetValue('');
+                                                            setIsPresetModalOpen(false);
+                                                        }
+                                                    }}
+                                                    className="bg-slate-800 text-white px-4 rounded-xl shrink-0 hover:bg-slate-900 transition-colors"
+                                                >
+                                                    <Plus className="w-5 h-5" />
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-3 pb-4">
+                                                <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest pl-1 mb-3">Available Presets</h4>
+                                                {(activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets).map((preset, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => {
+                                                            setPaintBrush(preset);
+                                                            setIsPresetModalOpen(false);
+                                                        }}
+                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all group hover:-translate-y-0.5 ${paintBrush === preset ? 'border-primary-500 bg-primary-50 shadow-sm relative' : 'border-slate-100 hover:border-primary-300 hover:shadow-md bg-white'}`}
+                                                    >
+                                                        <span className={`text-sm font-bold leading-tight block pr-8 ${paintBrush === preset ? 'text-primary-800' : 'text-slate-600 group-hover:text-slate-900'}`}>{preset}</span>
+                                                        {paintBrush === preset && <CheckCircle className="w-5 h-5 text-primary-500 absolute right-4 top-1/2 -translate-y-1/2" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
+                    ) : teacherTab === 'reports' ? (
+                        (!selectedClass) ? (
+                            <div className="p-12 text-center text-slate-500 bg-white border-t border-slate-200 flex flex-col items-center justify-center gap-3">
+                                <BookOpen className="w-12 h-12 text-slate-300" />
+                                <p className="text-lg font-medium">Please select a Class to view reports.</p>
+                            </div>
+                        ) : (
+                            <div className="flex-1 p-6 overflow-y-auto bg-slate-50">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {classStudents.map(student => (
+                                        <div key={student.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                                                    {student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400" />}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 line-clamp-1">{student.name}</h4>
+                                                    <span className="text-xs font-bold text-slate-400">ID: {student.id.substring(0, 8)}...</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setReportStudent(student)}
+                                                className="w-full py-2.5 flex items-center justify-center gap-2 bg-primary-50 text-primary-600 font-bold text-sm rounded-lg border border-primary-100 hover:bg-primary-600 hover:text-white transition-colors cursor-pointer"
+                                            >
+                                                <FileText className="w-4 h-4" /> View Report
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
+                                </div>
+                            </div>
+                        )
                     ) : (
-                        <>
-                            {/* Teacher Grid (Desktop) */}
-                            <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-white border-b border-slate-200">
-                                        <tr>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                            {examConfig.grading_type !== 'COMPETENCY' && (
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
-                                            )}
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
-                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {classStudents.map(student => {
-                                            const savedClass = getExistingScore(student.id, 'classScore');
-                                            const savedExam = getExistingScore(student.id, 'examScore');
-                                            const pending = pendingChanges[student.id];
-                                            const dispClass = pending?.classScore ?? savedClass;
-                                            const dispExam = pending?.examScore ?? savedExam;
-                                            const total = dispClass + dispExam;
-                                            const grade = getGrade(total);
-                                            return (
-                                                <tr key={student.id} className="hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
-                                                    {examConfig.grading_type !== 'COMPETENCY' && (
+                        (!selectedClass || !selectedSubject) ? (
+                            <div className="p-12 text-center text-slate-500 bg-white border-t border-slate-200 flex flex-col items-center justify-center gap-3">
+                                <BookOpen className="w-12 h-12 text-slate-300" />
+                                <p className="text-lg font-medium">Please select a Class and Subject to start entering marks.</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Teacher Grid (Desktop) */}
+                                <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-white border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
+                                                {examConfig.grading_type !== 'COMPETENCY' && (
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                                )}
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
+                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {classStudents.map(student => {
+                                                const savedClass = getExistingScore(student.id, 'classScore');
+                                                const savedExam = getExistingScore(student.id, 'examScore');
+                                                const pending = pendingChanges[student.id];
+                                                const dispClass = pending?.classScore ?? savedClass;
+                                                const dispExam = pending?.examScore ?? savedExam;
+                                                const total = dispClass + dispExam;
+                                                const grade = getGrade(total);
+                                                return (
+                                                    <tr key={student.id} className="hover:bg-slate-50">
+                                                        <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
+                                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                                            <td className="px-6 py-3 text-center">
+                                                                <input
+                                                                    type="number"
+                                                                    value={dispClass || ''}
+                                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                                    className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                />
+                                                            </td>
+                                                        )}
                                                         <td className="px-6 py-3 text-center">
+                                                            <input
+                                                                type="number"
+                                                                value={dispExam || ''}
+                                                                onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                                className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center font-bold">{total}</td>
+                                                        <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
+                                </div>
+                                {/* Mobile Card View */}
+                                <div className="md:hidden space-y-4 p-4 bg-slate-50 border-t border-slate-200">
+                                    {classStudents.map(student => {
+                                        const savedClass = getExistingScore(student.id, 'classScore');
+                                        const savedExam = getExistingScore(student.id, 'examScore');
+                                        const pending = pendingChanges[student.id];
+                                        const dispClass = pending?.classScore ?? savedClass;
+                                        const dispExam = pending?.examScore ?? savedExam;
+                                        const total = dispClass + dispExam;
+                                        const grade = getGrade(total);
+
+                                        return (
+                                            <div key={student.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-800">{student.name}</h4>
+                                                        <span className="text-xs text-slate-500">ID: {student.id.substring(0, 8)}...</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="block text-2xl font-black text-slate-800">{total}</span>
+                                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600`}>Grade {grade}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    {examConfig.grading_type !== 'COMPETENCY' && (
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
                                                             <input
                                                                 type="number"
                                                                 value={dispClass || ''}
                                                                 onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                                                                placeholder="0"
                                                             />
-                                                        </td>
+                                                        </div>
                                                     )}
-                                                    <td className="px-6 py-3 text-center">
+                                                    <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
+                                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
                                                         <input
                                                             type="number"
                                                             value={dispExam || ''}
                                                             onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                            className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                                                        />
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center font-bold">{total}</td>
-                                                    <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                                {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
-                            </div>
-                            {/* Mobile Card View */}
-                            <div className="md:hidden space-y-4 p-4 bg-slate-50 border-t border-slate-200">
-                                {classStudents.map(student => {
-                                    const savedClass = getExistingScore(student.id, 'classScore');
-                                    const savedExam = getExistingScore(student.id, 'examScore');
-                                    const pending = pendingChanges[student.id];
-                                    const dispClass = pending?.classScore ?? savedClass;
-                                    const dispExam = pending?.examScore ?? savedExam;
-                                    const total = dispClass + dispExam;
-                                    const grade = getGrade(total);
-
-                                    return (
-                                        <div key={student.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800">{student.name}</h4>
-                                                    <span className="text-xs text-slate-500">ID: {student.id.substring(0, 8)}...</span>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="block text-2xl font-black text-slate-800">{total}</span>
-                                                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600`}>Grade {grade}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {examConfig.grading_type !== 'COMPETENCY' && (
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
-                                                        <input
-                                                            type="number"
-                                                            value={dispClass || ''}
-                                                            onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
                                                             className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
                                                             placeholder="0"
                                                         />
                                                     </div>
-                                                )}
-                                                <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
-                                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
-                                                    <input
-                                                        type="number"
-                                                        value={dispExam || ''}
-                                                        onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                        className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                                                        placeholder="0"
-                                                    />
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                                {classStudents.length === 0 && <div className="text-center text-slate-400 py-8 italic">No students found.</div>}
-                            </div>
-                        </>
+                                        );
+                                    })}
+                                    {classStudents.length === 0 && <div className="text-center text-slate-400 py-8 italic">No students found.</div>}
+                                </div>
+                            </>
+                        )
                     )}
                 </div>
+
+                {reportStudent && (
+                    <ReportCard
+                        student={students.find(s => s.id === reportStudent.id)!}
+                        results={results.filter((r: Result) => r.studentId === reportStudent.id)}
+                        schoolConfig={{
+                            ...schoolInfo,
+                            ...examConfig,
+                        }}
+                        onClose={() => setReportStudent(null)}
+                        position={studentRank}
+                        schoolId={schoolId}
+                        printMode={false}
+                        savedReportData={allReportCards.find((r: any) => r.student_id === reportStudent.id)}
+                    />
+                )}
             </div>
         );
     }
@@ -879,8 +1256,32 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         </div>
                         <div className="pt-4 border-t border-slate-100">
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs text-slate-500 mb-1">Class Score (%)</label><input type="number" value={localConfig.weights?.class || 0} onChange={e => setLocalConfig({ ...localConfig, weights: { ...localConfig.weights, class: Number(e.target.value) } })} className="w-full p-2 border border-slate-300 rounded-lg" /></div>
-                                <div><label className="block text-xs text-slate-500 mb-1">Exam Score (%)</label><input type="number" value={localConfig.weights?.exam || 0} onChange={e => setLocalConfig({ ...localConfig, weights: { ...localConfig.weights, exam: Number(e.target.value) } })} className="w-full p-2 border border-slate-300 rounded-lg" /></div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Class Score (%)</label>
+                                    <input
+                                        type="number"
+                                        min="0" max="100"
+                                        value={localConfig.weights?.class || 0}
+                                        onChange={e => {
+                                            const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                                            setLocalConfig({ ...localConfig, weights: { class: val, exam: 100 - val } });
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Exam Score (%)</label>
+                                    <input
+                                        type="number"
+                                        min="0" max="100"
+                                        value={localConfig.weights?.exam || 0}
+                                        onChange={e => {
+                                            const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                                            setLocalConfig({ ...localConfig, weights: { class: 100 - val, exam: val } });
+                                        }}
+                                        className="w-full p-2 border border-slate-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -909,7 +1310,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                     <div className="col-span-2 text-center">Grade</div>
                                     <div className="col-span-3 text-center">Score Range</div>
                                     <div className="col-span-5">Remark</div>
-                                    <div className="col-span-2 text-center">Points</div>
+                                    <div className="col-span-1 text-center">GP</div>
+                                    <div className="col-span-1"></div>
                                 </div>
                                 {localConfig.grading?.map((g: any, idx: number) => (
                                     <div key={idx} className="grid grid-cols-12 gap-2 text-xs items-center">
@@ -940,15 +1342,35 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                                 setLocalConfig({ ...localConfig, grading: newGrading });
                                             }} className="w-full p-2 border border-slate-200 rounded focus:border-primary-500 outline-none" />
                                         </div>
-                                        <div className="col-span-2">
+                                        <div className="col-span-1">
                                             <input type="number" step="0.1" value={g.points} onChange={(e) => {
                                                 const newGrading = [...localConfig.grading];
                                                 newGrading[idx] = { ...newGrading[idx], points: Number(e.target.value) };
                                                 setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" placeholder="GP" />
+                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none p-1" placeholder="GP" title="Grade Points" />
+                                        </div>
+                                        <div className="col-span-1 flex justify-center">
+                                            <button
+                                                onClick={() => {
+                                                    const newGrading = localConfig.grading.filter((_: any, i: number) => i !== idx);
+                                                    setLocalConfig({ ...localConfig, grading: newGrading });
+                                                }}
+                                                className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
+                                <button
+                                    onClick={() => {
+                                        const newGrading = [...(localConfig.grading || []), { grade: "", min: 0, max: 0, remark: "", points: 0 }];
+                                        setLocalConfig({ ...localConfig, grading: newGrading });
+                                    }}
+                                    className="w-full py-2 mt-2 border-2 border-dashed border-slate-200 rounded-lg text-[10px] font-black uppercase text-slate-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <PlusCircle className="w-3 h-3" /> Add Grade Level
+                                </button>
                             </div>
                         </div>
 
@@ -965,39 +1387,95 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
 
             {/* Step 2: Monitoring */}
             {activeTab === 'monitoring' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Users className="w-4 h-4" /> Teacher Submissions Overview</h3></div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase">Class</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase">Subject</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase">Teacher</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                                        <th className="px-6 py-3 text-xs font-semibold text-slate-500 uppercase text-right">Last Updated</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {submissionOverview.length === 0 ? (
-                                        <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">No submission data available yet.</td></tr>
-                                    ) : (
-                                        submissionOverview.map((sub: any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-slate-50 cursor-pointer group" onClick={() => setViewingSubmission(sub)}>
-                                                <td className="px-6 py-3 font-medium text-slate-900 group-hover:text-primary-600 transition-colors">{sub.class_name}</td>
-                                                <td className="px-6 py-3 text-slate-600">{sub.subject_name}</td>
-                                                <td className="px-6 py-3 text-slate-600">{sub.teacher_name || 'Unassigned'}</td>
-                                                <td className="px-6 py-3">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${sub.status === 'Submitted' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{sub.status || 'Pending'}</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-right text-xs text-slate-500">{sub.updated_at ? new Date(sub.updated_at).toLocaleDateString() : '-'}</td>
-                                            </tr>
-                                        ))
+                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="mb-6">
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Submission Monitoring</h3>
+                        <p className="text-sm text-slate-500 font-medium tracking-wide">Select a class below to view subject-wise mark entry progress.</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100 italic">
+                        {availableClasses.map((className: string) => {
+                            const classSubs = submissionOverview.filter((s: any) => s.class_name === className);
+                            const submittedCount = classSubs.filter((s: any) => s.status === 'Submitted').length;
+                            const totalCount = classSubs.length || 0;
+                            const progress = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : 0;
+                            const isExpanded = expandedMonitoringClass === className;
+
+                            return (
+                                <div key={className} className="flex flex-col">
+                                    <button
+                                        onClick={() => setExpandedMonitoringClass(isExpanded ? null : className)}
+                                        className={`w-full p-5 flex flex-col md:flex-row md:items-center justify-between text-left hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-slate-50/50' : ''}`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center font-black text-xs md:text-sm shadow-sm ${progress === 100 ? 'bg-green-100 text-green-700' : 'bg-primary-50 text-primary-600'}`}>
+                                                {progress}%
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-800 uppercase tracking-tight text-base md:text-lg">{className}</h4>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">
+                                                    {submittedCount} / {totalCount} Subjects Done
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-6 mt-4 md:mt-0">
+                                            <div className="hidden lg:block w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-primary-500 transition-all duration-700" style={{ width: `${progress}%` }}></div>
+                                            </div>
+                                            <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-all ${isExpanded ? 'rotate-180 bg-slate-200 text-slate-800' : 'bg-slate-50 text-slate-400'}`}>
+                                                <ChevronDown className="w-5 h-5" />
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {isExpanded && (
+                                        <div className="bg-slate-50/50 p-6 md:p-8 animate-in slide-in-from-top-4 duration-300">
+                                            <div className="space-y-6">
+                                                {/* Summary Counts */}
+                                                <div className="flex gap-4">
+                                                    <div className="flex-1 bg-green-50 p-3 rounded-xl border border-green-100">
+                                                        <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Submitted</p>
+                                                        <p className="text-xl font-black text-green-700">{submittedCount}</p>
+                                                    </div>
+                                                    <div className="flex-1 bg-amber-50 p-3 rounded-xl border border-amber-100">
+                                                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Pending</p>
+                                                        <p className="text-xl font-black text-amber-700">{totalCount - submittedCount}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {classSubs.map((sub: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <div className={`shrink-0 h-2 w-2 rounded-full ${sub.status === 'Submitted' ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                                                <span className="font-bold text-slate-700 text-xs truncate italic">{sub.subject_name}</span>
+                                                            </div>
+                                                            <span className={`shrink-0 text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-md ${sub.status === 'Submitted' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                                {sub.status || 'Pending'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {classSubs.length === 0 && (
+                                                        <div className="col-span-full p-8 text-center text-slate-400 font-bold italic border-2 border-dashed border-slate-100 rounded-2xl">
+                                                            No subjects found for this class.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
-                                </tbody>
-                            </table>
-                        </div>
+                                </div>
+                            );
+                        })}
+
+                        {availableClasses.length === 0 && (
+                            <div className="col-span-full p-20 text-center bg-white rounded-3xl border-4 border-dashed border-slate-100">
+                                <Users className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                                <h3 className="text-xl font-bold text-slate-400">No Target Classes Set Up</h3>
+                                <p className="text-sm text-slate-300">Target classes will appear here once configured in the Setup tab.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1034,91 +1512,97 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                 </div>
             )}
 
-            {releaseModalData && (
-                <ReleaseConfigModal
-                    data={releaseModalData}
-                    onClose={() => setReleaseModalData(null)}
-                    onConfirm={handleConfirmRelease}
-                    isProcessing={publishResultsMutation.isPending}
-                />
-            )}
+            {
+                releaseModalData && (
+                    <ReleaseConfigModal
+                        data={releaseModalData}
+                        onClose={() => setReleaseModalData(null)}
+                        onConfirm={handleConfirmRelease}
+                        isProcessing={publishResultsMutation.isPending}
+                    />
+                )}
 
             {/* Conditional Modals */}
-            {viewingClassList && (
-                <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div><h3 className="font-bold text-lg text-slate-800">Students in {viewingClassList}</h3></div>
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={triggerBulkPrint}
-                                    disabled={isBulkPrinting}
-                                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
-                                >
-                                    {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                                    {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
-                                </button>
-                                <button onClick={() => setViewingClassList(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-6 h-6" /></button>
+            {
+                viewingClassList && (
+                    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl flex flex-col">
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div><h3 className="font-bold text-lg text-slate-800">Students in {viewingClassList}</h3></div>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={triggerBulkPrint}
+                                        disabled={isBulkPrinting}
+                                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
+                                    >
+                                        {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                                        {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
+                                    </button>
+                                    <button onClick={() => setViewingClassList(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-6 h-6" /></button>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-6 overflow-y-auto bg-slate-50/50">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {students.filter(s => s.class === viewingClassList).map((student) => (
-                                    <div key={student.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-primary-300 cursor-pointer" onClick={() => setReportStudent(student)}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden">{student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400 m-auto mt-3" />}</div>
-                                            <div><h4 className="font-bold text-slate-800">{student.name}</h4></div>
+                            <div className="p-6 overflow-y-auto bg-slate-50/50">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {students.filter(s => s.class === viewingClassList).map((student) => (
+                                        <div key={student.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-primary-300 cursor-pointer" onClick={() => setReportStudent(student)}>
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden">{student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400 m-auto mt-3" />}</div>
+                                                <div><h4 className="font-bold text-slate-800">{student.name}</h4></div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {reportStudent && (
-                <ReportCard
-                    student={students.find(s => s.id === reportStudent.id)!}
-                    results={results.filter((r: Result) => r.studentId === reportStudent.id)}
-                    schoolConfig={{
-                        ...schoolInfo,
-                        ...examConfig,
-                    }}
-                    onClose={() => setReportStudent(null)}
-                    position={studentRank}
-                    schoolId={schoolId}
-                    printMode={false}
-                />
-            )}
+            {
+                reportStudent && (
+                    <ReportCard
+                        student={students.find(s => s.id === reportStudent.id)!}
+                        results={results.filter((r: Result) => r.studentId === reportStudent.id)}
+                        schoolConfig={{
+                            ...schoolInfo,
+                            ...examConfig,
+                        }}
+                        onClose={() => setReportStudent(null)}
+                        position={studentRank}
+                        schoolId={schoolId}
+                        printMode={false}
+                        savedReportData={allReportCards.find((r: any) => r.student_id === reportStudent.id)}
+                    />
+                )}
 
             {/* Hidden Bulk Print Container */}
-            {isBulkPrinting && viewingClassList && (
-                <div style={{ display: 'none' }}>
-                    <div ref={bulkPrintRef} className="print:block">
-                        {students.filter(s => s.class === viewingClassList).map((student) => {
-                            // Optionally recalculate rank inline if we could, but right now we pass null or fetch it
-                            // For bulk print, rank isn't strictly requested per single report, or it may default to '-'
-                            // If needed, we'd pre-calculate an array of ranks.
-                            return (
-                                <ReportCard
-                                    key={student.id}
-                                    student={student}
-                                    results={results.filter((r: Result) => r.studentId === student.id)}
-                                    schoolConfig={{
-                                        ...schoolInfo,
-                                        ...examConfig,
-                                    }}
-                                    onClose={() => { }}
-                                    schoolId={schoolId}
-                                    printMode={true}
-                                />
-                            );
-                        })}
+            {
+                isBulkPrinting && viewingClassList && (
+                    <div style={{ display: 'none' }}>
+                        <div ref={bulkPrintRef} className="print:block">
+                            {students.filter(s => s.class === viewingClassList).map((student) => {
+                                // Optionally recalculate rank inline if we could, but right now we pass null or fetch it
+                                // For bulk print, rank isn't strictly requested per single report, or it may default to '-'
+                                // If needed, we'd pre-calculate an array of ranks.
+                                return (
+                                    <ReportCard
+                                        key={student.id}
+                                        student={student}
+                                        results={results.filter((r: Result) => r.studentId === student.id)}
+                                        schoolConfig={{
+                                            ...schoolInfo,
+                                            ...examConfig,
+                                        }}
+                                        onClose={() => { }}
+                                        schoolId={schoolId}
+                                        printMode={true}
+                                        savedReportData={allReportCards.find((r: any) => r.student_id === student.id)}
+                                    />
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+        </div >
     );
 };
 

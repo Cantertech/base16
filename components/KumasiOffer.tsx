@@ -23,20 +23,16 @@ const KumasiOffer: React.FC = () => {
                             </div>
 
                             <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 leading-tight">
-                                Get <span className="text-primary-600">50% Off</span> Your First Year
+                                Get <span className="text-primary-600">GH¢ 500 Free</span> Wallet Credit
                             </h2>
 
                             <div className="flex items-baseline gap-4 mb-6">
-                                <span className="text-2xl text-slate-400 font-medium line-through decoration-red-500 decoration-2">
-                                    GHS 300
-                                </span>
                                 <div className="flex flex-col">
                                     <span className="text-4xl sm:text-5xl font-black text-primary-900">
-                                        GHS 150
-                                        <span className="text-lg text-slate-500 font-normal ml-1">/mo</span>
+                                        Zero Setup Fees
                                     </span>
-                                    <span className="text-sm text-primary-700 font-medium mt-1">
-                                        Billed annually or termly
+                                    <span className="text-sm text-primary-700 font-medium mt-2">
+                                        For the first year + Free training and migration
                                     </span>
                                 </div>
                             </div>
@@ -65,7 +61,7 @@ const KumasiOffer: React.FC = () => {
 
                             <p className="mt-4 text-center sm:text-left text-sm text-slate-500 flex items-center gap-2">
                                 <Calendar className="w-4 h-4" />
-                                Offer ends February 28th, 2026
+                                Offer ends March 31st, 2026
                             </p>
                         </div>
 
@@ -77,7 +73,7 @@ const KumasiOffer: React.FC = () => {
                             <div className="relative z-10">
                                 <h3 className="text-xl font-bold mb-2 text-primary-200">Limited Availability</h3>
                                 <p className="text-primary-100 opacity-90 mb-8">
-                                    We are opening up specifically for schools in the Kumasi metropolis.
+                                    We are opening up specifically for schools in the Kumasi metropolis with <span className="font-bold text-white">500+ students</span>.
                                 </p>
 
                                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">

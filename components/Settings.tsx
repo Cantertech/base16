@@ -1137,7 +1137,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             ) : (
                                 <PaystackButton
                                     className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                                    email={(config.email && config.email.trim() !== '') ? config.email.trim() : 'billing@orbit.edu.gh'}
+                                    email={(config.email && config.email.trim() !== '') ? config.email.trim() : 'billing@base16schools.com'}
                                     amount={Math.round(Number(topUpAmount) * 100)}
                                     publicKey={import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || ''}
                                     text="Proceed to Payment"
@@ -1404,7 +1404,7 @@ const PaymentDetailsModal = ({ plan, studentCount, onClose, schoolName, isUpgrad
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-slate-500">Account Name</span>
-                                        <span className="font-bold text-slate-800">Orbit Education Systems</span>
+                                        <span className="font-bold text-slate-800">Base 16 Schools</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-slate-500">Account Number</span>
@@ -1426,7 +1426,7 @@ const PaymentDetailsModal = ({ plan, studentCount, onClose, schoolName, isUpgrad
                             </div>
                             <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded-lg border border-yellow-100 flex items-start gap-2">
                                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                                <p>After transfer, please send proof of payment to billing@orbit.edu.gh or call 0200000000 for activation.</p>
+                                <p>After transfer, please send proof of payment to billing@base16schools.com or call 0200000000 for activation.</p>
                             </div>
                         </div>
                     )}

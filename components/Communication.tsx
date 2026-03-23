@@ -24,10 +24,14 @@ interface Notice {
     title: string;
     message: string;
     priority: 'Normal' | 'Urgent';
-    audience: 'All Staff' | 'Teaching Staff' | 'Admins Only';
+    audience: 'All Staff' | 'Teaching Staff' | 'Admins Only' | 'All Students' | 'Specific Teacher';
     date: string;
     author_id: string;
+    target_user_id?: string;
     created_at?: string;
+    author?: {
+        full_name: string;
+    };
 }
 
 interface MessageLog {
@@ -46,22 +50,38 @@ const fetchSMSBalance = async (schoolId: string) => {
     return data?.sms_balance || 0;
 };
 
-const fetchNotices = async (schoolId: string) => {
-    const { data } = await supabase.from('notices').select('*').eq('school_id', schoolId).order('created_at', { ascending: false });
-    return data?.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' })) || [];
+const fetchNotices = async (schoolId: string, currentUser: any) => {
+    // Rely on RLS policies for security, but we fetch all valid notices for this user
+    const { data } = await supabase
+        .from('notices')
+        .select(`
+            *,
+            author:author_id (full_name)
+        `)
+        .eq('school_id', schoolId)
+        .order('created_at', { ascending: false });
+
+    return data?.map((n: any) => ({
+        ...n,
+        priority: n.priority || 'Normal',
+        audience: n.audience || 'All Staff'
+    })) || [];
 };
 
 const fetchClasses = async (schoolId: string) => {
-    // Fetch unique classes from students table (or classes table if preferred, but original used students)
-    // Original used students table to get classes. Let's stick to that or use the classes table if available/reliable.
-    // Ideally should use 'classes' table.
     const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
     if (data && data.length > 0) return data.map(c => c.name);
+    return [];
+};
 
-    // Fallback if classes table empty or logic prefers students
-    const { data: studentData } = await supabase.from('students').select('class').eq('school_id', schoolId);
-    const uniqueClasses = [...new Set(studentData?.map((d: any) => d.class))].filter(Boolean).sort();
-    return uniqueClasses;
+const fetchTeachers = async (schoolId: string) => {
+    const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('school_id', schoolId)
+        .eq('role', 'teacher')
+        .order('full_name');
+    return data || [];
 };
 
 const fetchSchoolName = async (schoolId: string) => {
@@ -542,78 +562,137 @@ const ComposeSMS = ({ balance, currentUser }: { balance: number, currentUser: an
     );
 };
 
-const NoticeCard: React.FC<{ notice: Notice, onDelete: (id: string) => void, isTeacher: boolean }> = ({ notice, onDelete, isTeacher }) => {
+const NoticeCard: React.FC<{ notice: Notice, onDelete: (id: string) => void, isTeacher: boolean, currentUserId: string }> = ({ notice, onDelete, isTeacher, currentUserId }) => {
     const isUrgent = notice.priority === 'Urgent';
+    const canDelete = !isTeacher || notice.author_id === currentUserId;
+
     return (
-        <div className={`relative p-6 rounded-xl shadow-sm border transition-all hover:shadow-md hover:-translate-y-1 ${isUrgent ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+        <div className={`relative p-6 rounded-xl shadow-sm border transition-all hover:shadow-md hover:-translate-y-1 ${isUrgent ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-slate-300 shadow-sm border-2 border-white z-10"></div>
             <div className="flex justify-between items-start mb-3">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${isUrgent ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                    {notice.priority}
-                </span>
-                {!isTeacher && (
-                    <button onClick={() => onDelete(notice.id)} className="text-slate-400 hover:text-red-500">
+                <div className="flex gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${isUrgent ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>
+                        {notice.priority}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-white/60 text-slate-600 border border-slate-200">
+                        {notice.audience === 'Specific Teacher' ? 'Private' : notice.audience}
+                    </span>
+                </div>
+                {canDelete && (
+                    <button onClick={() => onDelete(notice.id)} className="text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 className="h-4 w-4" />
                     </button>
                 )}
             </div>
             <h3 className="font-bold text-slate-900 text-lg mb-2 leading-tight">{notice.title}</h3>
-            <p className="text-slate-700 text-sm leading-relaxed mb-4 min-h-[60px]">{notice.message}</p>
-            <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center text-xs font-medium text-slate-500">
+            <p className="text-slate-700 text-sm leading-relaxed mb-4 min-h-[60px] whitespace-pre-wrap">{notice.message}</p>
+            <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center text-[10px] font-medium text-slate-500">
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {notice.date}</span>
-                <span className="bg-white/50 px-2 py-1 rounded">{notice.audience}</span>
+                <span className="bg-white/50 px-2 py-1 rounded truncate max-w-[120px]">By: {notice.author?.full_name || 'System'}</span>
             </div>
         </div>
     );
 };
 
-const PostNoticeModal = ({ onClose, onPost }: any) => {
+const PostNoticeModal = ({ onClose, onPost, isTeacher, schoolId }: any) => {
     const [title, setTitle] = useState('');
     const [message, setMessage] = useState('');
     const [priority, setPriority] = useState<'Normal' | 'Urgent'>('Normal');
-    const [audience, setAudience] = useState<'All Staff' | 'Teaching Staff' | 'Admins Only'>('All Staff');
+    // Teachers can ONLY post to Admins. Admins can choose audience.
+    const [audience, setAudience] = useState<any>(isTeacher ? 'Admins Only' : 'All Staff');
+    const [targetTeacherId, setTargetTeacherId] = useState('');
+
+    const { data: teachers = [] } = useQuery({
+        queryKey: ['teachersList', schoolId],
+        queryFn: () => fetchTeachers(schoolId),
+        enabled: !isTeacher && audience === 'Specific Teacher'
+    });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onPost({ title, message, priority, audience, date: new Date().toISOString().split('T')[0] });
+        onPost({
+            title,
+            message,
+            priority,
+            audience,
+            target_user_id: audience === 'Specific Teacher' ? targetTeacherId : null,
+            date: new Date().toISOString().split('T')[0]
+        });
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-lg text-slate-800">Post New Notice</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+                    <h3 className="font-bold text-lg text-slate-800">
+                        {isTeacher ? 'Message to School Admin' : 'Post New Notice'}
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 group">
+                        <X className="h-5 w-5 group-hover:rotate-90 transition-transform" />
+                    </button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                        <input required type="text" className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary-600" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Staff Meeting" />
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Subject / Title</label>
+                        <input required type="text" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all" value={title} onChange={e => setTitle(e.target.value)} placeholder={isTeacher ? "e.g. Leave request for Monday" : "e.g. Staff Meeting"} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
-                        <textarea required className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary-600 h-24 resize-none" value={message} onChange={e => setMessage(e.target.value)} placeholder="Details..." />
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Detailed Message</label>
+                        <textarea required className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white h-32 resize-none transition-all" value={message} onChange={e => setMessage(e.target.value)} placeholder="Type your announcement here..." />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
-                            <select className="w-full p-2 border rounded-lg outline-none bg-white" value={priority} onChange={e => setPriority(e.target.value as any)}>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority Level</label>
+                            <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium" value={priority} onChange={e => setPriority(e.target.value as any)}>
                                 <option value="Normal">Normal</option>
                                 <option value="Urgent">Urgent</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Audience</label>
-                            <select className="w-full p-2 border rounded-lg outline-none bg-white" value={audience} onChange={e => setAudience(e.target.value as any)}>
-                                <option value="All Staff">All Staff</option>
-                                <option value="Teaching Staff">Teaching Staff</option>
-                                <option value="Admins Only">Admins Only</option>
+                        {!isTeacher && (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Target Audience</label>
+                                <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium" value={audience} onChange={e => setAudience(e.target.value as any)}>
+                                    <option value="All Staff">All Staff</option>
+                                    <option value="Teaching Staff">Teachers Only</option>
+                                    <option value="All Students">Students/Parents</option>
+                                    <option value="Admins Only">Admins Only</option>
+                                    <option value="Specific Teacher">One Teacher</option>
+                                </select>
+                            </div>
+                        )}
+                        {isTeacher && (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sent To</label>
+                                <div className="p-2.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-100 flex items-center gap-2">
+                                    <AlertCircle className="h-4 w-4" /> School Admin
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {!isTeacher && audience === 'Specific Teacher' && (
+                        <div className="animate-in slide-in-from-top-2">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Teacher</label>
+                            <select
+                                required
+                                className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                                value={targetTeacherId}
+                                onChange={e => setTargetTeacherId(e.target.value)}
+                            >
+                                <option value="">Select a teacher...</option>
+                                {teachers.map((t: any) => (
+                                    <option key={t.id} value={t.id}>{t.full_name}</option>
+                                ))}
                             </select>
                         </div>
-                    </div>
-                    <div className="pt-4 flex justify-end gap-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
-                        <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-bold">Post Notice</button>
+                    )}
+
+                    <div className="pt-4 flex flex-col gap-3">
+                        <button type="submit" className="w-full px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 text-sm font-bold shadow-lg shadow-primary-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                            {isTeacher ? <Send className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                            {isTeacher ? 'Send Message to Admin' : 'Post Announcement'}
+                        </button>
+                        <button type="button" onClick={onClose} className="w-full px-4 py-2 text-slate-500 hover:text-slate-800 text-xs font-bold transition-colors">Dismiss</button>
                     </div>
                 </form>
             </div>
@@ -627,8 +706,8 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const { data: notices = [], isLoading } = useQuery({
-        queryKey: ['notices', schoolId],
-        queryFn: () => fetchNotices(schoolId),
+        queryKey: ['notices', schoolId, currentUser?.id],
+        queryFn: () => fetchNotices(schoolId, currentUser),
         enabled: !!schoolId
     });
 
@@ -640,6 +719,7 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
                 message: noticeData.message,
                 priority: noticeData.priority,
                 audience: noticeData.audience,
+                target_user_id: noticeData.target_user_id || null,
                 date: noticeData.date,
                 author_id: currentUser.id
             });
@@ -648,8 +728,9 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
         onSuccess: () => {
             setIsModalOpen(false);
             queryClient.invalidateQueries({ queryKey: ['notices', schoolId] });
+            alert(isTeacher ? 'Message sent to school administration.' : 'Notice posted successfully.');
         },
-        onError: () => alert('Failed to post')
+        onError: (err: any) => alert('Failed to post: ' + err.message)
     });
 
     const deleteNoticeMutation = useMutation({
@@ -663,28 +744,51 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
     });
 
     const handleDelete = (id: string) => {
-        if (!confirm('Delete notice?')) return;
+        if (!confirm('Are you sure you want to delete this notice/message?')) return;
         deleteNoticeMutation.mutate(id);
     };
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><StickyNote className="h-5 w-5 text-slate-500" /> School Notices</h2>
-                {!isTeacher && (
-                    <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-md">
-                        <Plus className="h-4 w-4" /> Post Notice
-                    </button>
-                )}
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <StickyNote className="h-5 w-5 text-primary-500" />
+                    {isTeacher ? 'My Notice Board' : 'School Notices & Messages'}
+                </h2>
+                <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-primary-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-primary-700 flex items-center justify-center gap-2 shadow-lg shadow-primary-100 transition-all hover:-translate-y-0.5 active:translate-y-0">
+                    {isTeacher ? <MessageSquare className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {isTeacher ? 'Message Admin' : 'Post New Notice'}
+                </button>
             </div>
+
             {isLoading ? <Loading type="skeleton" fullScreen={false} /> : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {notices.length > 0 ? notices.map((n: any) => <NoticeCard key={n.id} notice={n} onDelete={handleDelete} isTeacher={isTeacher} />) : (
-                        <div className="col-span-2 text-center py-12 bg-white rounded-xl border border-dashed border-slate-300"><p className="text-slate-400">No notices found.</p></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {notices.length > 0 ? notices.map((n: any) => (
+                        <NoticeCard
+                            key={n.id}
+                            notice={n}
+                            onDelete={handleDelete}
+                            isTeacher={isTeacher}
+                            currentUserId={currentUser?.id}
+                        />
+                    )) : (
+                        <div className="col-span-2 text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                            <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <StickyNote className="h-8 w-8 text-slate-300" />
+                            </div>
+                            <p className="text-slate-400 font-medium">No announcements or messages yet.</p>
+                        </div>
                     )}
                 </div>
             )}
-            {isModalOpen && !isTeacher && <PostNoticeModal onClose={() => setIsModalOpen(false)} onPost={postNoticeMutation.mutate} />}
+            {isModalOpen && (
+                <PostNoticeModal
+                    onClose={() => setIsModalOpen(false)}
+                    onPost={postNoticeMutation.mutate}
+                    isTeacher={isTeacher}
+                    schoolId={schoolId}
+                />
+            )}
         </div>
     );
 };

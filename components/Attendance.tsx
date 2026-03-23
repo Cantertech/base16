@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Calendar, CheckCircle, XCircle, Clock, Save,
     Search, Users, ChevronLeft, ChevronRight,
-    BarChart2, PieChart as PieIcon
+    BarChart2, PieChart as PieIcon,
+    ArrowLeft, UserCheck, AlertCircle, FileText, UserX
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -233,9 +234,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     });
 
     // 6. View Results (Verification)
-    // Only fetch when explicitly triggered? Or just reactive?
-    // Original code had a button trigger. We can make it reactive easily.
-    // 6. View Results (Verification)
     const { data: viewResults = [], isLoading: viewLoading } = useQuery({
         queryKey: ['attendanceVerification', schoolId, viewClass, viewDate],
         queryFn: () => fetchViewResults(schoolId!, viewClass, viewDate),
@@ -245,8 +243,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     const { data: teacherClasses = [] } = useQuery({
         queryKey: ['teacherAttendanceClasses', currentUser?.id],
         queryFn: async () => {
-            // Find user ID from auth if not passed strictly (though props should have it)
-            // But we added ID to props, so let's use it.
             if (!currentUser?.id) return [];
 
             const { data: assignments } = await supabase
@@ -316,8 +312,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
         onSuccess: () => {
             alert('Attendance saved successfully!');
             queryClient.invalidateQueries({ queryKey: ['adminAttendanceStats', schoolId, selectedDate] });
-            queryClient.invalidateQueries({ queryKey: ['attendanceMonthly', schoolId] }); // Potentially affects monthly view too
-            // No need to invalidate marking data as local map is authority until reset
+            queryClient.invalidateQueries({ queryKey: ['attendanceMonthly', schoolId] });
         },
         onError: (error: any) => {
             alert('Failed to save attendance.');
@@ -396,7 +391,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
 
                         {/* Charts Area */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Verification Section (Now in Charts Area) */}
+                            {/* Verification Section */}
                             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
                                 <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Search className="h-5 w-5 text-slate-400" /> Verify Class Attendance</h3>
                                 <div className="flex flex-col sm:flex-row gap-3 mb-4 shrink-0">
@@ -474,7 +469,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                             <Tooltip />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                    {/* Center Text */}
                                     <div className="absolute flex flex-col items-center">
                                         <span className="text-3xl font-bold text-slate-800">{currentTotalMarked(dailyStats) > 0 ? (
                                             (dailyStats.find((s: any) => s.name === 'Present')?.value || 0) / (totalMarked || 1) * 100
@@ -498,7 +492,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                     </>
                 )}
 
-                {/* Bottom Class Performance (Admin) */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-6 mb-20 mx-4 md:mx-0">
                     <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><BarChart2 className="h-5 w-5 text-slate-400" /> Class Performance</h3>
                     <div className="h-80 bg-white p-4 rounded-xl border border-slate-200">
@@ -521,17 +514,15 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     }
 
     // --- RENDER: TEACHER VIEW (Marking) ---
-    // Calculate quick stats for the sticky header
     const presentCount = Object.values(attendanceMap).filter(s => s === 'Present').length;
     const absentCount = Object.values(attendanceMap).filter(s => s === 'Absent').length;
     const lateCount = Object.values(attendanceMap).filter(s => s === 'Late').length;
 
     return (
         <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)] w-full flex flex-col bg-slate-50 md:bg-white md:rounded-3xl md:border border-slate-200 md:shadow-sm relative overflow-hidden group">
-            {/* 1. Top Header & Controls */}
             <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 py-4 md:px-6 z-20 shrink-0">
                 <div className="max-w-7xl mx-auto w-full">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                         <div>
                             <h1
                                 className={`text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${activeTheme.custom ? '' : 'from-slate-800 to-slate-600'}`}
@@ -542,14 +533,14 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                             <div className="flex items-center gap-2 mt-1">
                                 <button
                                     onClick={() => setViewMode('mark')}
-                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'mark' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1 rounded-full text-[10px] md:text-xs font-bold transition-all ${viewMode === 'mark' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
                                     style={viewMode === 'mark' && activeTheme.custom ? { backgroundColor: activeTheme.custom.bg } : {}}
                                 >
                                     Daily Marking
                                 </button>
                                 <button
                                     onClick={() => setViewMode('monthly')}
-                                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${viewMode === 'monthly' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
+                                    className={`px-3 py-1 rounded-full text-[10px] md:text-xs font-bold transition-all ${viewMode === 'monthly' ? `${activeTheme.bg} text-white shadow-md` : 'text-slate-500 hover:bg-slate-100'}`}
                                     style={viewMode === 'monthly' && activeTheme.custom ? { backgroundColor: activeTheme.custom.bg } : {}}
                                 >
                                     Monthly Register
@@ -557,13 +548,13 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
                             {(currentUser?.role === 'admin' || (currentUser?.role === 'teacher' && teacherClasses.length > 0)) && (
-                                <div className="relative group w-full md:w-auto">
+                                <div className="relative group flex-1 sm:w-48 lg:w-auto">
                                     <select
                                         value={selectedClass}
                                         onChange={e => setSelectedClass(e.target.value)}
-                                        className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-medium transition-all hover:bg-slate-200 cursor-pointer"
+                                        className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-bold transition-all hover:bg-slate-200 cursor-pointer"
                                     >
                                         <option value="">Select Class</option>
                                         {currentUser?.role === 'teacher' ? (
@@ -578,58 +569,54 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 border border-slate-200 w-full md:w-auto">
+                            <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 border border-slate-200 flex-1 sm:w-44 lg:w-auto">
                                 <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
                                 {viewMode === 'mark' ? (
                                     <input
                                         type="date"
                                         value={selectedDate}
                                         onChange={e => setSelectedDate(e.target.value)}
-                                        className="bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 p-0 w-full"
+                                        className="bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 p-0 w-full"
                                     />
                                 ) : (
                                     <input
                                         type="month"
                                         value={selectedMonth}
                                         onChange={e => setSelectedMonth(e.target.value)}
-                                        className="bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 p-0 w-full"
+                                        className="bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 p-0 w-full"
                                     />
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Quick Stats Bar (Only for Marking Mode) */}
                     {viewMode === 'mark' && (
-                        <div className="mt-4 grid grid-cols-4 gap-2 md:w-1/2 lg:w-1/3">
-                            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
-                                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</span>
-                                <span className="block text-lg font-black text-slate-700">{students.length}</span>
+                        <div className="mt-4 grid grid-cols-4 gap-2 lg:w-1/3">
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 md:p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</span>
+                                <span className="block text-sm md:text-lg font-black text-slate-700">{students.length}</span>
                             </div>
-                            <div className="bg-green-50/50 border border-green-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
-                                <span className="block text-[10px] font-bold text-green-600 uppercase tracking-wider">Pres</span>
-                                <span className="block text-lg font-black text-green-700">{presentCount}</span>
+                            <div className="bg-green-50 border border-green-100 rounded-lg p-1.5 md:p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[8px] md:text-[10px] font-bold text-green-600 uppercase tracking-wider">Pres</span>
+                                <span className="block text-sm md:text-lg font-black text-green-700">{presentCount}</span>
                             </div>
-                            <div className="bg-red-50/50 border border-red-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
-                                <span className="block text-[10px] font-bold text-red-600 uppercase tracking-wider">Abs</span>
-                                <span className="block text-lg font-black text-red-700">{absentCount}</span>
+                            <div className="bg-red-50 border border-red-100 rounded-lg p-1.5 md:p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[8px] md:text-[10px] font-bold text-red-600 uppercase tracking-wider">Abs</span>
+                                <span className="block text-sm md:text-lg font-black text-red-700">{absentCount}</span>
                             </div>
-                            <div className="bg-yellow-50/50 border border-yellow-100 rounded-lg p-2 text-center transition-transform hover:scale-105">
-                                <span className="block text-[10px] font-bold text-yellow-600 uppercase tracking-wider">Late</span>
-                                <span className="block text-lg font-black text-yellow-700">{lateCount}</span>
+                            <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-1.5 md:p-2 text-center transition-transform hover:scale-105">
+                                <span className="block text-[8px] md:text-[10px] font-bold text-yellow-600 uppercase tracking-wider">Late</span>
+                                <span className="block text-sm md:text-lg font-black text-yellow-700">{lateCount}</span>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* 2. Scrollable Main Content Area */}
-            <div className={`flex-1 ${viewMode === 'monthly' ? 'overflow-hidden flex flex-col pb-6' : 'overflow-y-auto pb-32'} px-4 md:px-6 py-6`}>
+            <div className={`flex-1 ${viewMode === 'monthly' ? 'overflow-hidden flex flex-col pb-6' : 'overflow-y-auto pb-32 md:pb-6'} px-4 md:px-6 py-6`}>
                 <div className={`${viewMode === 'monthly' ? 'h-full flex flex-col' : 'max-w-7xl mx-auto space-y-6'}`}>
-                    {/* --- VIEW MODE: MARKING --- */}
                     {viewMode === 'mark' ? (
                         <>
-                            {/* Search & Bulk Actions */}
                             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                                 <div className="relative w-full sm:max-w-xs">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -638,7 +625,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                         placeholder="Find student..."
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 text-sm font-medium transition-all outline-none"
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 text-sm font-medium outline-none"
                                     />
                                 </div>
                                 <button
@@ -649,7 +636,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                 </button>
                             </div>
 
-                            {/* Students List */}
                             {studentsLoading ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-40 bg-slate-200 animate-pulse rounded-2xl"></div>)}
@@ -660,73 +646,100 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                         <Users className="h-10 w-10 text-slate-300" />
                                     </div>
                                     <h3 className="text-lg font-medium text-slate-900">No students found</h3>
-                                    <p className="text-slate-500 max-w-xs mx-auto mt-2 text-sm">Try adjusting your search or select a different class from the dropdown above.</p>
+                                    <p className="text-slate-500 max-w-xs mx-auto mt-2 text-sm">Try different filters or select a class.</p>
                                 </div>
                             ) : (
-                                // Simplified Table View for Daily Marking
-                                <div className="bg-white rounded-3xl border border-slate-200 overflow-auto shadow-sm">
-                                    <table className="w-full text-left border-collapse min-w-[600px]">
-                                        <thead className="bg-slate-50 border-b border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Student Name</th>
-                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center whitespace-nowrap">Mark Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {filteredStudents.map((student: any, idx: number) => {
-                                                const status = attendanceMap[student.id];
-                                                return (
-                                                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="text-slate-400 text-xs font-medium w-4">{idx + 1}.</span>
-                                                                <div>
-                                                                    <p className="font-bold text-slate-700 text-sm">{student.name}</p>
-                                                                    <p className="text-xs text-slate-400 font-mono">{student.id.substring(0, 6)}</p>
+                                <>
+                                    <div className="hidden md:block bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-50 border-b border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Student Name</th>
+                                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {filteredStudents.map((student: any, idx: number) => {
+                                                    const status = attendanceMap[student.id];
+                                                    return (
+                                                        <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-slate-400 text-xs w-4">{idx + 1}.</span>
+                                                                    <div>
+                                                                        <p className="font-bold text-slate-700 text-sm">{student.name}</p>
+                                                                        <p className="text-xs text-slate-400 font-mono">{student.id.substring(0, 6)}</p>
+                                                                    </div>
                                                                 </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    {['Present', 'Late', 'Absent'].map(s => (
+                                                                        <button
+                                                                            key={s}
+                                                                            onClick={() => handleStatusChange(student.id, s as any)}
+                                                                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === s
+                                                                                ? s === 'Present' ? 'bg-green-100 text-green-700 border-green-200 ring-2 ring-green-500/20'
+                                                                                    : s === 'Late' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 ring-2 ring-yellow-500/20'
+                                                                                        : 'bg-red-100 text-red-700 border-red-200 ring-2 ring-red-500/20'
+                                                                                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                                                                }`}
+                                                                        >
+                                                                            {s}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="md:hidden space-y-4">
+                                        {filteredStudents.map((student: any, idx: number) => {
+                                            const status = attendanceMap[student.id];
+                                            return (
+                                                <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-[10px] font-bold text-slate-300">{idx + 1}</span>
+                                                            <div>
+                                                                <p className="font-bold text-slate-800">{student.name}</p>
+                                                                <p className="text-[10px] text-slate-400 font-mono">{student.id.substring(0, 6)}</p>
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <button
-                                                                    onClick={() => handleStatusChange(student.id, 'Present')}
-                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Present'
-                                                                        ? 'bg-green-100 text-green-700 border-green-200 ring-2 ring-green-500/20'
-                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                                                                        }`}
-                                                                >
-                                                                    Present
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleStatusChange(student.id, 'Late')}
-                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Late'
-                                                                        ? 'bg-yellow-100 text-yellow-700 border-yellow-200 ring-2 ring-yellow-500/20'
-                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                                                                        }`}
-                                                                >
-                                                                    Late
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleStatusChange(student.id, 'Absent')}
-                                                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${status === 'Absent'
-                                                                        ? 'bg-red-100 text-red-700 border-red-200 ring-2 ring-red-500/20'
-                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                                                                        }`}
-                                                                >
-                                                                    Absent
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                        </div>
+                                                        {status && (
+                                                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg ${status === 'Present' ? 'bg-green-100 text-green-700' : status === 'Late' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                                {status}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {['Present', 'Late', 'Absent'].map(s => (
+                                                            <button
+                                                                key={s}
+                                                                onClick={() => handleStatusChange(student.id, s as any)}
+                                                                className={`py-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${status === s
+                                                                    ? s === 'Present' ? 'bg-green-600 text-white border-green-700'
+                                                                        : s === 'Late' ? 'bg-yellow-500 text-white border-yellow-600'
+                                                                            : 'bg-red-600 text-white border-red-700'
+                                                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                                                    }`}
+                                                            >
+                                                                {s}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
                             )}
                         </>
                     ) : (
-                        // --- VIEW MODE: MONTHLY REGISTER ---
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full w-full">
                             {monthlyLoading ? (
                                 <div className="p-12 flex justify-center"><Loading type="spinner" fullScreen={false} message="Loading monthly register..." /></div>
@@ -761,10 +774,8 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                                                 {dayStatus ? (
                                                                     <div className="flex justify-center group/tooltip relative">
                                                                         <div className={`w-3 h-3 rounded-full ${dayStatus === 'Present' ? 'bg-green-500' :
-                                                                            dayStatus === 'Absent' ? 'bg-red-500' :
-                                                                                'bg-yellow-500'
+                                                                            dayStatus === 'Absent' ? 'bg-red-500' : 'bg-yellow-500'
                                                                             }`}></div>
-                                                                        {/* Tooltip */}
                                                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-30">
                                                                             {dayStatus}
                                                                         </div>
@@ -777,13 +788,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                                     })}
                                                 </tr>
                                             ))}
-                                            {filteredStudents.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={getDaysInMonth() + 1} className="p-8 text-center text-slate-400 italic">
-                                                        No students found for this class.
-                                                    </td>
-                                                </tr>
-                                            )}
                                         </tbody>
                                     </table>
                                 </div>
@@ -796,7 +800,6 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                         </div>
                     )}
 
-                    {/* Expandable Verification Section (Hidden in Monthly Mode and for Teachers) */}
                     {viewMode === 'mark' && currentUser?.role !== 'teacher' && (
                         <div className="pt-8 border-t border-slate-200/50">
                             <button
@@ -810,38 +813,32 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                     <Search className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                                     Verify Past Attendance Records
                                 </span>
-                                <ChevronRight className="h-4 w-4 text-slate-400 transform transition-transform group-hover:rotate-90 group-active:translate-y-1" />
+                                <ChevronRight className="h-4 w-4 text-slate-400 transform transition-transform group-hover:rotate-90" />
                             </button>
 
-                            <div id="verify-section" className="hidden mt-4 bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-top-4">
-                                <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Verification Mode</h3>
+                            <div id="verify-section" className="hidden mt-4 bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-xl animate-in fade-in slide-in-from-top-4">
+                                <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase">Verification Mode</h3>
                                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                                    <div className="relative group w-full">
-                                        <select
-                                            value={viewClass}
-                                            onChange={e => setViewClass(e.target.value)}
-                                            className="appearance-none w-full p-3 pl-4 pr-10 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
-                                        >
-                                            <option value="">Select Class</option>
-                                            {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90" />
-                                    </div>
+                                    <select
+                                        value={viewClass}
+                                        onChange={e => setViewClass(e.target.value)}
+                                        className="w-full p-3 text-sm border border-slate-200 rounded-xl bg-slate-50"
+                                    >
+                                        <option value="">Select Class</option>
+                                        {classes.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
                                     <input
                                         type="date"
                                         value={viewDate}
                                         onChange={e => setViewDate(e.target.value)}
-                                        className="p-3 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 font-medium transition-all"
+                                        className="p-3 text-sm border border-slate-200 rounded-xl bg-slate-50"
                                     />
-                                    {/* No explicit view button needed as query is reactive, but keeping it for UI structure if user wants "action" feeling or we could remove it. 
-                                        Actually, query is reactive to viewDate change.
-                                    */}
                                 </div>
 
                                 {viewClass && (
-                                    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto custom-scrollbar">
+                                    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden max-h-80 overflow-y-auto">
                                         <table className="w-full text-sm text-left">
-                                            <thead className="bg-slate-100 text-xs text-slate-500 uppercase font-bold sticky top-0 z-10">
+                                            <thead className="bg-slate-100 text-xs text-slate-500 uppercase font-bold sticky top-0">
                                                 <tr>
                                                     <th className="px-6 py-4">Student</th>
                                                     <th className="px-6 py-4">Status</th>
@@ -849,25 +846,20 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                             </thead>
                                             <tbody className="divide-y divide-slate-200">
                                                 {viewLoading ? (
-                                                    <tr><td colSpan={2} className="p-8 text-center"><Loading type="spinner" fullScreen={false} message="" /></td></tr>
+                                                    <tr><td colSpan={2} className="p-8 text-center"><Loading type="spinner" fullScreen={false} /></td></tr>
                                                 ) : viewResults.length > 0 ? (
-                                                    viewResults.map((r: any, idx: number) => (
-                                                        <tr key={r.id} className="hover:bg-white transition-colors">
+                                                    viewResults.map((r: any) => (
+                                                        <tr key={r.id}>
                                                             <td className="px-6 py-4 font-bold text-slate-700">{r.name}</td>
                                                             <td className="px-6 py-4">
-                                                                <span className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${r.status === 'Present' ? 'bg-green-100 text-green-700' :
-                                                                    r.status === 'Absent' ? 'bg-red-100 text-red-700' :
-                                                                        r.status === 'Late' ? 'bg-yellow-100 text-yellow-700' :
-                                                                            'bg-slate-200 text-slate-500'
-                                                                    }`}>
-                                                                    <span className={`w-1.5 h-1.5 rounded-full ${r.status === 'Present' ? 'bg-green-500' : r.status === 'Absent' ? 'bg-red-500' : r.status === 'Late' ? 'bg-yellow-500' : 'bg-slate-400'}`}></span>
+                                                                <span className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${r.status === 'Present' ? 'bg-green-100 text-green-700' : r.status === 'Absent' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                     {r.status}
                                                                 </span>
                                                             </td>
                                                         </tr>
                                                     ))
                                                 ) : (
-                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400 italic">No records found. Select a class and date.</td></tr>
+                                                    <tr><td colSpan={2} className="p-8 text-center text-slate-400">No records found.</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -879,33 +871,19 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                 </div>
             </div>
 
-            {/* 3. Footer - Fixed Save Bar (Only hide in Monthly Mode) */}
             {viewMode === 'mark' && (
-                <div className="absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-30 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+                <div className="shrink-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-30 shadow-lg">
                     <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                         <div className="hidden md:flex items-center gap-2 text-sm text-slate-600 font-medium">
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            {Object.keys(attendanceMap).length > 0
-                                ? `${Object.keys(attendanceMap).length} students marked`
-                                : 'Ready to mark'
-                            }
+                            {Object.keys(attendanceMap).length > 0 ? `${Object.keys(attendanceMap).length} students marked` : 'Ready to mark'}
                         </div>
                         <button
                             onClick={saveAttendance}
                             disabled={saveAttendanceMutation.isPending}
-                            className="w-full md:w-auto md:ml-auto px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5"
+                            className="w-full md:w-auto md:ml-auto px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl disabled:opacity-70 flex items-center justify-center gap-2.5"
                         >
-                            {saveAttendanceMutation.isPending ? (
-                                <>
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    <span>Saving...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="h-5 w-5" />
-                                    <span>Save Attendance</span>
-                                </>
-                            )}
+                            {saveAttendanceMutation.isPending ? 'Saving...' : 'Save Attendance'}
                         </button>
                     </div>
                 </div>

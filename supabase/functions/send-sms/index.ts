@@ -19,7 +19,7 @@ serve(async (req) => {
         // 2. Get Credentials
         const clientId = Deno.env.get('HUBTEL_CLIENT_ID') || hubtelKeys?.clientId;
         const clientSecret = Deno.env.get('HUBTEL_CLIENT_SECRET') || hubtelKeys?.clientSecret;
-        const senderId = Deno.env.get('HUBTEL_SENDER_ID') || hubtelKeys?.senderId || 'Orbit';
+        const senderId = Deno.env.get('HUBTEL_SENDER_ID') || hubtelKeys?.senderId || 'Base16';
 
         if (!clientId || !clientSecret) {
             throw new Error('Hubtel Credentials missing.')

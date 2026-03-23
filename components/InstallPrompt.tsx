@@ -31,8 +31,8 @@ const InstallPrompt: React.FC = () => {
                     </button>
 
                     <div className="flex items-start gap-4 pr-8">
-                        <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-sm shrink-0">
-                            <Download className="h-6 w-6 text-blue-200" />
+                        <div className="shrink-0 bg-white p-1 rounded-xl shadow-sm">
+                            <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-10 rounded-lg object-contain" />
                         </div>
                         <div>
                             <h3 className="font-bold text-base mb-1">Install Base16 App</h3>
@@ -60,8 +60,8 @@ const InstallPrompt: React.FC = () => {
         <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom duration-500">
             <div className="bg-primary-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-primary-700 mx-auto max-w-md">
                 <div className="flex items-center gap-4">
-                    <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-sm">
-                        <Download className="h-6 w-6 text-blue-200" />
+                    <div className="shrink-0 bg-white p-1 rounded-xl shadow-sm">
+                        <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-10 rounded-lg object-contain" />
                     </div>
                     <div>
                         <h3 className="font-bold text-sm">Install Base16 App</h3>

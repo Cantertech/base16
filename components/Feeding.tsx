@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Calendar, CheckCircle, XCircle, Search, Utensils,
     Filter, ChevronDown, CheckSquare, Plus, DollarSign,
-    AlertCircle, Save, BarChart2, Settings
+    AlertCircle, Save, BarChart2, Settings, X, Trash2
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
@@ -54,7 +54,7 @@ const fetchClasses = async (currentUser: any) => {
 const fetchStudents = async (schoolId: string, className: string) => {
     const { data } = await supabase
         .from('students')
-        .select('id, name, class')
+        .select('id, name, class, feeding_credit')
         .eq('school_id', schoolId)
         .eq('class', className)
         .order('name');
@@ -64,12 +64,12 @@ const fetchStudents = async (schoolId: string, className: string) => {
 const fetchFeedingLogs = async (schoolId: string, inputDate: string) => {
     const { data } = await supabase
         .from('feeding_logs')
-        .select('student_id')
+        .select('*')
         .eq('school_id', schoolId)
         .eq('date', inputDate);
 
-    const map: Record<string, boolean> = {};
-    data?.forEach((r: any) => map[r.student_id] = true);
+    const map: Record<string, any> = {};
+    data?.forEach((r: any) => map[r.student_id] = r);
     return map;
 };
 
@@ -101,6 +101,9 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
     const [bulkStudent, setBulkStudent] = useState<Student | null>(null);
     const [bulkStartDate, setBulkStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [bulkEndDate, setBulkEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [showRecordModal, setShowRecordModal] = useState(false);
+    const [recordingStudent, setRecordingStudent] = useState<any>(null);
+    const [customAmount, setCustomAmount] = useState<string>('');
 
     // Analysis State
     const [viewMode, setViewMode] = useState<'collection' | 'analysis' | 'config'>('collection');
@@ -169,7 +172,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('feeding_logs')
-                .select('date, amount, fee_amount, student:students(id, name, class)')
+                .select('date, amount, amount_paid, fee_amount, student:students(id, name, class)')
                 .eq('school_id', schoolId)
                 .gte('date', analysisStartDate)
                 .lte('date', analysisEndDate)
@@ -203,16 +206,16 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
             }
 
             studentStats[studentId].count += 1;
-            // Use log.amount if > 0, else use pricePerMeal
-            const Amt = log.amount > 0 ? Number(log.amount) : pricePerMeal;
+            // Use log.amount_paid for revenue
+            const AmtPaid = Number(log.amount_paid || 0);
             const FeeAmt = Number(log.fee_amount || 0);
 
-            studentStats[studentId].total += Amt;
+            studentStats[studentId].total += AmtPaid;
             studentStats[studentId].totalFees += FeeAmt;
-            studentStats[studentId].overall += (Amt + FeeAmt);
+            studentStats[studentId].overall += (AmtPaid + FeeAmt);
 
             totalMeals += 1;
-            totalRevenue += Amt;
+            totalRevenue += AmtPaid;
             totalFees += FeeAmt;
         });
 
@@ -236,73 +239,100 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
 
     // --- Mutations ---
 
-    const toggleFeedingMutation = useMutation({
-        mutationFn: async ({ studentId, isPaid }: { studentId: string, isPaid: boolean }) => {
-            if (isPaid) {
-                // It was paid, now toggle to unpaid (delete)
-                await supabase.from('feeding_logs').delete()
-                    .eq('student_id', studentId)
-                    .eq('date', selectedDate);
-            } else {
-                // It was unpaid, now toggle to paid (upsert)
-                await supabase.from('feeding_logs').upsert({
-                    school_id: schoolId,
-                    student_id: studentId,
-                    date: selectedDate,
-                    status: 'PAID',
-                    amount: pricePerMeal,
-                    fee_amount: configCollectFees ? configDailyFeeAmount : 0
-                });
-            }
-        },
-        onMutate: async ({ studentId, isPaid }) => {
-            // Cancel refetches
-            await queryClient.cancelQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+    const recordFeedingMutation = useMutation({
+        mutationFn: async ({ student, amountPaid, isDebt = false }: { student: any, amountPaid: number, isDebt?: boolean }) => {
+            const totalDue = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
 
-            // Snapshot
-            const previousMap = queryClient.getQueryData(['feedingLogs', schoolId, selectedDate]);
+            // 1. Record in feeding_logs
+            const { error: logError } = await supabase.from('feeding_logs').upsert({
+                school_id: schoolId,
+                student_id: student.id,
+                date: selectedDate,
+                status: isDebt ? 'DEBT' : (amountPaid >= totalDue ? 'PAID' : 'PARTIAL'),
+                amount: totalDue,
+                amount_paid: amountPaid,
+                fee_amount: configCollectFees ? configDailyFeeAmount : 0
+            }, { onConflict: 'student_id,date' });
 
-            // Optimistic Update
-            queryClient.setQueryData(['feedingLogs', schoolId, selectedDate], (old: Record<string, boolean> = {}) => {
-                const newMap = { ...old };
-                if (isPaid) delete newMap[studentId]; // Become unpaid
-                else newMap[studentId] = true; // Become paid
-                return newMap;
-            });
+            if (logError) throw logError;
 
-            return { previousMap };
+            // 2. Update Student Balance (Wallet)
+            // If they paid GH₵ 5 but it cost GH₵ 5 -> 0 change to credit
+            // If they paid GH₵ 10 but it cost GH₵ 5 -> +5 to credit
+            // If they paid GH₵ 0 but it cost GH₵ 5 -> -5 to credit
+            const balanceChange = amountPaid - totalDue;
+            const newCredit = (student.feeding_credit || 0) + balanceChange;
+
+            const { error: studentError } = await supabase
+                .from('students')
+                .update({ feeding_credit: newCredit })
+                .eq('id', student.id);
+
+            if (studentError) throw studentError;
+
+            return { studentId: student.id, newCredit };
         },
-        onError: (err, newTodo, context: any) => {
-            queryClient.setQueryData(['feedingLogs', schoolId, selectedDate], context.previousMap);
-            alert('Error updating feeding status');
-        },
-        onSettled: () => {
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
+            setShowRecordModal(false);
+            setRecordingStudent(null);
+            setCustomAmount('');
+        },
+        onError: (err: any) => {
+            alert('Error recording feeding: ' + err.message);
+        }
+    });
+
+    const deleteFeedingMutation = useMutation({
+        mutationFn: async (student: any) => {
+            // Revert the credit before deleting
+            const log = feedingMap[student.id];
+            if (!log) return;
+
+            const balanceToRevert = log.amount - (log.amount_paid || 0);
+            const newCredit = (student.feeding_credit || 0) + balanceToRevert;
+
+            await supabase.from('students').update({ feeding_credit: newCredit }).eq('id', student.id);
+            await supabase.from('feeding_logs').delete().eq('id', log.id);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
         }
     });
 
     const markAllPaidMutation = useMutation({
         mutationFn: async () => {
+            const totalDue = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
             const updates = students.map((s: any) => ({
                 school_id: schoolId,
                 student_id: s.id,
                 date: selectedDate,
                 status: 'PAID',
-                amount: pricePerMeal,
+                amount: totalDue,
+                amount_paid: totalDue,
                 fee_amount: configCollectFees ? configDailyFeeAmount : 0
             }));
             const { error } = await supabase.from('feeding_logs').upsert(updates, { onConflict: 'student_id,date' });
             if (error) throw error;
+
+            // Note: In a real large-scale app, we'd use a single RPC to update all balances.
+            // For now, we'll suggest clicking individually for balance tracking if precision is needed,
+            // or we can implement the multi-balance update here.
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId, selectedDate] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
             alert('All displayed students marked as PAID.');
         },
         onError: () => alert('Error marking all paid')
     });
 
     const bulkPaymentMutation = useMutation({
-        mutationFn: async ({ studentId, start, end }: { studentId: string, start: string, end: string }) => {
+        mutationFn: async ({ student, start, end }: { student: any, start: string, end: string }) => {
+            const totalDuePerDay = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
+
             // Generate dates
             const dates = [];
             let curr = new Date(start);
@@ -315,19 +345,25 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
 
             const inserts = dates.map(date => ({
                 school_id: schoolId,
-                student_id: studentId,
+                student_id: student.id,
                 date: date,
                 status: 'PAID',
-                amount: pricePerMeal,
+                amount: totalDuePerDay,
+                amount_paid: totalDuePerDay, // Assuming full payment for advance
                 fee_amount: configCollectFees ? configDailyFeeAmount : 0
             }));
 
             const { error } = await supabase.from('feeding_logs').upsert(inserts, { onConflict: 'student_id,date' });
             if (error) throw error;
+
+            // Advance payment doesn't change wallet balance if it's considered "Paid upfront outside wallet"
+            // OR we can say it's paid, so balance remains same.
+
             return dates.length;
         },
         onSuccess: (count) => {
-            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId] }); // Invalidate loosely or specifically
+            queryClient.invalidateQueries({ queryKey: ['feedingLogs', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
             alert(`Successfully marked ${count} days as paid.`);
             setShowBulkModal(false);
         },
@@ -356,10 +392,19 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
 
 
     // --- Handlers ---
+    const openRecordModal = (student: Student) => {
+        setRecordingStudent(student);
+        setShowRecordModal(true);
+    };
 
-    const toggleFeeding = (student: Student) => {
-        const isPaid = feedingMap[student.id];
-        toggleFeedingMutation.mutate({ studentId: student.id, isPaid: !!isPaid });
+    const handleRecordSubmit = (amount: number, isDebt: boolean = false) => {
+        if (!recordingStudent) return;
+        recordFeedingMutation.mutate({ student: recordingStudent, amountPaid: amount, isDebt });
+    };
+
+    const removeFeedingRecord = (student: any) => {
+        if (!confirm('Are you sure you want to remove this record? This will also revert the wallet balance.')) return;
+        deleteFeedingMutation.mutate(student);
     };
 
     const markAllPaid = () => {
@@ -370,7 +415,7 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
     const handleBulkPayment = () => {
         if (!bulkStudent || !bulkStartDate || !bulkEndDate) return;
         bulkPaymentMutation.mutate({
-            studentId: bulkStudent.id,
+            student: bulkStudent,
             start: bulkStartDate,
             end: bulkEndDate
         });
@@ -380,14 +425,27 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
     const filteredStudents = students.filter((s: any) => {
         const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
         const isPresent = attendanceMap[s.id] === 'Present';
-        const isPaid = feedingMap[s.id];
+        const log = feedingMap[s.id];
 
         if (showOnlyDefaulters) {
-            // Came (Present) but Didn't Pay
-            return matchesSearch && isPresent && !isPaid;
+            // Came (Present) but Didn't Pay Full
+            const totalDue = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
+            const isFullyPaid = log && (log.amount_paid || 0) >= totalDue;
+            return matchesSearch && isPresent && !isFullyPaid;
         }
         return matchesSearch;
-    }).sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }).sort((a: any, b: any) => {
+        // Sort: Defaulters (Present but not paid) first, then by name
+        const totalDue = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
+
+        const aIsDefaulter = attendanceMap[a.id] === 'Present' && (!feedingMap[a.id] || feedingMap[a.id].amount_paid < totalDue);
+        const bIsDefaulter = attendanceMap[b.id] === 'Present' && (!feedingMap[b.id] || feedingMap[b.id].amount_paid < totalDue);
+
+        if (aIsDefaulter && !bIsDefaulter) return -1;
+        if (!aIsDefaulter && bIsDefaulter) return 1;
+
+        return a.name.localeCompare(b.name);
+    });
 
     return (
         <div className="p-4 md:p-8 space-y-6 h-full flex flex-col pb-20 md:pb-0 overflow-y-auto">
@@ -500,29 +558,56 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                                     <tbody className="divide-y divide-slate-100">
                                         {filteredStudents.length > 0 ? (
                                             filteredStudents.map((student: any) => {
-                                                const isPaid = feedingMap[student.id];
+                                                const log = feedingMap[student.id];
                                                 const attStatus = attendanceMap[student.id] || 'Not Marked';
+                                                const totalDue = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
+                                                const walletBalance = student.feeding_credit || 0;
 
                                                 return (
                                                     <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
                                                         <td className="px-6 py-4">
-                                                            <p className="font-bold text-slate-800">{student.name}</p>
-                                                            <p className="text-xs text-slate-500">{student.class}</p>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm ${walletBalance < 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                                    {student.name.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800">{student.name}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase font-bold tracking-tight">{student.class}</span>
+                                                                        <span className={`text-[10px] font-black ${walletBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                                            Wallet: GH₵ {walletBalance.toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
-                                                            <button
-                                                                onClick={() => toggleFeeding(student)}
-                                                                className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${isPaid ? 'bg-green-500' : 'bg-slate-200'
-                                                                    }`}
-                                                            >
-                                                                <span
-                                                                    className={`${isPaid ? 'translate-x-9' : 'translate-x-1'
-                                                                        } inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-sm`}
-                                                                />
-                                                                <span className={`absolute text-[10px] font-bold ${isPaid ? 'left-2 text-white' : 'right-2 text-slate-500'}`}>
-                                                                    {isPaid ? 'YES' : 'NO'}
-                                                                </span>
-                                                            </button>
+                                                            {log ? (
+                                                                <div className="flex flex-col items-center gap-1 group">
+                                                                    <div className={`px-3 py-1.5 rounded-full text-[10px] font-black flex items-center gap-1.5 border-2 ${log.status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                                        log.status === 'PARTIAL' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                                                            'bg-red-50 text-red-700 border-red-200'
+                                                                        }`}>
+                                                                        {log.status === 'PAID' ? <CheckCircle className="h-3 w-3" /> :
+                                                                            log.status === 'PARTIAL' ? <DollarSign className="h-3 w-3" /> :
+                                                                                <XCircle className="h-3 w-3" />}
+                                                                        {log.status} (GH₵ {log.amount_paid?.toFixed(2)})
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => removeFeedingRecord(student)}
+                                                                        className="text-[10px] text-slate-400 hover:text-red-500 font-bold uppercase opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    >
+                                                                        Reset
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => openRecordModal(student)}
+                                                                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase hover:bg-orange-600 hover:text-white transition-all border border-slate-200"
+                                                                >
+                                                                    Record Daily
+                                                                </button>
+                                                            )}
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
                                                             <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${attStatus === 'Present' ? 'bg-green-50 text-green-700 border-green-100' :
@@ -533,15 +618,17 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-4 text-right">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setBulkStudent(student);
-                                                                    setShowBulkModal(true);
-                                                                }}
-                                                                className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center justify-end gap-1 ml-auto"
-                                                            >
-                                                                <Calendar className="h-3 w-3" /> Pay Advance
-                                                            </button>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setBulkStudent(student);
+                                                                        setShowBulkModal(true);
+                                                                    }}
+                                                                    className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors flex items-center gap-1"
+                                                                >
+                                                                    <Calendar className="h-3 w-3" /> Advance
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -665,6 +752,69 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                             </table>
                         </div>
                     </div>
+
+                    {/* Debtors Section */}
+                    <div className="bg-white border-2 border-red-100 rounded-3xl shadow-xl overflow-hidden mt-8">
+                        <div className="p-6 border-b border-red-50 flex justify-between items-center bg-red-50/10">
+                            <div>
+                                <h3 className="font-black text-red-800 flex items-center gap-2 uppercase tracking-tight">
+                                    <AlertCircle className="h-5 w-5" />
+                                    Feeding Debtors Only
+                                </h3>
+                                <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest">Students with negative wallet balances</p>
+                            </div>
+                            <div className="bg-red-600 text-white px-4 py-2 rounded-2xl font-black text-sm shadow-lg shadow-red-100 flex items-center gap-2">
+                                <DollarSign className="h-4 w-4" />
+                                Total Debt: GH₵ {Math.abs(students.filter(s => (s.feeding_credit || 0) < 0).reduce((sum, s) => sum + (Number(s.feeding_credit) || 0), 0)).toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase font-black tracking-widest border-b">
+                                    <tr>
+                                        <th className="px-6 py-4">Student Name</th>
+                                        <th className="px-6 py-4">Class</th>
+                                        <th className="px-6 py-4 text-right">Owed Amount</th>
+                                        <th className="px-6 py-4"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {students.filter(s => (s.feeding_credit || 0) < 0).length === 0 ? (
+                                        <tr><td colSpan={4} className="p-12 text-center text-slate-400 italic font-medium">No feeding debtors found! Everyone is up to date.</td></tr>
+                                    ) : (
+                                        students.filter(s => (s.feeding_credit || 0) < 0)
+                                            .sort((a, b) => (Number(a.feeding_credit) || 0) - (Number(b.feeding_credit) || 0))
+                                            .map((s: any) => (
+                                                <tr key={s.id} className="hover:bg-red-50/30 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold text-xs uppercase">
+                                                                {s.name.charAt(0)}
+                                                            </div>
+                                                            <span className="font-bold text-slate-800">{s.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="bg-slate-100 px-2 py-1 rounded text-[10px] font-black uppercase text-slate-600">{s.class}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-black text-red-600">
+                                                        GH₵ {Math.abs(s.feeding_credit).toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button
+                                                            onClick={() => { setViewMode('collection'); setSelectedClass(s.class); setSearchTerm(s.name); }}
+                                                            className="px-3 py-1.5 bg-slate-100 hover:bg-orange-600 hover:text-white text-[10px] font-black text-slate-600 rounded-lg uppercase tracking-widest transition-all"
+                                                        >
+                                                            Open Account
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             ) : viewMode === 'config' ? (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 max-w-2xl animate-in fade-in slide-in-from-right-4 duration-300">
@@ -765,6 +915,89 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
                     </form>
                 </div>
             ) : null}
+
+            {/* Daily Feeding Record Modal */}
+            {showRecordModal && recordingStudent && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-orange-600 p-6 text-white text-center relative">
+                            <button
+                                onClick={() => setShowRecordModal(false)}
+                                className="absolute right-4 top-4 hover:bg-white/20 p-1.5 rounded-full transition-colors"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                            <div className="h-20 w-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
+                                <Utensils className="h-10 w-10 text-white" />
+                            </div>
+                            <h3 className="text-xl font-black">{recordingStudent.name}</h3>
+                            <p className="text-orange-100 text-sm font-bold uppercase tracking-wider">{recordingStudent.class}</p>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Total Due Today</p>
+                                    <p className="text-lg font-black text-slate-800">
+                                        GH₵ {(pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0)).toFixed(2)}
+                                    </p>
+                                </div>
+                                <div className={`p-4 rounded-2xl border ${recordingStudent.feeding_credit < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+                                    <p className={`text-[10px] font-black uppercase mb-1 ${recordingStudent.feeding_credit < 0 ? 'text-red-400' : 'text-green-400'}`}>Current Wallet</p>
+                                    <p className={`text-lg font-black ${recordingStudent.feeding_credit < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        GH₵ {(recordingStudent.feeding_credit || 0).toFixed(2)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => handleRecordSubmit(pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0))}
+                                    disabled={recordFeedingMutation.isPending}
+                                    className="w-full py-4 bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all shadow-lg shadow-green-200 flex items-center justify-center gap-2 group"
+                                >
+                                    <CheckSquare className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                                    FULL PAYMENT (GH₵ {(pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0)).toFixed(2)})
+                                </button>
+
+                                <button
+                                    onClick={() => handleRecordSubmit(0, true)}
+                                    disabled={recordFeedingMutation.isPending}
+                                    className="w-full py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2 group"
+                                >
+                                    <AlertCircle className="h-5 w-5 group-hover:scale-110 transition-transform text-orange-400" />
+                                    MARK AS DEBT (GH₵ 0.00)
+                                </button>
+
+                                <div className="relative pt-4 overflow-hidden">
+                                    <div className="absolute top-4 left-0 right-0 border-t border-slate-100 italic text-[10px] text-slate-300 text-center uppercase tracking-widest bg-white w-20 mx-auto z-10">OR</div>
+                                    <div className="pt-6">
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">GH₵</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Partial amount..."
+                                                    value={customAmount}
+                                                    onChange={e => setCustomAmount(e.target.value)}
+                                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none text-lg font-black text-slate-800 transition-all"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => handleRecordSubmit(Number(customAmount))}
+                                                disabled={!customAmount || recordFeedingMutation.isPending}
+                                                className="bg-orange-600 text-white px-6 rounded-2xl font-black hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-100"
+                                            >
+                                                PAY
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Advance Payment Modal (Global) */}
             {showBulkModal && bulkStudent && (

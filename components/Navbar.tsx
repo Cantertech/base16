@@ -18,7 +18,7 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
   };
 
   return (
-    <nav className="fixed w-full z-50 bg-white shadow-sm">
+    <nav className="fixed w-full z-50 bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-200/50 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
@@ -49,7 +49,7 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
 
               <Link
                 to="/demo"
-                className="bg-primary-900 text-white px-5 py-2 rounded-lg font-medium hover:bg-primary-800 transition-colors shadow-md"
+                className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
               >
                 Book a Demo
               </Link>

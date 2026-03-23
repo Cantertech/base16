@@ -7,8 +7,10 @@ CREATE TABLE IF NOT EXISTS feeding_logs (
     school_id UUID REFERENCES schools(id),
     student_id UUID REFERENCES students(id),
     date DATE NOT NULL,
-    status TEXT DEFAULT 'PAID', -- 'PAID'
+    status TEXT DEFAULT 'PAID', -- 'PAID', 'PARTIAL', 'DEBT'
     amount DECIMAL(10,2) DEFAULT 0.00,
+    amount_paid DECIMAL(10,2) DEFAULT 0.00,
+    fee_amount DECIMAL(10,2) DEFAULT 0.00,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(student_id, date)
 );

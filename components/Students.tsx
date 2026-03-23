@@ -1251,21 +1251,21 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
           </div>
 
           {/* Admin Data */}
-          <div className="pt-4 border-t border-slate-100 bg-orange-50/50 p-4 rounded-xl">
-            <h4 className="text-xs font-bold text-orange-600 uppercase tracking-wider mb-4 flex items-center gap-2"><Lock className="h-3 w-3" /> System Data (Caution)</h4>
+          <div className="pt-4 border-t border-slate-100 bg-slate-50 p-4 rounded-xl">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2"><Lock className="h-3 w-3" /> System Generated Data</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Admission No.</label>
-                <input className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.admission_no} onChange={e => setFormData({ ...formData, admission_no: e.target.value })} />
+                <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.admission_no} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Login PIN</label>
-                <input className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.pin} onChange={e => setFormData({ ...formData, pin: e.target.value })} />
+                <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.pin} />
               </div>
               {hasFeesModule && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
-                  <input type="number" className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-200 outline-none text-sm font-mono text-slate-700" value={formData.balance} onChange={e => setFormData({ ...formData, balance: e.target.value })} />
+                  <input readOnly type="number" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.balance} />
                 </div>
               )}
             </div>

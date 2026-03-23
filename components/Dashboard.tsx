@@ -152,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const [hiddenMenuItems, setHiddenMenuItems] = useState<string[]>([]);
     useEffect(() => {
         try {
-            const saved = localStorage.getItem('orbit_hidden_menus');
+            const saved = localStorage.getItem('base16_hidden_menus');
             if (saved) setHiddenMenuItems(JSON.parse(saved));
         } catch (e) { console.error('Error loading menu prefs', e); }
     }, []);
@@ -162,11 +162,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             ? hiddenMenuItems.filter(i => i !== name)
             : [...hiddenMenuItems, name];
         setHiddenMenuItems(newHidden);
-        localStorage.setItem('orbit_hidden_menus', JSON.stringify(newHidden));
+        localStorage.setItem('base16_hidden_menus', JSON.stringify(newHidden));
     };
 
     // Welcome Modal State
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+    // Notifications Dropdown State
+    const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
+
+    // Global Search State
+    const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+    // Profile Dropdown State
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
 
     // Subscription State
     const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'warning' | 'suspended'>('active');
@@ -194,7 +204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     feeding_fee_amount: school.feeding_fee_amount || 5,
                 };
                 // Cache the config to prevent flashing on reload
-                localStorage.setItem(`orbit_school_config_${currentUser.school_id}`, JSON.stringify(config));
+                localStorage.setItem(`base16_school_config_${currentUser.school_id}`, JSON.stringify(config));
                 return config;
             }
             return null;
@@ -202,13 +212,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         initialData: () => {
             // Try to load from cache immediately to prevent theme flash
             try {
-                const saved = localStorage.getItem(`orbit_school_config_${currentUser.school_id}`);
+                const saved = localStorage.getItem(`base16_school_config_${currentUser.school_id}`);
                 return saved ? JSON.parse(saved) : undefined;
             } catch (e) {
                 return undefined;
             }
         },
         enabled: !!currentUser.school_id
+    });
+
+    // 1.5 Global Search Query
+    const { data: searchResults = { students: [], teachers: [] } } = useQuery({
+        queryKey: ['globalSearch', currentUser.school_id, globalSearchTerm],
+        queryFn: async () => {
+            if (!globalSearchTerm || globalSearchTerm.length < 2) return { students: [], teachers: [] };
+
+            const [studentsRes, teachersRes] = await Promise.all([
+                supabase.from('students').select('id, name, class, gender, photo_url').eq('school_id', currentUser.school_id).ilike('name', `%${globalSearchTerm}%`).limit(5),
+                supabase.from('profiles').select('id, full_name, role').eq('school_id', currentUser.school_id).eq('role', 'teacher').ilike('full_name', `%${globalSearchTerm}%`).limit(5)
+            ]);
+
+            return {
+                students: studentsRes.data || [],
+                teachers: teachersRes.data || []
+            };
+        },
+        enabled: globalSearchTerm.length > 1
     });
 
     // 2. Dashboard Stats (Counts)
@@ -310,6 +339,159 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 .eq('status', 'active');
 
             return data ? data.map(sub => sub.module_id) : [];
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 6. Top Defaulters (Fees)
+    const { data: topDefaulters = [] } = useQuery({
+        queryKey: ['topDefaulters', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return [];
+            const { data } = await supabase
+                .from('students')
+                .select('id, name, class, balance, photo_url')
+                .eq('school_id', currentUser.school_id)
+                .gt('balance', 0)
+                .order('balance', { ascending: false })
+                .limit(5);
+            return data || [];
+        },
+        enabled: !!currentUser.school_id && (activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle'))
+    });
+
+    // 7. Teacher Attendance Stats for Today
+    const { data: teacherAttendanceStats = { present: 0, total: 0 } } = useQuery({
+        queryKey: ['teacherAttendanceStats', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return { present: 0, total: 0 };
+            const today = new Date().toISOString().split('T')[0];
+            const { data: tAttendance } = await supabase.from('teacher_attendance').select('status').eq('school_id', currentUser.school_id).eq('date', today);
+            const { count: tTotal } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('school_id', currentUser.school_id).eq('role', 'teacher');
+            const present = tAttendance?.filter(a => a.status === 'Present' || a.status === 'Late').length || 0;
+            return { present, total: tTotal || 0 };
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 7. Student Today's Attendance Stats
+    const { data: attendanceStats = { present: 0, absent: 0, late: 0, total_recorded: 0 } } = useQuery({
+        queryKey: ['attendanceStats', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return { present: 0, absent: 0, late: 0, total_recorded: 0 };
+
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+            const { data } = await supabase
+                .from('attendance')
+                .select('status')
+                .eq('school_id', currentUser.school_id)
+                .eq('date', today);
+
+            const recordStats = { present: 0, absent: 0, late: 0, total_recorded: 0 };
+
+            if (data) {
+                data.forEach(record => {
+                    recordStats.total_recorded++;
+                    if (record.status === 'Present') recordStats.present++;
+                    else if (record.status === 'Absent') recordStats.absent++;
+                    else if (record.status === 'Late') recordStats.late++;
+                });
+            }
+
+            return recordStats;
+        },
+        enabled: !!currentUser.school_id && (activeModules.includes('daily_tracker') || activeModules.includes('complete_bundle'))
+    });
+
+    // 8. Academic Performance Average Structure
+    const { data: averagePerformance = null } = useQuery({
+        queryKey: ['averagePerformance', currentUser.school_id, schoolConfig?.current_term, schoolConfig?.academic_year],
+        queryFn: async () => {
+            if (!currentUser.school_id || !schoolConfig?.current_term) return null;
+
+            const { data: results } = await supabase
+                .from('exam_results')
+                .select('total')
+                .eq('school_id', currentUser.school_id)
+                .eq('term', schoolConfig.current_term)
+                .eq('academic_year', schoolConfig.academic_year);
+
+            if (!results || results.length === 0) return null;
+
+            const totalSum = results.reduce((sum: number, r: any) => sum + (Number(r.total) || 0), 0);
+            return (totalSum / results.length).toFixed(1);
+        },
+        enabled: !!currentUser.school_id && !!schoolConfig && (activeModules.includes('academic_engine') || activeModules.includes('complete_bundle'))
+    });
+
+    // 9. Enrollment Growth Stats
+    const { data: enrollmentStats = { currentTerm: 0, lastTerm: 0, growth: 0 } } = useQuery({
+        queryKey: ['enrollmentStats', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return { currentTerm: 0, lastTerm: 0, growth: 0 };
+
+            const now = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(now.getDate() - 30);
+
+            const sixtyDaysAgo = new Date();
+            sixtyDaysAgo.setDate(now.getDate() - 60);
+
+            const { count: currentCount } = await supabase
+                .from('students')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', currentUser.school_id)
+                .gte('created_at', thirtyDaysAgo.toISOString());
+
+            const { count: lastCount } = await supabase
+                .from('students')
+                .select('*', { count: 'exact', head: true })
+                .eq('school_id', currentUser.school_id)
+                .gte('created_at', sixtyDaysAgo.toISOString())
+                .lt('created_at', thirtyDaysAgo.toISOString());
+
+            const current = currentCount || 0;
+            const last = lastCount || 0;
+            const growth = last === 0 ? current * 100 : Math.round(((current - last) / last) * 100);
+
+            return { currentTerm: current, lastTerm: last, growth };
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 10. Revenue Growth Stats
+    const { data: revenueGrowthStats = { growth: 0 } } = useQuery({
+        queryKey: ['revenueGrowthStats', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return { growth: 0 };
+
+            const now = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(now.getDate() - 30);
+
+            const sixtyDaysAgo = new Date();
+            sixtyDaysAgo.setDate(now.getDate() - 60);
+
+            const { data: currentPeriod } = await supabase
+                .from('transactions')
+                .select('amount')
+                .eq('school_id', currentUser.school_id)
+                .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+            const { data: lastPeriod } = await supabase
+                .from('transactions')
+                .select('amount')
+                .eq('school_id', currentUser.school_id)
+                .gte('date', sixtyDaysAgo.toISOString().split('T')[0])
+                .lt('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+            const current = currentPeriod?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+            const last = lastPeriod?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+
+            const growth = last === 0 ? (current > 0 ? 100 : 0) : Math.round(((current - last) / last) * 100);
+
+            return { growth };
         },
         enabled: !!currentUser.school_id
     });
@@ -573,21 +755,45 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     {/* Stats Cards - Grid optimized for mobile (2cols) vs desktop (4cols) */}
                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6">
                         {[
-                            { label: 'Total Students', value: stats.students, icon: GraduationCap },
+                            {
+                                label: 'Total Students',
+                                value: stats.students,
+                                icon: GraduationCap,
+                                subtext: enrollmentStats.growth > 0
+                                    ? <span className="text-green-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3" /> +{enrollmentStats.growth}%</span>
+                                    : enrollmentStats.growth < 0
+                                        ? <span className="text-red-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3 transform rotate-180" /> {enrollmentStats.growth}%</span>
+                                        : <span className="text-slate-400 font-medium">No new enrollments</span>
+                            },
                             { label: 'Teachers', value: stats.teachers, icon: Users },
                             { label: 'Classes', value: stats.classes, icon: Layers },
-                            { label: 'Term Revenue', value: formatAmount(stats.revenue), icon: Banknote, isWide: true }
+                            {
+                                label: 'Term Revenue',
+                                value: formatAmount(stats.revenue),
+                                icon: Banknote,
+                                isWide: true,
+                                subtext: revenueGrowthStats.growth >= 0
+                                    ? <span className="text-green-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3" /> +{revenueGrowthStats.growth}%</span>
+                                    : <span className="text-red-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3 transform rotate-180" /> {revenueGrowthStats.growth}%</span>
+                            }
                         ].map((item, idx) => (
                             <div key={idx} className={`bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow ${item.isWide ? 'col-span-2 md:col-span-1' : ''}`}>
                                 <div
-                                    className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text}`}
+                                    className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text} shrink-0`}
                                     style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
                                 >
                                     <item.icon className="h-5 w-5 md:h-6 md:w-6" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-slate-500 text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</p>
-                                    <h3 className="text-lg md:text-2xl font-bold text-slate-800 break-words">{item.value}</h3>
+                                    <div className="flex items-baseline gap-2">
+                                        <h3 className="text-lg md:text-2xl font-bold text-slate-800 break-words">{item.value}</h3>
+                                        {item.subtext && (
+                                            <div className="text-[10px] md:text-xs">
+                                                {item.subtext}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -644,6 +850,162 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Modular Analytics Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 border-t border-slate-200 mt-2 pt-8">
+                        {/* Feed Widget (Fees) */}
+                        {(activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle')) && (
+                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-orange-500" /> Top Defaulters
+                                    </h3>
+                                    <button onClick={() => setActiveMenu('Fees')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Manage Fees</button>
+                                </div>
+                                {topDefaulters.length > 0 ? (
+                                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                                        {topDefaulters.map((student: any) => (
+                                            <div key={student.id} className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors rounded-xl border border-slate-100 cursor-pointer" onClick={() => setActiveMenu('Fees')}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm overflow-hidden border border-orange-200 shrink-0">
+                                                        {student.photo_url ? <img src={student.photo_url} className="w-full h-full object-cover" /> : student.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm line-clamp-1">{student.name}</p>
+                                                        <p className="text-[10px] text-slate-500 font-medium">{student.class}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <span className="block font-bold text-red-500">{formatAmount(student.balance)}</span>
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-50 px-2 py-0.5 rounded-full inline-block mt-0.5">Overdue</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                        <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
+                                            <CheckCircle className="h-6 w-6" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-700">Excellent job!</p>
+                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">There are currently no students with outstanding fee balances.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Event Widget (Attendance) */}
+                        {(activeModules.includes('daily_tracker') || activeModules.includes('complete_bundle')) && (
+                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-blue-500" /> Today's Attendance
+                                    </h3>
+                                    <button onClick={() => setActiveMenu('Attendance')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Details</button>
+                                </div>
+
+                                {attendanceStats.total_recorded > 0 ? (
+                                    <div className="flex-1 flex flex-col pt-2 space-y-4">
+                                        {/* Progress Bar overall */}
+                                        <div>
+                                            <div className="flex justify-between text-xs font-bold mb-1">
+                                                <span className="text-green-600">Students Present ({(attendanceStats.present / attendanceStats.total_recorded * 100).toFixed(0)}%)</span>
+                                                <span className="text-slate-500">{attendanceStats.total_recorded} / {stats.students} Recorded</span>
+                                            </div>
+                                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                <div style={{ width: `${(attendanceStats.present / attendanceStats.total_recorded) * 100}%` }} className="bg-green-500 h-full"></div>
+                                                <div style={{ width: `${(attendanceStats.late / attendanceStats.total_recorded) * 100}%` }} className="bg-orange-400 h-full"></div>
+                                                <div style={{ width: `${(attendanceStats.absent / attendanceStats.total_recorded) * 100}%` }} className="bg-red-500 h-full"></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Additional Staff Info */}
+                                        <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
+                                                    <UserCheck className="h-3 w-3" />
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-700">Staff Presence</span>
+                                            </div>
+                                            <span className="text-sm font-black text-blue-700">
+                                                {teacherAttendanceStats.present} / {teacherAttendanceStats.total}
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                                            <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
+                                                <span className="block text-xl font-bold text-green-700">{attendanceStats.present}</span>
+                                                <span className="block text-[10px] uppercase font-bold text-green-600 mt-1 tracking-wider">Present</span>
+                                            </div>
+                                            <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100">
+                                                <span className="block text-xl font-bold text-orange-700">{attendanceStats.late}</span>
+                                                <span className="block text-[10px] uppercase font-bold text-orange-600 mt-1 tracking-wider">Late</span>
+                                            </div>
+                                            <div className="bg-red-50 rounded-xl p-3 text-center border border-red-100">
+                                                <span className="block text-xl font-bold text-red-700">{attendanceStats.absent}</span>
+                                                <span className="block text-[10px] uppercase font-bold text-red-600 mt-1 tracking-wider">Absent</span>
+                                            </div>
+                                        </div>
+
+                                        {attendanceStats.total_recorded < stats.students && (
+                                            <div className="mt-auto bg-slate-50 rounded-lg p-3 border border-slate-200 flex items-start gap-2">
+                                                <AlertTriangle className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                                                <p className="text-xs text-slate-500">Some classes have not submitted their attendance rolls for today yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                        <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                                            <Calendar className="h-6 w-6" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-700">No data today</p>
+                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Attendance has not been recorded by any teachers yet today.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Event Widget (Academic Average) */}
+                        {(activeModules.includes('academic_engine') || activeModules.includes('complete_bundle')) && (
+                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-purple-500" /> Academic Performance
+                                    </h3>
+                                    <button onClick={() => setActiveMenu('Exam')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">View Exams</button>
+                                </div>
+
+                                {averagePerformance ? (
+                                    <div className="flex-1 flex flex-col justify-center items-center py-6">
+                                        <div className="relative w-40 h-40 mb-4">
+                                            <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                                                <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                                                <path className="text-purple-500 transition-all duration-1000 ease-out" strokeDasharray={`${averagePerformance}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                            </svg>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                <span className="text-3xl font-bold text-slate-800">{averagePerformance}%</span>
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Average</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-center mt-2 px-4">
+                                            <p className="text-sm font-bold text-slate-700">Term Average Score</p>
+                                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">This represents the average student score across all graded subjects this term.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                        <div className="w-12 h-12 bg-purple-50 text-purple-400 rounded-full flex items-center justify-center mb-3">
+                                            <FileText className="h-6 w-6" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-700">No Grades Yet</p>
+                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Teachers have not recorded any exam or class scores for this term.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             );
@@ -754,36 +1116,194 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                             >{schoolConfig?.name?.[0] || 'O'}</div>
                         )}
                     </div>
-                    <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl">
-                        <div className="relative w-full">
+                    <div className="hidden md:flex items-center gap-4 flex-1 max-w-xl relative">
+                        <div className="relative w-full z-40">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <input
                                 type="text"
+                                value={globalSearchTerm}
+                                onChange={(e) => {
+                                    setGlobalSearchTerm(e.target.value);
+                                    setShowSearchDropdown(true);
+                                }}
+                                onFocus={() => setShowSearchDropdown(true)}
                                 placeholder="Search students, teachers, or records..."
                                 className={`w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-sm ${theme.ring}`}
                                 style={theme.custom ? { '--tw-ring-color': theme.custom.ring } as React.CSSProperties : {}}
                             />
                         </div>
+                        {showSearchDropdown && globalSearchTerm.length > 1 && (
+                            <>
+                                <div className="fixed inset-0 z-30" onClick={() => setShowSearchDropdown(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-full bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 z-50 overflow-hidden text-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                                    {(searchResults.students.length === 0 && searchResults.teachers.length === 0) ? (
+                                        <div className="p-6 text-center text-slate-500 font-medium">
+                                            <Search className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                                            No results found for "{globalSearchTerm}"
+                                        </div>
+                                    ) : (
+                                        <div className="max-h-[60vh] overflow-y-auto hide-scrollbar">
+                                            {searchResults.students.length > 0 && (
+                                                <div className="p-2">
+                                                    <h4 className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 rounded-lg mb-1">Students</h4>
+                                                    {searchResults.students.map((s: any) => (
+                                                        <div key={s.id}
+                                                            onClick={() => { setActiveMenu(currentUser.role === 'admin' ? 'Students' : 'My Students'); setShowSearchDropdown(false); setGlobalSearchTerm(''); }}
+                                                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                                                        >
+                                                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold overflow-hidden border border-slate-200">
+                                                                {s.photo_url ? <img src={s.photo_url} className="w-full h-full object-cover" /> : s.name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-slate-800 group-hover:text-primary-600 transition-colors">{s.name}</p>
+                                                                <p className="text-xs text-slate-500 font-medium">{s.class} &bull; {s.gender}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {searchResults.teachers.length > 0 && (
+                                                <div className="p-2 border-t border-slate-100">
+                                                    <h4 className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 rounded-lg mb-1">Teachers</h4>
+                                                    {searchResults.teachers.map((t: any) => (
+                                                        <div key={t.id}
+                                                            onClick={() => { setActiveMenu('Teachers'); setShowSearchDropdown(false); setGlobalSearchTerm(''); }}
+                                                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                                                        >
+                                                            <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100">
+                                                                {t.full_name?.charAt(0) || 'T'}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-slate-800 group-hover:text-primary-600 transition-colors">{t.full_name}</p>
+                                                                <p className="text-xs text-slate-500 font-medium">Teaching Staff</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                     <div className="flex items-center gap-4">
-                        <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">
-                            <Bell className="h-5 w-5" />
-                            {recentNotices.length > 0 && <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
-                        </button>
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-                            <div className="text-right hidden sm:block">
-                                <p className="text-sm font-bold text-slate-800">{currentUser.name}</p>
-                                <p className="text-xs text-slate-500 font-medium capitalize">{currentUser.role}</p>
-                            </div>
-                            <div
-                                className={`h-10 w-10 rounded-full ${theme.bgLight} flex items-center justify-center border-2 ${theme.border} shadow-sm`}
-                                style={theme.custom ? { backgroundColor: theme.custom.bgLight, borderColor: theme.custom.border } : {}}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowNotificationsMenu(!showNotificationsMenu)}
+                                className="relative p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl transition-colors cursor-pointer"
                             >
-                                <span
-                                    className={`${theme.text} font-bold text-lg`}
-                                    style={theme.custom ? { color: theme.custom.text } : {}}
-                                >{currentUser?.name?.charAt(0) || 'U'}</span>
-                            </div>
+                                <Bell className="h-5 w-5" />
+                                {recentNotices.length > 0 && <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
+                            </button>
+
+                            {/* Notification Dropdown Panel */}
+                            {showNotificationsMenu && (
+                                <>
+                                    {/* Invisible backdrop for mobile dismiss */}
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsMenu(false)}></div>
+                                    <div className="fixed top-[70px] left-4 right-4 sm:absolute sm:top-auto sm:left-auto sm:right-0 sm:mt-3 w-auto sm:w-[340px] md:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 z-[100] overflow-hidden transform origin-top sm:origin-top-right transition-all animate-in slide-in-from-top-2 fade-in duration-200">
+                                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                                <Bell className="w-4 h-4 text-slate-500" /> Notifications
+                                            </h3>
+                                            <span className="text-xs font-bold bg-primary-100 text-primary-700 px-2.5 py-1 rounded-full">{recentNotices.length} New</span>
+                                        </div>
+                                        <div className="max-h-[60vh] overflow-y-auto hide-scrollbar overscroll-contain">
+                                            {recentNotices.length > 0 ? (
+                                                <div className="divide-y divide-slate-50">
+                                                    {recentNotices.map((notice: any) => (
+                                                        <div key={notice.id} className="p-4 hover:bg-slate-50/80 transition-colors cursor-pointer group" onClick={() => {
+                                                            setActiveMenu(currentUser.role === 'admin' ? 'Notice' : 'Notice Board');
+                                                            setShowNotificationsMenu(false);
+                                                        }}>
+                                                            <div className="flex justify-between items-start mb-1 text-slate-400">
+                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${notice.priority === 'Urgent' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{notice.priority}</span>
+                                                                <span className="text-[10px] font-medium">{new Date(notice.created_at).toLocaleDateString()}</span>
+                                                            </div>
+                                                            <p className="text-sm font-bold text-slate-800 mt-2 group-hover:text-primary-600 transition-colors">{notice.title}</p>
+                                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">{notice.message || 'Click to read full announcement...'}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="p-10 text-center flex flex-col items-center justify-center">
+                                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 transform -rotate-6">
+                                                        <Bell className="w-8 h-8 text-slate-300" />
+                                                    </div>
+                                                    <p className="text-sm font-bold text-slate-800">All caught up!</p>
+                                                    <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Check back later for new school announcements and updates.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-3 border-t border-slate-100 bg-slate-50/50 text-center">
+                                            <button
+                                                onClick={() => { setActiveMenu(currentUser.role === 'admin' ? 'Notice' : 'Notice Board'); setShowNotificationsMenu(false); }}
+                                                className="text-[11px] font-bold text-slate-500 hover:text-primary-600 transition-colors uppercase tracking-widest w-full py-2"
+                                            >
+                                                View Notice Board
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div className="relative flex items-center gap-3 pl-4 border-l border-slate-200">
+                            <button
+                                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity cursor-pointer group"
+                            >
+                                <div className="text-right hidden sm:block">
+                                    <p className="text-sm font-bold text-slate-800 group-hover:text-primary-600 transition-colors">{currentUser.name}</p>
+                                    <p className="text-xs text-slate-500 font-medium capitalize">{currentUser.role}</p>
+                                </div>
+                                <div
+                                    className={`h-10 w-10 rounded-full ${theme.bgLight} flex items-center justify-center border-2 ${theme.border} shadow-sm`}
+                                    style={theme.custom ? { backgroundColor: theme.custom.bgLight, borderColor: theme.custom.border } : {}}
+                                >
+                                    <span
+                                        className={`${theme.text} font-bold text-lg`}
+                                        style={theme.custom ? { color: theme.custom.text } : {}}
+                                    >{currentUser?.name?.charAt(0) || 'U'}</span>
+                                </div>
+                            </button>
+
+                            {/* Profile Dropdown Menu */}
+                            {showProfileMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)}></div>
+                                    <div className="absolute top-full right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 z-50 overflow-hidden transform origin-top-right transition-all animate-in slide-in-from-top-2 fade-in duration-200">
+                                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 block sm:hidden">
+                                            <p className="text-sm font-bold text-slate-800 line-clamp-1">{currentUser.name}</p>
+                                            <p className="text-xs text-slate-500 font-medium capitalize">{currentUser.role}</p>
+                                        </div>
+                                        <div className="p-2 space-y-1">
+                                            <button
+                                                onClick={() => { setActiveMenu(currentUser.role === 'teacher' ? 'Settings & Profile' : 'Settings'); setShowProfileMenu(false); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors"
+                                            >
+                                                <SettingsIcon className="h-4 w-4" /> Account Settings
+                                            </button>
+                                            {currentUser.role === 'admin' && (
+                                                <button
+                                                    onClick={() => { setActiveMenu('Help center'); setShowProfileMenu(false); }}
+                                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-colors"
+                                                >
+                                                    <HelpCircle className="h-4 w-4" /> Help & Support
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="p-2 border-t border-slate-100">
+                                            <button
+                                                onClick={() => { setShowProfileMenu(false); onLogout(); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                                            >
+                                                <LogOut className="h-4 w-4" /> Logout
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </header>

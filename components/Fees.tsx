@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Search, Banknote, CreditCard, Wallet, TrendingUp,
+    Search, Banknote, CreditCard, Wallet, TrendingUp, Clock,
     ArrowUpRight, CheckCircle, AlertCircle, X, Download, Plus, Trash2, ArrowLeft, ChevronRight, Loader2
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
@@ -110,11 +110,13 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
     const [analyticsEndDate, setAnalyticsEndDate] = useState<string>(
         new Date().toISOString().split('T')[0]
     );
+    const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
 
     // Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isAddFeeModalOpen, setIsAddFeeModalOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
     const schoolId = currentUser?.school_id;
 
@@ -276,6 +278,69 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
         }
     });
 
+    const deleteTransactionMutation = useMutation({
+        mutationFn: async (transaction: Transaction) => {
+            // --- SECURITY CHECK: Don't allow double reversals ---
+            if (transaction.type.includes('(REVERSED)')) {
+                throw new Error("This transaction has already been reversed.");
+            }
+
+            // 1. Mark the ORIGINAL transaction as reversed in its type
+            const { error: updateOrigError } = await supabase
+                .from('transactions')
+                .update({ type: `${transaction.type} (REVERSED)` })
+                .eq('id', transaction.id);
+
+            if (updateOrigError) throw updateOrigError;
+
+            // 2. Create a NEW reversal record
+            const reversalTransaction = {
+                school_id: schoolId,
+                student_id: transaction.studentId,
+                amount: -Math.abs(transaction.amount),
+                date: new Date().toISOString().split('T')[0],
+                type: 'Payment Reversal',
+                method: transaction.method,
+                reference: `Reversal of ${transaction.id.slice(0, 8)}...`,
+                term: schoolInfo?.current_term,
+                academic_year: schoolInfo?.academic_year
+            };
+
+            const { error: insertError } = await supabase
+                .from('transactions')
+                .insert([reversalTransaction]);
+
+            if (insertError) throw insertError;
+
+            // 3. Adjust student balance (add the money back to debt)
+            const { data: student, error: studentError } = await supabase
+                .from('students')
+                .select('balance')
+                .eq('id', transaction.studentId)
+                .single();
+
+            if (studentError) throw studentError;
+
+            const newBalance = (student.balance || 0) + Math.abs(transaction.amount);
+
+            const { error: updateError } = await supabase
+                .from('students')
+                .update({ balance: newBalance })
+                .eq('id', transaction.studentId);
+
+            if (updateError) throw updateError;
+            return true;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
+            alert('Payment successfully REVERSED and student balance restored.');
+        },
+        onError: (error: any) => {
+            alert(`Reversal Error: ${error.message}`);
+        }
+    });
+
     // --- Handlers ---
     const handlePayment = async (paymentData: any) => {
         if (!selectedStudent) return null;
@@ -296,14 +361,14 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
     // Filter Logic
     const filteredStudents = students.filter(s => {
-        const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            s.class.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesClass = selectedClassFilter === 'all' || s.class === selectedClassFilter;
 
         let matchesStatus = true;
         if (filterStatus === 'owing') matchesStatus = s.balance > 0;
         if (filterStatus === 'paid') matchesStatus = s.balance <= 0;
 
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesStatus && matchesClass;
     }).sort((a, b) => a.name.localeCompare(b.name));
 
     // Stats
@@ -371,15 +436,22 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                             <h3 className="text-lg md:text-2xl font-bold text-green-600">{formatAmount(totalCollected)}</h3>
                         </div>
 
-                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 col-span-2 md:col-span-1">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 col-span-2 md:col-span-1 flex flex-col justify-between">
                             <div className="flex justify-between items-start mb-2 md:mb-4">
                                 <div className="p-2 md:p-3 bg-red-50 rounded-xl text-red-600">
                                     <AlertCircle className="h-4 w-4 md:h-6 md:w-6" />
                                 </div>
-                                <span className="bg-red-50 text-red-700 text-[10px] md:text-xs font-bold px-2 py-1 rounded-full">Arrears</span>
+                                <button
+                                    onClick={() => setIsHistoryModalOpen(true)}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+                                >
+                                    <Clock className="h-3 w-3" /> View History
+                                </button>
                             </div>
-                            <p className="text-slate-500 text-xs md:text-sm font-medium">Outstanding Debt</p>
-                            <h3 className="text-lg md:text-2xl font-bold text-red-600">{formatAmount(totalOutstanding)}</h3>
+                            <div>
+                                <p className="text-slate-500 text-xs md:text-sm font-medium">Outstanding Debt</p>
+                                <h3 className="text-lg md:text-2xl font-bold text-red-600">{formatAmount(totalOutstanding)}</h3>
+                            </div>
                         </div>
                     </div>
 
@@ -388,14 +460,26 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                         <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <h3 className="font-bold text-lg text-slate-800">Student Fee List</h3>
 
-                            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                                {/* Filters */}
-                                <div className="flex bg-slate-100 p-1 rounded-lg self-start">
+                            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-start sm:items-center">
+                                {/* Class Filter */}
+                                <select
+                                    value={selectedClassFilter}
+                                    onChange={(e) => setSelectedClassFilter(e.target.value)}
+                                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary-600 focus:outline-none w-full sm:w-auto"
+                                >
+                                    <option value="all">All Classes</option>
+                                    {classes.map((cls: any) => (
+                                        <option key={cls.id} value={cls.name}>{cls.name}</option>
+                                    ))}
+                                </select>
+
+                                {/* Status Filters */}
+                                <div className="flex bg-slate-100 p-1 rounded-lg self-stretch sm:self-auto">
                                     {['all', 'owing', 'paid'].map((status) => (
                                         <button
                                             key={status}
                                             onClick={() => setFilterStatus(status as any)}
-                                            className={`px-3 py-1.5 text-xs font-bold rounded-md capitalize transition-all ${filterStatus === status
+                                            className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-md capitalize transition-all ${filterStatus === status
                                                 ? 'bg-white text-slate-800 shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700'
                                                 }`}
@@ -405,16 +489,72 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                     ))}
                                 </div>
 
-                                <div className="relative flex-1 sm:flex-none">
+                                <div className="relative flex-1 sm:flex-none w-full sm:w-auto">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                     <input
                                         type="text"
-                                        placeholder="Search student or class..."
+                                        placeholder="Search student..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-full sm:w-64 text-sm"
                                     />
                                 </div>
+
+                                <button
+                                    onClick={() => {
+                                        const printContent = `
+                                            <html>
+                                                <head>
+                                                    <title>Debtor List - ${selectedClassFilter}</title>
+                                                    <style>
+                                                        body { font-family: sans-serif; padding: 20px; }
+                                                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                                                        th { background-color: #f4f4f4; }
+                                                        .header { text-align: center; margin-bottom: 30px; }
+                                                        .summary { margin-top: 20px; font-weight: bold; }
+                                                    </style>
+                                                </head>
+                                                <body>
+                                                    <div class="header">
+                                                        <h1>Debtor / Payment List</h1>
+                                                        <p>Class: ${selectedClassFilter === 'all' ? 'All Classes' : selectedClassFilter} | Status: ${filterStatus.toUpperCase()}</p>
+                                                        <p>Date: ${new Date().toLocaleDateString()}</p>
+                                                    </div>
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Student Name</th>
+                                                                <th>Class</th>
+                                                                <th>Balance</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            ${filteredStudents.map(s => `
+                                                                <tr>
+                                                                    <td>${s.name}</td>
+                                                                    <td>${s.class}</td>
+                                                                    <td>${formatAmount(s.balance)}</td>
+                                                                </tr>
+                                                            `).join('')}
+                                                        </tbody>
+                                                    </table>
+                                                    <div class="summary">
+                                                        Total Outstanding in List: ${formatAmount(filteredStudents.reduce((sum, s) => sum + Math.max(0, s.balance), 0))}
+                                                    </div>
+                                                </body>
+                                            </html>
+                                        `;
+                                        const win = window.open('', '_blank');
+                                        win?.document.write(printContent);
+                                        win?.document.close();
+                                        win?.print();
+                                    }}
+                                    className="bg-white border border-slate-300 p-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                                    title="Print Current List"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </button>
                             </div>
                         </div>
 
@@ -766,7 +906,6 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                             </div>
                         </div>
 
-                        {/* Analytic Stats */}
                         {(() => {
                             const startMatch = analyticsStartDate ? new Date(analyticsStartDate).getTime() : 0;
                             const endMatch = analyticsEndDate ? new Date(analyticsEndDate).getTime() + (24 * 60 * 60 * 1000) - 1 : Infinity;
@@ -804,34 +943,93 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
 
                                     <div className="flex justify-between items-center mb-4 border-b pb-2">
                                         <h4 className="font-bold text-slate-800">Transactions in Date Range</h4>
-                                        <button
-                                            onClick={() => {
-                                                const headers = ['Date', 'Student Name', 'Type', 'Amount', 'Method', 'Reference'];
-                                                const rows = rangeTransactions.map(t => [
-                                                    new Date(t.date).toLocaleDateString(),
-                                                    `"${(t.studentName || 'Unknown').replace(/"/g, '""')}"`,
-                                                    `"${(t.type || '').replace(/"/g, '""')}"`,
-                                                    t.amount,
-                                                    `"${(t.method || '').replace(/"/g, '""')}"`,
-                                                    `"${(t.reference || '').replace(/"/g, '""')}"`
-                                                ]);
-                                                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-                                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                                                const link = document.createElement('a');
-                                                const url = URL.createObjectURL(blob);
-                                                link.setAttribute('href', url);
-                                                link.setAttribute('download', `financial_report_${analyticsStartDate || 'start'}_to_${analyticsEndDate || 'end'}.csv`);
-                                                link.style.visibility = 'hidden';
-                                                document.body.appendChild(link);
-                                                link.click();
-                                                document.body.removeChild(link);
-                                            }}
-                                            className="flex items-center gap-2 text-sm font-bold bg-white text-slate-700 hover:text-primary-600 px-3 py-1.5 rounded border border-slate-200 shadow-sm transition-colors"
-                                        >
-                                            <Download className="h-4 w-4" /> Export CSV
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    const headers = ['Date', 'Student Name', 'Type', 'Amount', 'Method', 'Reference'];
+                                                    const rows = rangeTransactions.map(t => [
+                                                        new Date(t.date).toLocaleDateString(),
+                                                        `"${(t.studentName || 'Unknown').replace(/"/g, '""')}"`,
+                                                        `"${(t.type || '').replace(/"/g, '""')}"`,
+                                                        t.amount,
+                                                        `"${(t.method || '').replace(/"/g, '""')}"`,
+                                                        `"${(t.reference || '').replace(/"/g, '""')}"`
+                                                    ]);
+                                                    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                                    const link = document.createElement('a');
+                                                    const url = URL.createObjectURL(blob);
+                                                    link.setAttribute('href', url);
+                                                    link.setAttribute('download', `financial_report_${analyticsStartDate || 'start'}_to_${analyticsEndDate || 'end'}.csv`);
+                                                    link.style.visibility = 'hidden';
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    document.body.removeChild(link);
+                                                }}
+                                                className="flex items-center gap-2 text-xs font-bold bg-white text-slate-700 hover:text-primary-600 px-3 py-1.5 rounded border border-slate-200 shadow-sm transition-colors"
+                                            >
+                                                <Download className="h-4 w-4" /> CSV
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const printContent = `
+                                                        <html>
+                                                            <head>
+                                                                <title>Financial Report</title>
+                                                                <style>
+                                                                    body { font-family: sans-serif; padding: 20px; }
+                                                                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                                                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                                                                    th { background-color: #f8f9fa; }
+                                                                    .header { text-align: center; margin-bottom: 20px; }
+                                                                    .summary-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+                                                                </style>
+                                                            </head>
+                                                            <body>
+                                                                <div class="header">
+                                                                    <h1>${schoolInfo?.name || 'School'} Financial Report</h1>
+                                                                    <p>Period: ${analyticsStartDate} to ${analyticsEndDate}</p>
+                                                                </div>
+                                                                <div class="summary-box">
+                                                                    <p>Total Revenue in Period: ${formatAmount(totalRevenueInRange)}</p>
+                                                                    <p>Total Transactions: ${rangeTransactions.length}</p>
+                                                                </div>
+                                                                <table>
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Date</th>
+                                                                            <th>Student</th>
+                                                                            <th>Payment Type</th>
+                                                                            <th>Amount</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        ${rangeTransactions.map(t => `
+                                                                            <tr>
+                                                                                <td>${new Date(t.date).toLocaleDateString()}</td>
+                                                                                <td>${t.studentName}</td>
+                                                                                <td>${t.type}</td>
+                                                                                <td>${formatAmount(t.amount)}</td>
+                                                                            </tr>
+                                                                        `).join('')}
+                                                                    </tbody>
+                                                                </table>
+                                                            </body>
+                                                        </html>
+                                                    `;
+                                                    const win = window.open('', '_blank');
+                                                    win?.document.write(printContent);
+                                                    win?.document.close();
+                                                    win?.print();
+                                                }}
+                                                className="flex items-center gap-2 text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 px-3 py-1.5 rounded shadow-sm transition-colors"
+                                            >
+                                                Print Paper Report
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="overflow-x-auto">
+
+                                    <div className="overflow-x-auto mb-10">
                                         <table className="w-full text-left border-collapse">
                                             <thead className="bg-slate-50">
                                                 <tr>
@@ -839,16 +1037,30 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Student Name</th>
                                                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
                                                     <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Amount</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {rangeTransactions.length > 0 ? (
                                                     rangeTransactions.map((t, idx) => (
-                                                        <tr key={t.id || idx} className="hover:bg-slate-50">
+                                                        <tr key={t.id || idx} className="hover:bg-slate-50 group">
                                                             <td className="px-4 py-3 text-sm text-slate-600">{new Date(t.date).toLocaleDateString()}</td>
                                                             <td className="px-4 py-3 text-sm font-bold text-slate-800">{t.studentName}</td>
                                                             <td className="px-4 py-3 text-sm text-slate-500">{t.type}</td>
                                                             <td className="px-4 py-3 text-sm font-bold text-green-600 text-right">{formatAmount(t.amount)}</td>
+                                                            <td className="px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (confirm(`Are you sure you want to REVERSE this payment of ${formatAmount(t.amount)} for ${t.studentName}? This will add the amount back to their outstanding balance.`)) {
+                                                                            deleteTransactionMutation.mutate(t);
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                                    title="Reverse Transaction"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     ))
                                                 ) : (
@@ -858,6 +1070,86 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                                                 )}
                                             </tbody>
                                         </table>
+                                    </div>
+
+                                    <div className="mt-8 pt-8 border-t border-slate-100">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                            <div>
+                                                <h4 className="font-bold text-lg text-slate-800">Class-Based Debtor Report</h4>
+                                                <p className="text-slate-500 text-sm">Select a class to generate a full debt report.</p>
+                                            </div>
+                                            <div className="flex gap-3 w-full md:w-auto">
+                                                <select
+                                                    value={selectedClassFilter}
+                                                    onChange={(e) => setSelectedClassFilter(e.target.value)}
+                                                    className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                                                >
+                                                    <option value="all">All Classes</option>
+                                                    {classes.map((cls: any) => (
+                                                        <option key={cls.id} value={cls.name}>{cls.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => {
+                                                        const debtorsList = students.filter(s =>
+                                                            s.balance > 0 &&
+                                                            (selectedClassFilter === 'all' || s.class === selectedClassFilter)
+                                                        );
+
+                                                        const reportHtml = `
+                                                            <html>
+                                                                <head>
+                                                                    <title>Official Debtor Report - ${selectedClassFilter}</title>
+                                                                    <style>
+                                                                        body { font-family: sans-serif; padding: 40px; color: #1a1a1a; }
+                                                                        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+                                                                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                                                        th { text-align: left; padding: 12px; border: 1px solid #ddd; background: #eee; font-size: 13px; }
+                                                                        td { padding: 12px; border: 1px solid #ddd; font-size: 13px; }
+                                                                        .total { margin-top: 30px; text-align: right; font-weight: bold; font-size: 16px; }
+                                                                    </style>
+                                                                </head>
+                                                                <body>
+                                                                    <div class="header">
+                                                                        <h1>${schoolInfo?.name || 'School'} Debtor Report</h1>
+                                                                        <p>Class: ${selectedClassFilter === 'all' ? 'All Classes' : selectedClassFilter}</p>
+                                                                        <p>Date: ${new Date().toLocaleDateString()}</p>
+                                                                    </div>
+                                                                    <table>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>Student Name</th>
+                                                                                <th>Class</th>
+                                                                                <th>Outstanding Balance (${currency.code})</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            ${debtorsList.map(s => `
+                                                                                <tr>
+                                                                                    <td>${s.name}</td>
+                                                                                    <td>${s.class}</td>
+                                                                                    <td>${s.balance.toFixed(2)}</td>
+                                                                                </tr>
+                                                                            `).join('')}
+                                                                        </tbody>
+                                                                    </table>
+                                                                    <div class="total">
+                                                                        Total Arrears: ${currency.code} ${debtorsList.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
+                                                                    </div>
+                                                                </body>
+                                                            </html>
+                                                        `;
+                                                        const win = window.open('', '_blank');
+                                                        win?.document.write(reportHtml);
+                                                        win?.document.close();
+                                                        win?.print();
+                                                    }}
+                                                    className="bg-slate-900 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-slate-800 shadow-sm transition-all"
+                                                >
+                                                    Print Report
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </>
                             );
@@ -898,7 +1190,83 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
                 />
             )}
 
-        </div>
+            {/* --- TRANSACTION HISTORY MODAL --- */}
+            {isHistoryModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="font-black text-xl text-slate-800 uppercase tracking-tight">Recent Transactions</h3>
+                                <p className="text-xs text-slate-500 font-medium">Review and correct payment entries.</p>
+                            </div>
+                            <button onClick={() => setIsHistoryModalOpen(false)} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            <th className="px-6 py-4">Date</th>
+                                            <th className="px-6 py-4">Student</th>
+                                            <th className="px-6 py-4">Method</th>
+                                            <th className="px-6 py-4 text-right">Amount</th>
+                                            <th className="px-6 py-4 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {transactions.slice(0, 50).map((t) => {
+                                            const isReversalRecord = t.type === 'Payment Reversal' || t.amount < 0;
+                                            const wasOriginallyReversed = t.type.includes('(REVERSED)');
+                                            return (
+                                                <tr key={t.id} className={`hover:bg-slate-50/50 transition-colors group ${isReversalRecord ? 'bg-red-50/30' : wasOriginallyReversed ? 'bg-slate-100/50 opacity-60' : ''}`}>
+                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
+                                                    <td className="px-6 py-4">
+                                                        <p className={`text-sm font-bold ${isReversalRecord ? 'text-red-700' : wasOriginallyReversed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{t.studentName}</p>
+                                                        <p className="text-[10px] text-slate-400 italic font-medium">{t.type}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded ${isReversalRecord ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
+                                                            {t.method || 'N/A'}
+                                                        </span>
+                                                    </td>
+                                                    <td className={`px-6 py-4 text-right font-black text-sm ${isReversalRecord ? 'text-red-600' : wasOriginallyReversed ? 'text-slate-400' : 'text-green-600'}`}>
+                                                        {formatAmount(t.amount)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        {(!isReversalRecord && !wasOriginallyReversed) && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (confirm(`Create a REVERSAL entry for this payment of ${formatAmount(t.amount)} for ${t.studentName}?`)) {
+                                                                        deleteTransactionMutation.mutate(t);
+                                                                    }
+                                                                }}
+                                                                className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                                                title="Reverse Entry"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {transactions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold italic">No transactions found.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+        </div >
     );
 };
 

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   school_id UUID REFERENCES schools(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   message TEXT NOT NULL,
+  type TEXT,
   status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'In Progress', 'Resolved', 'Closed')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

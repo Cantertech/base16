@@ -122,9 +122,9 @@ const AppContent: React.FC = () => {
 
   const handleLogout = async () => {
     sessionStorage.clear();
-    sessionStorage.removeItem('orbit_teachers_data');
-    sessionStorage.removeItem('orbit_classes_data');
-    sessionStorage.removeItem('orbit_subjects_data');
+    sessionStorage.removeItem('base16_teachers_data');
+    sessionStorage.removeItem('base16_classes_data');
+    sessionStorage.removeItem('base16_subjects_data');
     await supabase.auth.signOut();
     setCurrentUser(null);
     setRealUser(null);
@@ -191,7 +191,7 @@ const AppContent: React.FC = () => {
   };
 
   if (loading) {
-    return <Loading fullScreen message="Initializing Orbit System..." />;
+    return <Loading fullScreen message="Initializing Base 16 System..." />;
   }
 
   return (
@@ -268,7 +268,12 @@ const AppContent: React.FC = () => {
 
           <Route path="/login" element={
             currentUser ? <Navigate to="/dashboard" /> :
-              <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+              <div className="font-sans text-slate-900">
+                <Navbar />
+                <div className="pt-16">
+                  <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+                </div>
+              </div>
           } />
 
           <Route path="/setup" element={

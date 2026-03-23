@@ -134,7 +134,7 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
 
               <div className="border-t border-white/10 pt-8 space-y-4">
                 <div className="flex items-center gap-3 text-sm text-blue-100">
-                  <Phone className="h-4 w-4" /> +233 24 123 4567
+                  <Phone className="h-4 w-4" /> +233 502560760
                 </div>
                 <div className="flex items-center gap-3 text-sm text-blue-100">
                   <Mail className="h-4 w-4" /> sixzonesglobal@gmail.com

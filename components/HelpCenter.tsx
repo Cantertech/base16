@@ -34,11 +34,15 @@ const HelpCenter: React.FC<HelpCenterProps> = ({ currentUser }) => {
       },
       {
          question: "How do I correct a wrong fee entry?",
-         answer: "For financial audit safety, transactions cannot be deleted by users. If you entered a wrong amount, please record a negative transaction (refund) to balance it out, or contact Support for a database correction."
+         answer: "In the 'Fees' module, go to the 'Arrears' card and click 'View History'. You will see a list of recent transactions. Click the red trash icon to 'Reverse' a payment. This automatically restores the student's debt and creates a permanent log of the correction for audit purposes."
       },
       {
-         question: "Is the data backed up automatically?",
-         answer: "Yes, Base16 is a cloud-based Progressive Web App. Your data is synced and backed up to our secure servers automatically whenever you are online."
+         question: "Does the system allow double-bookings in the Timetable?",
+         answer: "No. Our 'Smart Conflict' system automatically detects if a teacher or classroom is already busy. If you try to schedule a session that overlaps with an existing one, the system will prevent the save and tell you exactly where the conflict is."
+      },
+      {
+         question: "Is my data backed up automatically?",
+         answer: "Yes, Orbit is a cloud-based solution. Your data is synced and backed up to our secure database in real-time. This ensures that even if you lose your phone or laptop, your school records are safe."
       }
    ];
 
