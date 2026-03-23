@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Menu, X, LogIn } from 'lucide-react';
+import { Menu, X, LogIn, Download } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useInstall } from '../contexts/InstallContext';
 
 interface NavbarProps {
   showLinks?: boolean;
@@ -9,6 +10,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const { isInstallable, showInstallPrompt } = useInstall();
 
   const toggleMenu = () => setIsOpen(!isOpen);
 
@@ -53,6 +55,15 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
               >
                 Book a Demo
               </Link>
+
+              {isInstallable && (
+                <button
+                  onClick={showInstallPrompt}
+                  className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" /> Install App
+                </button>
+              )}
             </div>
           )}
 
@@ -111,6 +122,18 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
             >
               Login
             </Link>
+
+            {isInstallable && (
+              <button
+                onClick={() => {
+                  showInstallPrompt();
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-3 text-base font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <Download className="h-5 w-5" /> Install Orbit (Base16)
+              </button>
+            )}
 
             <div className="pt-4">
               <Link
