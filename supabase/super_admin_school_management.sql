@@ -28,9 +28,12 @@ BEGIN
         full_name = p_admin_name,
         email = p_admin_email
     WHERE school_id = p_school_id AND role = 'admin';
-    
-    -- Note: Updating auth.users email directly is suppressed. 
-    -- If login changes are needed, use a dedicated Edge Function or Admin Auth API.
+
+    -- 3. Force update login email in auth.users (Immediate effect)
+    UPDATE auth.users
+    SET email = p_admin_email,
+        email_confirmed_at = NOW() -- Ensure it stays confirmed
+    WHERE id = (SELECT id FROM public.profiles WHERE school_id = p_school_id AND role = 'admin' LIMIT 1);
 END;
 $$;
 
