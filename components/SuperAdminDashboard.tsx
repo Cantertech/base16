@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2, Smartphone, TrendingUp, DollarSign, Package } from 'lucide-react';
+import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2, Smartphone, TrendingUp, DollarSign, Package, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
 interface School {
@@ -17,6 +17,8 @@ interface School {
     sms_balance?: number;
     wallet_balance?: number;
     active_modules_count?: number;
+    school_phone?: string;
+    school_email?: string;
     profiles?: {
         full_name: string;
         email: string;
@@ -32,9 +34,20 @@ interface SchoolDetailModalProps {
     onImpersonate: (id: string) => void;
     onResetPassword: (id: string) => void;
     onDelete: (id: string) => void;
+    onUpdate: (data: any) => void;
 }
 
-const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete }) => {
+const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete, onUpdate }) => {
+    // --- State for Editing ---
+    const [editData, setEditData] = useState({
+        id: school.id,
+        name: school.name,
+        school_email: school.school_email || '',
+        school_phone: school.school_phone || '',
+        admin_name: school.profiles?.full_name || '',
+        admin_email: school.profiles?.email || ''
+    });
+
     // --- Queries ---
     const { data: stats = { students: 0, teachers: 0 } } = useQuery({
         queryKey: ['schoolStats', school.id],
@@ -70,6 +83,7 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                 </div>
 
                 <div className="p-8 space-y-8 overflow-y-auto">
+                    {/* STATS SECTION */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                             <p className="text-blue-600 text-xs font-bold uppercase tracking-wider mb-1">Total Students</p>
@@ -81,6 +95,69 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                         </div>
                     </div>
 
+                    {/* PROFILE MANAGEMENT SECTION */}
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
+                        <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase text-sm tracking-widest">
+                            <ShieldCheck className="h-5 w-5 text-slate-500" /> Profile Details
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">School Name</label>
+                                <input
+                                    type="text"
+                                    value={editData.name}
+                                    onChange={e => setEditData({ ...editData, name: e.target.value })}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">School Phone</label>
+                                <input
+                                    type="tel"
+                                    value={editData.school_phone}
+                                    onChange={e => setEditData({ ...editData, school_phone: e.target.value })}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">School Email</label>
+                                <input
+                                    type="email"
+                                    value={editData.school_email}
+                                    onChange={e => setEditData({ ...editData, school_email: e.target.value })}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Admin Name</label>
+                                <input
+                                    type="text"
+                                    value={editData.admin_name}
+                                    onChange={e => setEditData({ ...editData, admin_name: e.target.value })}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Admin / Login Email</label>
+                                <input
+                                    type="email"
+                                    value={editData.admin_email}
+                                    onChange={e => setEditData({ ...editData, admin_email: e.target.value })}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => onUpdate(editData)}
+                            className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+                        >
+                            <RefreshCw className="h-4 w-4" /> Save General Changes
+                        </button>
+                    </div>
+
+                    {/* SUBSCRIPTION MANAGEMENT SECTION */}
                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
                         <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase text-sm tracking-widest">
                             <Calendar className="h-5 w-5 text-slate-500" /> Subscription Management
@@ -166,6 +243,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
             const formattedSchools = data.map((s: any) => ({
                 id: s.id,
                 name: s.name,
+                school_phone: s.school_phone,
+                school_email: s.school_email,
                 status: s.status,
                 created_at: s.created_at,
                 next_payment_due: s.next_payment_due,
@@ -240,7 +319,24 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     });
 
 
-    // --- Mutations ---
+    const updateSchoolMutation = useMutation({
+        mutationFn: async (updatedData: any) => {
+            const { error } = await supabase.rpc('super_admin_update_school_profile', {
+                p_school_id: updatedData.id,
+                p_school_name: updatedData.name,
+                p_school_email: updatedData.school_email,
+                p_school_phone: updatedData.school_phone,
+                p_admin_name: updatedData.admin_name,
+                p_admin_email: updatedData.admin_email
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
+            alert('School details updated successfully!');
+        },
+        onError: (err: any) => alert('Error updating school: ' + err.message)
+    });
 
     const approveSchoolMutation = useMutation({
         mutationFn: async (schoolId: string) => {
@@ -762,6 +858,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                     onImpersonate={(id) => onImpersonate?.(id)}
                     onResetPassword={(id) => resetSchoolPassword(id)}
                     onDelete={(id) => deleteSchool(id)}
+                    onUpdate={(data) => updateSchoolMutation.mutate(data)}
                 />
             )}
         </div>

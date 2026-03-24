@@ -220,6 +220,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     name: newConfig.name,
                     motto: newConfig.motto,
                     phone: newConfig.phone,
+                    email: newConfig.email,
                     logo_url: newConfig.logo,
                     theme_color: newConfig.color,
                     referral_preference: newConfig.referralPreference,
@@ -228,13 +229,25 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 })
                 .eq('id', schoolId);
             if (error) throw error;
+
+            // If email changed, update the auth user as well (this handles the "email used to signup")
+            if (newConfig.email && newConfig.email !== schoolData?.email) {
+                const { error: authError } = await supabase.auth.updateUser({ email: newConfig.email });
+                if (authError) throw authError;
+            }
         },
-        onSuccess: () => {
+        onSuccess: (data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
             // Update local storage for legacy/consistency
-            localStorage.setItem('schoolhub_config', JSON.stringify(config)); // Note: using 'config' state here which is latest
+            localStorage.setItem('schoolhub_config', JSON.stringify(config));
             onConfigUpdate();
-            alert('School settings updated successfully!');
+
+            const emailChanged = variables.email && variables.email !== schoolData?.email;
+            if (emailChanged) {
+                alert('Profile updated! A confirmation email has been sent to your new address. Please verify both your old and new emails to finalize the change.');
+            } else {
+                alert('School settings updated successfully!');
+            }
         },
         onError: (err: any) => alert('Error updating settings: ' + err.message)
     });
@@ -553,6 +566,17 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                         value={config.name || ''}
                                         onChange={e => setConfig({ ...config, name: e.target.value })}
                                         className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Signup / School Email</label>
+                                    <input
+                                        required
+                                        type="email"
+                                        value={config.email || ''}
+                                        onChange={e => setConfig({ ...config, email: e.target.value })}
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                        placeholder="school@example.com"
                                     />
                                 </div>
                                 <div>

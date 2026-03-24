@@ -12,6 +12,8 @@ RETURNS TABLE (
     last_payment_date TIMESTAMP WITH TIME ZONE,
     admin_name TEXT,
     admin_email TEXT,
+    school_email TEXT,
+    school_phone TEXT,
     student_count BIGINT,
     teacher_count BIGINT,
     sms_balance INTEGER,
@@ -33,6 +35,8 @@ BEGIN
         -- Get the first admin's details (or null)
         (SELECT p.full_name FROM profiles p WHERE p.school_id = s.id AND p.role = 'admin' LIMIT 1) as admin_name,
         (SELECT p.email FROM profiles p WHERE p.school_id = s.id AND p.role = 'admin' LIMIT 1) as admin_email,
+        s.email as school_email,
+        s.phone as school_phone,
         -- Count students
         (SELECT count(*) FROM students st WHERE st.school_id = s.id) as student_count,
         -- Count teachers
