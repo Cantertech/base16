@@ -309,15 +309,25 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
             // Trigger Admin SMS Notification
             try {
-                // We'll call the send-sms Edge Function to alert the super admin
+                // Ensure we use the international format (233) for reliability and pass credentials
+                const adminPhone = '233502560760';
+
                 await supabase.functions.invoke('send-sms', {
                     body: {
-                        phoneNumbers: ['0502560760'],
-                        message: `🚀 SMS PURCHASE REQ: ${config.name} (${currentUser?.name}) is buying ${qty} SMS (GH¢ ${amount}). Please top up Hubtel and approve in dashboard.`
+                        recipients: [{
+                            phone: adminPhone,
+                            vars: {}
+                        }],
+                        message: `🚀 SMS PURCHASE: ${config.name} (${currentUser?.name}) buying ${qty} SMS credits.`,
+                        hubtelKeys: {
+                            clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
+                            clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
+                            senderId: import.meta.env.VITE_HUBTEL_SENDER_ID || 'Base16'
+                        }
                     }
                 });
             } catch (err) {
-                console.error("Admin notification failed, but request was logged:", err);
+                console.error("Admin notification failed:", err);
             }
 
             return data;
