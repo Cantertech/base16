@@ -1,5 +1,6 @@
--- Create a robust function to fetch schools with counts, bypassing RLS for the counts
 -- This ensures the Super Admin Dashboard always shows correct numbers
+
+DROP FUNCTION IF EXISTS public.get_admin_school_stats();
 
 CREATE OR REPLACE FUNCTION public.get_admin_school_stats()
 RETURNS TABLE (
@@ -12,7 +13,10 @@ RETURNS TABLE (
     admin_name TEXT,
     admin_email TEXT,
     student_count BIGINT,
-    teacher_count BIGINT
+    teacher_count BIGINT,
+    sms_balance INTEGER,
+    wallet_balance NUMERIC,
+    active_modules_count BIGINT
 ) 
 LANGUAGE plpgsql
 SECURITY DEFINER -- Runs with superuser privileges
@@ -32,7 +36,11 @@ BEGIN
         -- Count students
         (SELECT count(*) FROM students st WHERE st.school_id = s.id) as student_count,
         -- Count teachers
-        (SELECT count(*) FROM profiles pr WHERE pr.school_id = s.id AND pr.role = 'teacher') as teacher_count
+        (SELECT count(*) FROM profiles pr WHERE pr.school_id = s.id AND pr.role = 'teacher') as teacher_count,
+        s.sms_balance,
+        (SELECT sw.balance FROM school_wallets sw WHERE sw.school_id = s.id) as wallet_balance,
+        -- Count active modules
+        (SELECT count(*) FROM school_subscriptions ss WHERE ss.school_id = s.id AND ss.status = 'active') as active_modules_count
     FROM 
         schools s
     ORDER BY 

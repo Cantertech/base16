@@ -306,10 +306,24 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 p_amount: amount
             });
             if (error) throw error;
-            return data; // ref code
+
+            // Trigger Admin SMS Notification
+            try {
+                // We'll call the send-sms Edge Function to alert the super admin
+                await supabase.functions.invoke('send-sms', {
+                    body: {
+                        phoneNumbers: ['0502560760'],
+                        message: `🚀 SMS PURCHASE REQ: ${config.name} (${currentUser?.name}) is buying ${qty} SMS (GH¢ ${amount}). Please top up Hubtel and approve in dashboard.`
+                    }
+                });
+            } catch (err) {
+                console.error("Admin notification failed, but request was logged:", err);
+            }
+
+            return data;
         },
         onSuccess: (data, variables) => {
-            alert(`Successfully purchased ${variables.qty} SMS credits!`);
+            alert(`Purchase request sent! Your ${variables.qty} credits will be delivered in under 30 minutes once verified.`);
             setSmsCalc({ amount: '', qty: '' });
             setIsSmsModalOpen(false);
             queryClient.invalidateQueries({ queryKey: ['smsTransactions', schoolId] });
@@ -833,10 +847,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                         <h3 className="font-bold text-slate-800 text-xl">Top Up SMS Balance</h3>
                                         <p className="text-slate-500 text-sm mt-2 max-w-[250px] mx-auto">Purchase credits to send bulk messages to parents and staff.</p>
                                     </div>
-                                    <div className="bg-slate-50 border border-slate-100 px-6 py-2 rounded-lg hidden lg:inline-block">
-                                        <p className="text-primary-700 font-black tracking-wide">Rate: GH¢ 0.035 / SMS</p>
-                                    </div>
-
                                     <button
                                         onClick={() => {
                                             setSmsCalc({ amount: '', qty: '' });
@@ -1178,7 +1188,10 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             </div>
                             <h3 className="text-xl font-bold text-slate-800">Purchase SMS Credits</h3>
                             <p className="text-slate-500 text-sm mt-1">Deducting from your digital wallet balance.</p>
-                            <div className="mt-3 bg-slate-50 rounded-lg p-2 font-black text-primary-700 tracking-wide inline-block border border-slate-100">Rate: GH¢ 0.035 / SMS</div>
+                            <div className="mt-2 text-[10px] items-center gap-1.5 font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full inline-flex border border-orange-100">
+                                <RefreshCw className="w-3 h-3 animate-spin" /> Delivered in Under 30 Mins
+                            </div>
+                            <div className="mt-3 bg-slate-50 rounded-lg p-2 font-black text-primary-700 tracking-wide block border border-slate-100 text-xs">Rate: GH¢ 0.035 / SMS</div>
                         </div>
 
                         <div className="space-y-4 mb-6">
@@ -1217,9 +1230,8 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             </div>
                         </div>
 
-                        {/* Current Wallet Context Block */}
                         <div className="mb-6 bg-slate-100/50 rounded-xl p-3 border border-slate-200 border-dashed flex justify-between items-center text-sm">
-                            <span className="text-slate-500 font-medium tracking-tight">Your Wallet:</span>
+                            <span className="text-slate-500 font-medium tracking-tight">Your Wallet Balance:</span>
                             <span className={`font-black ${wallet?.balance < Number(smsCalc.amount) ? 'text-red-500' : 'text-slate-800'}`}>
                                 GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}
                             </span>
@@ -1233,7 +1245,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             }}
                             className={`w-full py-3.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 
                             ${wallet?.balance >= Number(smsCalc.amount)
-                                    ? 'bg-slate-900 shadow-slate-900/20 text-white hover:bg-slate-800 disabled:opacity-70'
+                                    ? 'bg-primary-600 shadow-primary-900/20 text-white hover:bg-primary-700 disabled:opacity-70'
                                     : 'bg-red-50 text-red-500 border-red-200 border cursor-not-allowed shadow-none'}`}
                         >
                             {requestSMSPurchaseMutation.isPending ? 'Processing Purchase...' : wallet?.balance >= Number(smsCalc.amount) ? 'Purchase SMS' : 'Insufficient Balance'}
