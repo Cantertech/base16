@@ -130,6 +130,9 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
     const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
     const [editingSubject, setEditingSubject] = useState<SubjectItem | null>(null);
+    const [selectedFilterClass, setSelectedFilterClass] = useState<string>('All Classes');
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // grid = group by class
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Initialize School ID
     useEffect(() => {
@@ -166,6 +169,13 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
         queryKey: ['teachersList', schoolId],
         queryFn: () => fetchTeachers(schoolId!),
         enabled: !!schoolId,
+    });
+
+    const filteredSubjects = subjects.filter(s => {
+        const matchesClass = selectedFilterClass === 'All Classes' || s.classes.includes(selectedFilterClass);
+        const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.code.toLowerCase().includes(searchTerm.toLowerCase());
+        return matchesClass && matchesSearch;
     });
 
     // Mutations - Classes
@@ -241,7 +251,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const saveSubjectMutation = useMutation({
         mutationFn: async (subjectData: Partial<SubjectItem>) => {
             if (!schoolId) throw new Error('No school ID');
-            let subjectId = editingSubject?.id;
+            let subjectId = subjectData.id || editingSubject?.id;
 
             // 1. Upsert Subject
             const payload = {
@@ -251,7 +261,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                 type: subjectData.type
             };
 
-            if (editingSubject) {
+            if (subjectId) {
                 const { error } = await supabase
                     .from('subjects')
                     .update(payload)
@@ -447,126 +457,213 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             {/* --- TAB 2: SUBJECTS --- */}
             {activeTab === 'subjects' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
-                        <div className="relative w-full md:w-auto">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col space-y-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                                <div className="space-y-1 w-full md:w-48">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter By Class</label>
+                                    <select
+                                        value={selectedFilterClass}
+                                        onChange={(e) => setSelectedFilterClass(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary-600 outline-none transition-all"
+                                    >
+                                        <option value="All Classes">All Classes</option>
+                                        {classes.map(c => (
+                                            <option key={c.id} value={c.name}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <button
+                                    onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 font-bold text-xs shadow-sm transition-all"
+                                >
+                                    <Layers className="h-4 w-4" /> {viewMode === 'list' ? 'Grouped View' : 'Table View'}
+                                </button>
+                                <button
+                                    onClick={() => { setEditingSubject(null); setIsSubjectModalOpen(true); }}
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold text-xs shadow-md transition-colors"
+                                >
+                                    <Plus className="h-4 w-4" /> Add Subject
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search subjects..."
-                                className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-full md:w-64 text-sm"
+                                placeholder="Search across all subjects..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none w-full text-sm"
                             />
                         </div>
-                        <button
-                            onClick={() => { setEditingSubject(null); setIsSubjectModalOpen(true); }}
-                            className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold text-sm shadow-md transition-colors"
-                        >
-                            <Plus className="h-4 w-4" /> Add Subject
-                        </button>
                     </div>
 
-                    {/* Mobile Subjects Card View */}
-                    <div className="md:hidden space-y-4">
-                        {subjects.map(subject => (
-                            <div key={subject.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h3 className="font-bold text-slate-800">{subject.name}</h3>
-                                        <span className="font-mono text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{subject.code}</span>
+                    {/* Grouped View (Grid of Classes) */}
+                    {viewMode === 'grid' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in zoom-in-95 duration-300">
+                            {(selectedFilterClass === 'All Classes' ? classes : classes.filter(c => c.name === selectedFilterClass)).map(cls => (
+                                <div key={cls.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                    <div className="bg-slate-800 p-4 text-white flex justify-between items-center">
+                                        <div>
+                                            <h3 className="font-black text-xs uppercase tracking-widest">{cls.name}</h3>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Curriculum Overview</p>
+                                        </div>
+                                        <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm">
+                                            <Layers className="h-4 w-4" />
+                                        </div>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${subject.type === 'Core' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                        }`}>
-                                        {subject.type}
-                                    </span>
-                                </div>
-
-                                <div>
-                                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">Assigned Classes</p>
-                                    <div className="flex flex-wrap gap-1">
-                                        {subject.classes.length > 0 ? subject.classes.map((c, i) => (
-                                            <span key={i} className="px-1.5 py-0.5 border border-slate-200 rounded-[4px] text-xs text-slate-600 bg-white shadow-sm">
-                                                {c}
-                                            </span>
-                                        )) : (
-                                            <span className="text-xs text-slate-400 italic">No classes assigned</span>
-                                        )}
+                                    <div className="p-4 space-y-3">
+                                        <div className="space-y-2">
+                                            {filteredSubjects.filter(s => s.classes.includes(cls.name)).length > 0 ? (
+                                                filteredSubjects.filter(s => s.classes.includes(cls.name)).map(subject => (
+                                                    <div key={subject.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100 group">
+                                                        <div>
+                                                            <p className="font-bold text-slate-800 text-sm">{subject.name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-mono">{subject.code} • {subject.type}</p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => { setEditingSubject(subject); setIsSubjectModalOpen(true); }}
+                                                                className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-blue-600 bg-white rounded-lg shadow-sm border border-slate-200 transition-all"
+                                                            >
+                                                                <Edit className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                    <p className="text-xs text-slate-400 italic">No subjects assigned</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedFilterClass(cls.name);
+                                                setEditingSubject(null);
+                                                setIsSubjectModalOpen(true);
+                                            }}
+                                            className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:border-primary-500 hover:text-primary-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Plus className="h-3 w-3" /> Assign Subject
+                                        </button>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+                    )}
 
-                                <div className="flex gap-2 pt-3 border-t border-slate-50">
-                                    <button
-                                        onClick={() => { setEditingSubject(subject); setIsSubjectModalOpen(true); }}
-                                        className="flex-1 py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteSubject(subject.id)}
-                                        className="py-1.5 px-3 text-xs font-bold text-red-500 bg-red-50 rounded-lg hover:bg-red-100"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Desktop Subjects Table View */}
-                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hidden md:block">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-slate-50 border-b border-slate-100">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Subject Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Code</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Assigned Classes</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {subjects.map(subject => (
-                                    <tr key={subject.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 font-bold text-slate-800">{subject.name}</td>
-                                        <td className="px-6 py-4 font-mono text-sm text-slate-600">{subject.code}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${subject.type === 'Core' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                                                }`}>
-                                                {subject.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-wrap gap-1">
-                                                {subject.classes.slice(0, 4).map((c, i) => (
-                                                    <span key={i} className="px-1.5 py-0.5 border border-slate-200 rounded text-xs text-slate-600 bg-white">
-                                                        {c}
-                                                    </span>
-                                                ))}
-                                                {subject.classes.length > 4 && (
-                                                    <span className="px-1.5 py-0.5 rounded text-xs text-slate-500 bg-slate-100">
-                                                        +{subject.classes.length - 4} more
-                                                    </span>
-                                                )}
-                                                {subject.classes.length === 0 && <span className="text-xs text-slate-400 italic">No classes assigned</span>}
+                    {viewMode === 'list' && (
+                        <>
+                            {/* Mobile Subjects Card View */}
+                            <div className="md:hidden space-y-4">
+                                {filteredSubjects
+                                    .map(subject => (
+                                        <div key={subject.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800">{subject.name}</h3>
+                                                    <span className="font-mono text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{subject.code}</span>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${subject.type === 'Core' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                    {subject.type}
+                                                </span>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                            <button
-                                                onClick={() => { setEditingSubject(subject); setIsSubjectModalOpen(true); }}
-                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteSubject(subject.id)}
-                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+
+                                            <div>
+                                                <p className="text-xs text-slate-500 font-bold uppercase mb-1">Assigned Classes</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {subject.classes.length > 0 ? subject.classes.map((c, i) => (
+                                                        <span key={i} className="px-1.5 py-0.5 border border-slate-200 rounded-[4px] text-xs text-slate-600 bg-white shadow-sm">
+                                                            {c}
+                                                        </span>
+                                                    )) : (
+                                                        <span className="text-xs text-slate-400 italic">No classes assigned</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2 pt-3 border-t border-slate-50">
+                                                <button
+                                                    onClick={() => { setEditingSubject(subject); setIsSubjectModalOpen(true); }}
+                                                    className="flex-1 py-1.5 text-xs font-bold text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteSubject(subject.id)}
+                                                    className="py-1.5 px-3 text-xs font-bold text-red-500 bg-red-50 rounded-lg hover:bg-red-100"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+
+                            {/* Desktop Subjects Table View */}
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden hidden md:block">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Subject Name</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Code</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Assigned Classes</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredSubjects
+                                            .map(subject => (
+                                                <tr key={subject.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-6 py-4 font-bold text-slate-800">{subject.name}</td>
+                                                    <td className="px-6 py-4 font-mono text-sm text-slate-600">{subject.code}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${subject.type === 'Core' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                            {subject.type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {subject.classes.slice(0, 4).map((c, i) => (
+                                                                <span key={i} className="px-1.5 py-0.5 border border-slate-200 rounded text-xs text-slate-600 bg-white">
+                                                                    {c}
+                                                                </span>
+                                                            ))}
+                                                            {subject.classes.length > 4 && (
+                                                                <span className="px-1.5 py-0.5 rounded text-xs text-slate-500 bg-slate-100">
+                                                                    +{subject.classes.length - 4} more
+                                                                </span>
+                                                            )}
+                                                            {subject.classes.length === 0 && <span className="text-xs text-slate-400 italic">No classes assigned</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                                        <button
+                                                            onClick={() => { setEditingSubject(subject); setIsSubjectModalOpen(true); }}
+                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteSubject(subject.id)}
+                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -584,6 +681,8 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                 <AddSubjectModal
                     existingData={editingSubject}
                     availableClasses={classes.map(c => c.name)}
+                    allSubjects={subjects}
+                    defaultClass={selectedFilterClass !== 'All Classes' ? selectedFilterClass : ''}
                     onClose={() => setIsSubjectModalOpen(false)}
                     onSave={handleSaveSubject}
                 />
@@ -670,11 +769,28 @@ const AddClassModal = ({ existingData, availableTeachers, onClose, onSave }: any
     );
 };
 
-const AddSubjectModal = ({ existingData, availableClasses, onClose, onSave }: any) => {
+const AddSubjectModal = ({ existingData, availableClasses, allSubjects, defaultClass, onClose, onSave }: any) => {
     const [name, setName] = useState(existingData?.name || '');
     const [code, setCode] = useState(existingData?.code || '');
     const [type, setType] = useState(existingData?.type || 'Core');
-    const [selectedClasses, setSelectedClasses] = useState<string[]>(existingData?.classes || []);
+    const [selectedClasses, setSelectedClasses] = useState<string[]>(existingData?.classes || (defaultClass ? [defaultClass] : []));
+    const [suggestedId, setSuggestedId] = useState<string | null>(null);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const suggestions = allSubjects?.filter((s: SubjectItem) =>
+        s.name.toLowerCase().includes(name.toLowerCase()) &&
+        s.id !== existingData?.id
+    ).slice(0, 5);
+
+    const selectSuggestion = (s: SubjectItem) => {
+        setName(s.name);
+        setCode(s.code);
+        setType(s.type);
+        setSuggestedId(s.id);
+        // Merge existing classes with current selection
+        setSelectedClasses([...new Set([...selectedClasses, ...s.classes])]);
+        setShowSuggestions(false);
+    };
 
     const toggleClass = (className: string) => {
         if (selectedClasses.includes(className)) {
@@ -686,7 +802,7 @@ const AddSubjectModal = ({ existingData, availableClasses, onClose, onSave }: an
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ name, code, type, classes: selectedClasses });
+        onSave({ id: existingData?.id || suggestedId, name, code, type, classes: selectedClasses });
     };
 
     return (
@@ -700,16 +816,35 @@ const AddSubjectModal = ({ existingData, availableClasses, onClose, onSave }: an
                 </div>
 
                 <div className="overflow-y-auto p-6 space-y-4">
-                    <div>
+                    <div className="relative">
                         <label className="block text-sm font-medium text-slate-700 mb-1">Subject Name</label>
                         <input
                             required
                             type="text"
                             value={name}
-                            onChange={e => setName(e.target.value)}
+                            onChange={e => { setName(e.target.value); setShowSuggestions(true); }}
+                            onFocus={() => setShowSuggestions(true)}
                             placeholder="e.g. Mathematics"
                             className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                         />
+                        {showSuggestions && name.length > 1 && suggestions.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden">
+                                {suggestions.map((s: SubjectItem) => (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => selectSuggestion(s)}
+                                        className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex justify-between items-center"
+                                    >
+                                        <div>
+                                            <p className="font-bold text-sm text-slate-800">{s.name}</p>
+                                            <p className="text-[10px] text-slate-400 font-mono italic">Assigned to: {s.classes.join(', ')}</p>
+                                        </div>
+                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">Assign Also</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
