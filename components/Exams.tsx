@@ -1245,19 +1245,19 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                 <input type="text" value={localConfig.exam_name} onChange={e => setLocalConfig({ ...localConfig, exam_name: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Term & Year</label>
-                                <div className="flex gap-2">
-                                    <select value={localConfig.current_term} onChange={e => setLocalConfig({ ...localConfig, current_term: e.target.value })} className="flex-1 p-2.5 border border-slate-300 rounded-lg bg-white">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Term & Academic Year</label>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <select value={localConfig.current_term} onChange={e => setLocalConfig({ ...localConfig, current_term: e.target.value })} className="flex-1 p-3 border border-slate-300 rounded-xl bg-white font-bold outline-none focus:ring-2 focus:ring-primary-600">
                                         <option>First Term</option> <option>Second Term</option> <option>Third Term</option>
                                     </select>
-                                    <input type="text" value={localConfig.academic_year} onChange={e => setLocalConfig({ ...localConfig, academic_year: e.target.value })} className="flex-1 p-2.5 border border-slate-300 rounded-lg" placeholder="Year" />
+                                    <input type="text" value={localConfig.academic_year} onChange={e => setLocalConfig({ ...localConfig, academic_year: e.target.value })} className="flex-1 p-3 border border-slate-300 rounded-xl font-bold outline-none focus:ring-2 focus:ring-primary-600" placeholder="e.g. 2023/2024" />
                                 </div>
                             </div>
                         </div>
                         <div className="pt-4 border-t border-slate-100">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Class Score (%)</label>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Class Score Weight (%)</label>
                                     <input
                                         type="number"
                                         min="0" max="100"
@@ -1266,11 +1266,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                             const val = Math.max(0, Math.min(100, Number(e.target.value)));
                                             setLocalConfig({ ...localConfig, weights: { class: val, exam: 100 - val } });
                                         }}
-                                        className="w-full p-2 border border-slate-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                        className="w-full p-3 border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold text-lg text-center"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Exam Score (%)</label>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Exam Score Weight (%)</label>
                                     <input
                                         type="number"
                                         min="0" max="100"
@@ -1279,10 +1279,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                             const val = Math.max(0, Math.min(100, Number(e.target.value)));
                                             setLocalConfig({ ...localConfig, weights: { class: 100 - val, exam: val } });
                                         }}
-                                        className="w-full p-2 border border-slate-300 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                        className="w-full p-3 border border-slate-300 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold text-lg text-center"
                                     />
                                 </div>
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> Weights must add up to exactly 100%
+                            </p>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
@@ -1304,58 +1307,85 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                     <option value="COMPETENCY">Competency (EE-BE)</option>
                                 </select>
                             </div>
-
-                            <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase mb-2">
+                            <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                {/* Desktop Header */}
+                                <div className="hidden md:grid grid-cols-12 gap-2 text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest pl-1">
                                     <div className="col-span-2 text-center">Grade</div>
                                     <div className="col-span-3 text-center">Score Range</div>
-                                    <div className="col-span-5">Remark</div>
+                                    <div className="col-span-5">Remark / Description</div>
                                     <div className="col-span-1 text-center">GP</div>
-                                    <div className="col-span-1"></div>
+                                    <div className="col-span-1 text-center">Del</div>
                                 </div>
+
                                 {localConfig.grading?.map((g: any, idx: number) => (
-                                    <div key={idx} className="grid grid-cols-12 gap-2 text-xs items-center">
-                                        <div className="col-span-2">
-                                            <input type="text" value={g.grade} onChange={(e) => {
+                                    <div key={idx} className="bg-white md:bg-transparent p-4 md:p-0 rounded-2xl border md:border-0 border-slate-200 shadow-sm md:shadow-none relative space-y-4 md:space-y-0 md:grid md:grid-cols-12 md:gap-2 md:text-xs md:items-center">
+                                        
+                                        {/* Grade Label (Mobile only) */}
+                                        <div className="md:hidden flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Level {idx + 1}</span>
+                                           <button
+                                                onClick={() => {
+                                                    const newGrading = localConfig.grading.filter((_: any, i: number) => i !== idx);
+                                                    setLocalConfig({ ...localConfig, grading: newGrading });
+                                                }}
+                                                className="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        {/* Desktop & Mobile Inputs */}
+                                        <div className="md:col-span-2 flex flex-col md:block">
+                                            <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Grade</label>
+                                            <input type="text" value={g.grade} placeholder="e.g. A1" onChange={(e) => {
                                                 const newGrading = [...localConfig.grading];
                                                 newGrading[idx] = { ...newGrading[idx], grade: e.target.value };
                                                 setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded font-bold text-center focus:border-primary-500 outline-none" />
+                                            }} className="w-full p-2 bg-slate-50 md:bg-white border border-slate-200 rounded-lg font-black text-center focus:border-primary-500 focus:ring-4 focus:ring-primary-50 focus:bg-white transition-all outline-none" />
                                         </div>
-                                        <div className="col-span-3 flex items-center gap-1">
-                                            <input type="number" value={g.min} onChange={(e) => {
-                                                const newGrading = [...localConfig.grading];
-                                                newGrading[idx] = { ...newGrading[idx], min: Number(e.target.value) };
-                                                setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" />
-                                            <span className="text-slate-400">-</span>
-                                            <input type="number" value={g.max} onChange={(e) => {
-                                                const newGrading = [...localConfig.grading];
-                                                newGrading[idx] = { ...newGrading[idx], max: Number(e.target.value) };
-                                                setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none" />
+
+                                        <div className="md:col-span-3 flex flex-col md:block">
+                                            <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Score Range (Min - Max)</label>
+                                            <div className="flex items-center gap-2">
+                                                <input type="number" value={g.min} placeholder="Min" onChange={(e) => {
+                                                    const newGrading = [...localConfig.grading];
+                                                    newGrading[idx] = { ...newGrading[idx], min: Number(e.target.value) };
+                                                    setLocalConfig({ ...localConfig, grading: newGrading });
+                                                }} className="w-full p-2 bg-slate-50 md:bg-white border border-slate-200 rounded-lg text-center font-bold focus:border-primary-500 focus:ring-4 focus:ring-primary-50 focus:bg-white transition-all outline-none" />
+                                                <span className="text-slate-300 font-bold">-</span>
+                                                <input type="number" value={g.max} placeholder="Max" onChange={(e) => {
+                                                    const newGrading = [...localConfig.grading];
+                                                    newGrading[idx] = { ...newGrading[idx], max: Number(e.target.value) };
+                                                    setLocalConfig({ ...localConfig, grading: newGrading });
+                                                }} className="w-full p-2 bg-slate-50 md:bg-white border border-slate-200 rounded-lg text-center font-bold focus:border-primary-500 focus:ring-4 focus:ring-primary-50 focus:bg-white transition-all outline-none" />
+                                            </div>
                                         </div>
-                                        <div className="col-span-5">
-                                            <input type="text" value={g.remark} onChange={(e) => {
+
+                                        <div className="md:col-span-5 flex flex-col md:block">
+                                            <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Remark / Description</label>
+                                            <input type="text" value={g.remark} placeholder="Remarks..." onChange={(e) => {
                                                 const newGrading = [...localConfig.grading];
                                                 newGrading[idx] = { ...newGrading[idx], remark: e.target.value };
                                                 setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded focus:border-primary-500 outline-none" />
+                                            }} className="w-full p-2 bg-slate-50 md:bg-white border border-slate-200 rounded-lg font-medium focus:border-primary-500 focus:ring-4 focus:ring-primary-50 focus:bg-white transition-all outline-none" />
                                         </div>
-                                        <div className="col-span-1">
+
+                                        <div className="md:col-span-1 flex flex-col md:block">
+                                            <label className="md:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">GP</label>
                                             <input type="number" step="0.1" value={g.points} onChange={(e) => {
                                                 const newGrading = [...localConfig.grading];
                                                 newGrading[idx] = { ...newGrading[idx], points: Number(e.target.value) };
                                                 setLocalConfig({ ...localConfig, grading: newGrading });
-                                            }} className="w-full p-2 border border-slate-200 rounded text-center focus:border-primary-500 outline-none p-1" placeholder="GP" title="Grade Points" />
+                                            }} className="w-full p-2 bg-slate-50 md:bg-white border border-slate-200 rounded-lg text-center font-bold focus:border-primary-500 focus:ring-4 focus:ring-primary-50 focus:bg-white transition-all outline-none" placeholder="GP" title="Grade Points" />
                                         </div>
-                                        <div className="col-span-1 flex justify-center">
+
+                                        <div className="hidden md:flex md:col-span-1 justify-center">
                                             <button
                                                 onClick={() => {
                                                     const newGrading = localConfig.grading.filter((_: any, i: number) => i !== idx);
                                                     setLocalConfig({ ...localConfig, grading: newGrading });
                                                 }}
-                                                className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -1367,17 +1397,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                                         const newGrading = [...(localConfig.grading || []), { grade: "", min: 0, max: 0, remark: "", points: 0 }];
                                         setLocalConfig({ ...localConfig, grading: newGrading });
                                     }}
-                                    className="w-full py-2 mt-2 border-2 border-dashed border-slate-200 rounded-lg text-[10px] font-black uppercase text-slate-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50 transition-all flex items-center justify-center gap-2"
+                                    className="w-full py-4 mt-2 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:border-primary-300 hover:text-primary-500 hover:bg-white hover:shadow-sm transition-all flex items-center justify-center gap-2"
                                 >
-                                    <PlusCircle className="w-3 h-3" /> Add Grade Level
+                                    <PlusCircle className="w-4 h-4" /> Add Grade Level
                                 </button>
                             </div>
+
                         </div>
 
 
 
                         <div className="flex justify-end pt-4">
-                            <button onClick={() => handleSaveConfig(localConfig)} disabled={saveConfigMutation.isPending} className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-primary-700 transition-all flex items-center gap-2">
+                            <button onClick={() => handleSaveConfig(localConfig)} disabled={saveConfigMutation.isPending} className="w-full md:w-auto bg-primary-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-200 hover:bg-primary-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50">
                                 {saveConfigMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Save Configuration
                             </button>
                         </div>

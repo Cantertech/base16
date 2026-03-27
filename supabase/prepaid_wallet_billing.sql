@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS public.system_modules (
 INSERT INTO public.system_modules (id, name, price_ghs) VALUES 
 ('core_system', 'Core System', 0.00),
 ('revenue_guard', 'Revenue Guard', 60.00),
-('academic_engine', 'Academic Engine', 40.00),
-('daily_tracker', 'Daily Tracker', 30.00),
+('academic_engine', 'Academic & Parent App', 50.00),
+('daily_tracker', 'Feeding & Daily Tracker', 40.00),
 ('prestige_pack', 'Prestige Pack', 20.00),
-('complete_bundle', 'The Complete Bundle', 120.00)
+('complete_bundle', 'The Complete Bundle (Unlock All)', 150.00)
 ON CONFLICT (id) DO UPDATE 
 SET price_ghs = EXCLUDED.price_ghs, name = EXCLUDED.name;
 
