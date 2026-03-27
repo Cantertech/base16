@@ -101,6 +101,8 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
         weights: { class: 30, exam: 70 },
         grading_type: 'STANDARD',
         grading: GRADING_PRESETS.STANDARD,
+        attendance_mode: 'manual',
+        term_total_days: 0,
         ...schoolDataConfig
     };
 
@@ -590,8 +592,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 promotion_status: sr?.promotion_status ?? null,
                 position: sr?.position_in_class ?? 0,
                 total_students: sr?.total_students ?? 0,
-                attendance_present: sr?.attendance_present ?? null,
-                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || null),
+                attendance_present: val.attendance_present ?? sr?.attendance_present ?? null,
+                attendance_total: val.attendance_total ?? sr?.attendance_total ?? (localConfig?.term_total_days || null),
                 conduct: val.conduct ?? sr?.conduct ?? null,
                 interest: val.interest ?? sr?.interest ?? null,
                 pupil_bill: sr?.pupil_bill ?? null,
@@ -841,6 +843,36 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     // --- Render Filtered Lists ---
     const classStudents = students.filter(s => s.class === selectedClass);
 
+    const getPrefilledResults = (student: any) => {
+        if (!student) return [];
+        const studentResults = results.filter((r: Result) => r.studentId === student.id);
+
+        // Prefill subjects for the class that don't have results entered yet
+        const classSubjects = subjectAssignments
+            .filter((sa: any) => sa.classes?.name === (student.class || selectedClass))
+            .map((sa: any) => sa.subjects?.name)
+            .filter(Boolean);
+
+        if (classSubjects.length === 0) return studentResults;
+
+        const fullResults = [...studentResults];
+        classSubjects.forEach(subjName => {
+            if (!fullResults.some(r => r.subject === subjName)) {
+                fullResults.push({
+                    id: `temp-${subjName}`,
+                    studentId: student.id,
+                    studentName: student.name,
+                    class: student.class,
+                    subject: subjName,
+                    classScore: 0,
+                    examScore: 0,
+                    total: 0
+                });
+            }
+        });
+        return fullResults;
+    };
+
     // --- TEACHER VIEW ---
     if (currentUser?.role === 'teacher') {
         const isClassTeacher = myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
@@ -952,7 +984,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         {[
                                             { id: 'teacher_remark', label: 'Remarks' },
                                             { id: 'conduct', label: 'Conduct' },
-                                            { id: 'interest', label: 'Interest' }
+                                            { id: 'interest', label: 'Interest' },
+                                            ...(examConfig.attendance_mode === 'manual' ? [{ id: 'attendance_present', label: 'Attendance' }] : [])
                                         ].map(t => (
                                             <button
                                                 key={t.id}
@@ -1014,7 +1047,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 </div>
                                                 <div className="w-full bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[44px] flex items-center justify-between group-hover:bg-primary-50/30 transition-colors mt-2">
                                                     <span className={`text-xs font-bold leading-tight ${currentVal ? 'text-slate-600' : 'text-slate-400 italic'}`}>
-                                                        {currentVal || `No ${activeTool.replace('_', ' ')}`}
+                                                        {activeTool === 'attendance_present' ? (currentVal ? `${currentVal} Days` : 'No Attendance') : (currentVal || `No ${activeTool.replace('_', ' ')}`)}
                                                     </span>
                                                     {paintBrush && currentVal !== paintBrush && (
                                                         <div className="w-6 h-6 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
@@ -1117,28 +1150,62 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <p className="text-lg font-medium">Please select a Class to view reports.</p>
                             </div>
                         ) : (
-                            <div className="flex-1 p-6 overflow-y-auto bg-slate-50">
+                            <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-50/50">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {classStudents.map(student => (
-                                        <div key={student.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                                            <div className="flex items-center gap-4 mb-4">
-                                                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                                                    {student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400" />}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 line-clamp-1">{student.name}</h4>
-                                                    <span className="text-xs font-bold text-slate-400">ID: {student.id.substring(0, 8)}...</span>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => setReportStudent(student)}
-                                                className="w-full py-2.5 flex items-center justify-center gap-2 bg-primary-50 text-primary-600 font-bold text-sm rounded-lg border border-primary-100 hover:bg-primary-600 hover:text-white transition-colors cursor-pointer"
+                                    {classStudents.map(student => {
+                                        const totalScore = results
+                                            .filter(r => r.studentId === student.id)
+                                            .reduce((sum, r) => sum + r.total, 0);
+                                        const subjCount = results.filter(r => r.studentId === student.id).length;
+                                        
+                                        return (
+                                            <div 
+                                                key={student.id} 
+                                                className="group bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary-500/10 hover:border-primary-200 transition-all duration-300 flex flex-col justify-between"
                                             >
-                                                <FileText className="w-4 h-4" /> View Report
-                                            </button>
+                                                <div className="flex items-center gap-4 mb-5">
+                                                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 shadow-inner group-hover:scale-105 transition-transform duration-500">
+                                                        {student.photo ? (
+                                                            <img src={student.photo} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="bg-primary-50 w-full h-full flex items-center justify-center">
+                                                                <User className="h-7 w-7 text-primary-300" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h4 className="font-black text-slate-800 text-sm truncate uppercase tracking-tight group-hover:text-primary-700 transition-colors">{student.name}</h4>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest">ID: {student.id.substring(0, 6)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 mb-5">
+                                                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Marks</p>
+                                                        <p className="text-sm font-black text-slate-700">{totalScore}</p>
+                                                    </div>
+                                                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Subjects</p>
+                                                        <p className="text-sm font-black text-slate-700">{subjCount}</p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => setReportStudent(student)}
+                                                    className="w-full py-3 flex items-center justify-center gap-2 bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest rounded-xl hover:bg-primary-600 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-slate-200 hover:shadow-primary-100 cursor-pointer"
+                                                >
+                                                    <FileText className="w-3.5 h-3.5" /> View Full Report
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                    {classStudents.length === 0 && (
+                                        <div className="col-span-full p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-3xl bg-white/50">
+                                            No students found in {selectedClass}.
                                         </div>
-                                    ))}
-                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
+                                    )}
                                 </div>
                             </div>
                         )
@@ -1260,7 +1327,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
                                 </div>
                                 {/* Mobile Card View */}
-                                <div className="md:hidden space-y-4 p-4 bg-slate-50 border-t border-slate-200">
+                                <div className="md:hidden space-y-5 p-4 bg-slate-50/50">
                                     {classStudents.map(student => {
                                         const savedClass = getExistingScore(student.id, 'classScore');
                                         const savedExam = getExistingScore(student.id, 'examScore');
@@ -1271,46 +1338,54 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         const grade = getGrade(total);
 
                                         return (
-                                            <div key={student.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <h4 className="font-bold text-slate-800">{student.name}</h4>
-                                                        <span className="text-xs text-slate-500">ID: {student.id.substring(0, 8)}...</span>
+                                            <div key={student.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-100 transition-all active:scale-[0.98]">
+                                                <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
+                                                    <div className="min-w-0">
+                                                        <h4 className="font-black text-slate-800 uppercase tracking-tight truncate text-sm">{student.name}</h4>
+                                                        <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest mt-1 inline-block">ID: {student.id.substring(0, 6)}</span>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <span className="block text-2xl font-black text-slate-800">{total}</span>
-                                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600`}>Grade {grade}</span>
+                                                    <div className="flex flex-col items-end gap-1 shrink-0 ml-4">
+                                                        <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center font-black text-white text-lg shadow-sm">{total}</div>
+                                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Grade {grade}</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-4">
                                                     {examConfig.grading_type !== 'COMPETENCY' && (
-                                                        <div>
-                                                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Class ({examConfig.weights?.class || 30})</label>
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between items-center px-1">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class ({examConfig.weights?.class || 30})</label>
+                                                            </div>
                                                             <input
                                                                 type="number"
                                                                 value={dispClass || ''}
                                                                 onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                                                                placeholder="0"
+                                                                className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
+                                                                placeholder="-"
                                                             />
                                                         </div>
                                                     )}
-                                                    <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : ''}>
-                                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Exam ({examConfig.weights?.exam || 70})</label>
+                                                    <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : 'space-y-1.5'}>
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exam ({examConfig.weights?.exam || 70})</label>
+                                                        </div>
                                                         <input
                                                             type="number"
                                                             value={dispExam || ''}
                                                             onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                            className="w-full p-2.5 text-center font-bold text-lg border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                                                            placeholder="0"
+                                                            className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
+                                                            placeholder="-"
                                                         />
                                                     </div>
                                                 </div>
                                             </div>
                                         );
                                     })}
-                                    {classStudents.length === 0 && <div className="text-center text-slate-400 py-8 italic">No students found.</div>}
+                                    {classStudents.length === 0 && (
+                                        <div className="text-center text-slate-400 py-16 font-bold italic bg-white rounded-3xl border-2 border-dashed border-slate-100">
+                                            No students found.
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )
@@ -1320,7 +1395,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 {reportStudent && (
                     <ReportCard
                         student={students.find(s => s.id === reportStudent.id)!}
-                        results={results.filter((r: Result) => r.studentId === reportStudent.id)}
+                        results={getPrefilledResults(reportStudent)}
                         schoolConfig={{
                             ...schoolInfo,
                             ...examConfig,
@@ -1430,6 +1505,47 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             <p className="text-[10px] text-slate-400 mt-2 font-medium flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" /> Weights must add up to exactly 100%
                             </p>
+                        </div>
+
+                        {/* Attendance Source Toggle */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 py-4 px-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-sm transition-all hover:bg-white hover:border-primary-100 group">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-4 h-4 text-primary-500" />
+                                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Attendance Settings</h4>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Choose how attendance figures are populated on report cards</p>
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                                    {localConfig.attendance_mode === 'manual' && (
+                                        <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 whitespace-nowrap">Total Term Days:</label>
+                                            <input
+                                                type="number"
+                                                value={localConfig.term_total_days || 0}
+                                                onChange={e => setLocalConfig({ ...localConfig, term_total_days: Number(e.target.value) })}
+                                                className="w-16 p-1 border border-slate-200 rounded-lg text-xs font-bold text-center focus:ring-2 focus:ring-primary-600 outline-none"
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="flex bg-slate-200/50 p-1 rounded-xl gap-1 w-full sm:w-auto">
+                                        {[
+                                            { id: 'manual', label: 'Manual' },
+                                            { id: 'system', label: 'Attendance Table' }
+                                        ].map(mode => (
+                                            <button
+                                                key={mode.id}
+                                                type="button"
+                                                onClick={() => setLocalConfig({ ...localConfig, attendance_mode: mode.id as any })}
+                                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex-1 sm:flex-none ${localConfig.attendance_mode === mode.id ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-300'}`}
+                                            >
+                                                {mode.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">
@@ -1929,34 +2045,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 reportStudent && (
                     <ReportCard
                         student={students.find(s => s.id === reportStudent.id)!}
-                        results={(() => {
-                            const studentResults = results.filter((r: Result) => r.studentId === reportStudent.id);
-                            
-                            // Prefill subjects for the class that don't have results entered yet
-                            const classSubjects = subjectAssignments
-                                .filter((sa: any) => sa.classes?.name === reportStudent.class)
-                                .map((sa: any) => sa.subjects?.name)
-                                .filter(Boolean);
-                            
-                            if (classSubjects.length === 0) return studentResults;
-
-                            const fullResults = [...studentResults];
-                            classSubjects.forEach(subjName => {
-                                if (!fullResults.some(r => r.subject === subjName)) {
-                                    fullResults.push({
-                                        id: `temp-${subjName}`,
-                                        studentId: reportStudent.id,
-                                        studentName: reportStudent.name,
-                                        class: reportStudent.class,
-                                        subject: subjName,
-                                        classScore: 0,
-                                        examScore: 0,
-                                        total: 0
-                                    });
-                                }
-                            });
-                            return fullResults;
-                        })()}
+                        results={getPrefilledResults(reportStudent)}
                         schoolConfig={{
                             ...schoolInfo,
                             ...examConfig,
@@ -1982,34 +2071,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     <ReportCard
                                         key={student.id}
                                         student={student}
-                                        results={(() => {
-                                            const studentResults = results.filter((r: Result) => r.studentId === student.id);
-                                            
-                                            // Prefill for bulk print as well
-                                            const classSubjects = subjectAssignments
-                                                .filter((sa: any) => sa.classes?.name === student.class)
-                                                .map((sa: any) => sa.subjects?.name)
-                                                .filter(Boolean);
-                                            
-                                            if (classSubjects.length === 0) return studentResults;
-
-                                            const fullResults = [...studentResults];
-                                            classSubjects.forEach(subjName => {
-                                                if (!fullResults.some(r => r.subject === subjName)) {
-                                                    fullResults.push({
-                                                        id: `temp-${subjName}`,
-                                                        studentId: student.id,
-                                                        studentName: student.name,
-                                                        class: student.class,
-                                                        subject: subjName,
-                                                        classScore: 0,
-                                                        examScore: 0,
-                                                        total: 0
-                                                    });
-                                                }
-                                            });
-                                            return fullResults;
-                                        })()}
+                                        results={getPrefilledResults(student)}
                                         schoolConfig={{
                                             ...schoolInfo,
                                             ...examConfig,

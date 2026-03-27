@@ -132,6 +132,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     // Fetch Detailed Attendance
     useEffect(() => {
         const fetchAtt = async () => {
+            if (schoolConfig?.attendance_mode === 'manual') return;
             if (!student.id || student.id.includes('preview')) return;
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(student.id)) return;
@@ -152,7 +153,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             }
         };
         fetchAtt();
-    }, [student.id]);
+    }, [student.id, schoolConfig?.attendance_mode]);
 
     // Initialize Defaults from Config if no saved data exists
     useEffect(() => {
