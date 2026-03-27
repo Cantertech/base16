@@ -587,10 +587,19 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 academic_year: currentYear,
                 teacher_remark: val.teacher_remark ?? sr?.teacher_remark,
                 principal_remark: sr?.principal_remark,
+                promotion_status: sr?.promotion_status || 'N/A',
+                position: sr?.position_in_class || 0,
+                total_students: sr?.total_students || 0,
+                attendance_present: sr?.attendance_present ?? 0,
+                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || 0),
                 conduct: val.conduct ?? sr?.conduct,
                 interest: val.interest ?? sr?.interest,
-                attendance_present: sr?.attendance_present ?? 0,
-                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || 0)
+                pupil_bill: sr?.pupil_bill || 0,
+                other_fees: sr?.other_fees || 0,
+                items_to_bring: sr?.items_to_bring || '',
+                next_term_reopens: sr?.next_term_reopens || '',
+                extra_bill_items: sr?.extra_bill_items || [],
+                extra_report_sections: sr?.extra_report_sections || []
             };
         });
         if (updates.length > 0) {
