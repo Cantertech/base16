@@ -529,8 +529,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     });
 
     const { data: allReportCards = [] } = useQuery({
-        queryKey: ['reportCards', schoolId],
+        queryKey: ['reportCards', schoolId, currentTerm, currentYear],
         queryFn: async () => {
+            if (!schoolId || !currentTerm || !currentYear) return [];
             const { data, error } = await supabase
                 .from('student_report_cards')
                 .select('*')
@@ -540,12 +541,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
             if (error) {
                 console.error("Supabase Fetch Error:", error);
-                alert("Database Read Error: " + error.message);
             }
             return data || [];
         },
-        enabled: !!schoolId,
-        staleTime: 5 * 60 * 1000
+        enabled: !!schoolId && !!examConfig,
+        staleTime: 1 * 60 * 1000
     });
 
     const saveBulkRemarksMutation = useMutation({
@@ -556,7 +556,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['reportCards', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['reportCards', schoolId, currentTerm, currentYear] });
             setPendingRemarks({});
             alert("Remarks saved successfully!");
         },
@@ -585,21 +585,21 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 class: selectedClass || '',
                 term: currentTerm || '',
                 academic_year: currentYear || '',
-                teacher_remark: val.teacher_remark ?? sr?.teacher_remark ?? '',
-                principal_remark: sr?.principal_remark ?? '',
-                promotion_status: sr?.promotion_status || 'N/A',
-                position: sr?.position_in_class || 0,
-                total_students: sr?.total_students || 0,
-                attendance_present: sr?.attendance_present ?? 0,
-                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || 0),
-                conduct: val.conduct ?? sr?.conduct ?? '',
-                interest: val.interest ?? sr?.interest ?? '',
-                pupil_bill: sr?.pupil_bill || 0,
-                other_fees: sr?.other_fees || 0,
-                items_to_bring: sr?.items_to_bring || '',
-                next_term_reopens: sr?.next_term_reopens || '',
-                extra_bill_items: sr?.extra_bill_items || [],
-                extra_report_sections: sr?.extra_report_sections || []
+                teacher_remark: val.teacher_remark ?? sr?.teacher_remark ?? null,
+                principal_remark: sr?.principal_remark ?? null,
+                promotion_status: sr?.promotion_status ?? null,
+                position: sr?.position_in_class ?? 0,
+                total_students: sr?.total_students ?? 0,
+                attendance_present: sr?.attendance_present ?? null,
+                attendance_total: sr?.attendance_total ?? (localConfig?.term_total_days || null),
+                conduct: val.conduct ?? sr?.conduct ?? null,
+                interest: val.interest ?? sr?.interest ?? null,
+                pupil_bill: sr?.pupil_bill ?? null,
+                other_fees: sr?.other_fees ?? null,
+                items_to_bring: sr?.items_to_bring ?? null,
+                next_term_reopens: sr?.next_term_reopens ?? null,
+                extra_bill_items: sr?.extra_bill_items ?? [],
+                extra_report_sections: sr?.extra_report_sections ?? []
             };
         });
         if (updates.length > 0) {
