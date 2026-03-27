@@ -367,116 +367,129 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className="absolute inset-0 opacity-[0.02] pointer-events-none select-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
             {/* Header */}
-            {/* Header / Institutional Branding */}
-            <div className="relative mb-8 text-center border-b-4 border-slate-900 pb-10 print:pb-4 overflow-hidden rounded-t-[3rem]">
-                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/graphy-very-light.png')] h-full w-full"></div>
+            {/* Classic-Style Institutional Header */}
+            <div className="relative mb-1 text-center border-b-2 border-double border-slate-900 pb-10 print:pb-2 pt-6">
+                <div className="absolute top-0 left-0 w-full h-full opacity-[0.02] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]"></div>
+                
                 <div className="relative z-10 flex flex-col items-center">
-                    <div className="flex justify-center items-center gap-6 mb-6">
+                    <div className="flex justify-center items-center gap-12 mb-4">
                         {schoolConfig?.logo_url && (
-                            <div className="h-16 w-16 print:h-12 print:w-12 md:h-20 print:h-20 md:w-20 print:w-20 flex items-center justify-center p-2 bg-white border-2 border-slate-100 rounded-full shadow-lg print-color-adjust-exact">
+                            <div className="h-24 w-24 print:h-20 print:w-20 flex items-center justify-center p-2 bg-white border border-slate-200 shadow-sm">
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         )}
-                        <div className="h-16 w-16 print:h-12 print:w-12 md:h-20 print:h-20 md:w-20 print:w-20 bg-slate-50 border-2 border-slate-900 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden shrink-0 rotate-3">
+                        <div className="h-24 w-24 print:h-20 print:w-20 bg-slate-50 border-2 border-slate-900 shadow-xl flex items-center justify-center overflow-hidden shrink-0 print:border-slate-950">
                             {student.photo ? (
                                 <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
                             ) : (
-                                <Building2 className="w-8 h-8 text-slate-200" />
+                                <div className="text-center p-2">
+                                    <Building2 className="w-8 h-8 text-slate-200 mx-auto" />
+                                    <span className="text-[6px] text-slate-300 font-black uppercase">Passport</span>
+                                </div>
                             )}
                         </div>
                     </div>
-                    <div className="max-w-2xl mx-auto space-y-1">
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em] mb-1">Foundation Stage Unit</p>
-                        <h1 className="font-black text-2xl md:text-3xl print:text-3xl uppercase tracking-tighter text-slate-900 leading-tight mb-2">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
-                        <div className="w-16 h-1 bg-slate-900 mx-auto rounded-full"></div>
-                        <h2 className="font-black text-xl md:text-4xl print:text-4xl uppercase tracking-widest mt-6 text-slate-800 font-serif">Learner's Progress Report</h2>
+                    
+                    <div className="max-w-3xl mx-auto">
+                        <h1 className="font-serif text-3xl md:text-4xl print:text-4xl font-black uppercase tracking-tight text-slate-900 leading-none mb-1">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em] mb-4">Early Years Foundation Stage (EYFS)</p>
+                        <div className="flex items-center justify-center gap-4">
+                            <div className="h-px w-12 bg-slate-300"></div>
+                            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-800">Terminal Narrative Report</h2>
+                            <div className="h-px w-12 bg-slate-300"></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Student Persona Grid */}
-            <div className="bg-white rounded-3xl p-8 print:p-4 mb-10 print:mb-4 border-2 border-slate-100 shadow-xl shadow-slate-200/50 grid grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-8 relative z-10 overflow-hidden print:border-slate-950">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
-                
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Complete Name of Learner</span>
-                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{student.name}</p>
+            {/* Disciplined Student Persona Grid (Consistent with Classic) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-x-6 gap-y-4 mb-8 print:mb-2 bg-slate-50/50 p-6 print:p-2 border border-slate-200 print:bg-white print:border-slate-950">
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Name of Learner</p>
+                    <p className="text-sm font-black text-slate-900 uppercase truncate">{student.name}</p>
                 </div>
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Class / Developmental Stage</span>
-                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{student.class}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Developmental Class</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{student.class}</p>
                 </div>
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Academic Session</span>
-                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{schoolConfig?.academic_year || '2025'}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Academic Session</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{schoolConfig?.academic_year || '-'}</p>
                 </div>
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Current Term</span>
-                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1 uppercase">{schoolConfig?.current_term || schoolConfig?.term || 'First Term'}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Assessment Term</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{schoolConfig?.current_term || schoolConfig?.term || '-'}</p>
                 </div>
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance Summary</span>
-                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1">{attendancePresentDays} Days Present (Out of {attendanceTotalDays || '-'})</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Attendance</p>
+                    <p className="text-[10px] font-bold text-slate-700 uppercase">{attendancePresentDays} Days (Out of {attendanceTotalDays})</p>
                 </div>
-                <div className="space-y-1 relative z-10">
-                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Next Level Commences</span>
-                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1">
-                        {schoolConfig?.next_term_reopens ? new Date(schoolConfig.next_term_reopens).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '................'}
-                    </p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Re-opening Date</p>
+                    <p className="text-[10px] font-bold text-slate-700 uppercase">{schoolConfig?.next_term_reopens || 'TBD'}</p>
+                </div>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Learner ID</p>
+                     <p className="text-[10px] font-bold text-slate-700 uppercase">#{student.id.substring(0, 8).toUpperCase()}</p>
+                </div>
+                <div className="space-y-0.5 border-b border-slate-200 pb-1">
+                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Status Tracking</p>
+                     <p className="text-[10px] font-black text-blue-600 uppercase">Narrative Assessment</p>
                 </div>
             </div>
 
-            {/* Core Assessment Areas */}
-            <div className="space-y-2 mb-3 print:mb-1 flex-1">
-                <div className="flex items-center gap-3 mb-4">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] bg-slate-900 text-white px-3 py-1 rounded-sm shadow-sm print:bg-transparent print:border-y print:border-slate-950 print:text-slate-900">Assessment of Learning Pathways</h3>
-                    <div className="flex-1 h-px bg-slate-100"></div>
+            {/* Assessment Core - Tabular Design (Classic) */}
+            <div className="space-y-2 mb-2 print:mb-1 flex-1">
+                <div className="flex items-center gap-3 mb-4 print:mb-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-950 font-serif underline decoration-double decoration-slate-300 underline-offset-4">Academic & Developmental Milestones</h3>
+                    <div className="flex-1 h-[2px] bg-slate-900 print:bg-slate-950 opacity-10"></div>
                 </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white print:border-slate-950">
+                <div className="border-t-2 border-b-2 border-slate-950 overflow-hidden bg-white">
                     <table className="w-full border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 print:bg-slate-100 print:border-slate-950">
-                                <th className="text-left px-5 py-3 text-[9px] font-black uppercase text-slate-500 tracking-widest print:py-1">Developmental Area / Competency</th>
-                                <th className="text-center px-4 py-3 text-[9px] font-black uppercase text-slate-500 tracking-widest w-32 border-l border-slate-200 print:py-1 print:border-slate-950">Status achieved</th>
+                            <tr className="bg-slate-900 text-white print:bg-slate-50 print:text-slate-900">
+                                <th className="text-left px-5 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] print:py-1">Developmental Category</th>
+                                <th className="text-center px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] w-48 border-l border-white/20 print:border-slate-950 print:py-1">Performance Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 print:divide-slate-950">
+                        <tbody className="divide-y divide-slate-100 print:divide-slate-950 border-x border-slate-950">
                             {results.length > 0 ? results.map((result, idx) => {
-                                const status = result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging';
-                                const statusColor = result.total >= 80 ? 'text-green-600' : result.total >= 60 ? 'text-blue-600' : 'text-orange-600';
+                                const status = (result as any).competency_status || (result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging');
+                                const statusColor = (result as any).competency_status ? 'text-slate-900' : (result.total >= 80 ? 'text-green-700' : result.total >= 60 ? 'text-blue-700' : 'text-orange-700');
                                 return (
-                                    <tr key={idx} className="group hover:bg-slate-50 transition-colors">
-                                        <td className="px-5 py-2.5 text-[10px] font-bold text-slate-800 uppercase tracking-tight print:py-1">{result.subject}</td>
-                                        <td className="px-4 py-2.5 text-center border-l border-slate-100 print:py-1 print:border-slate-950">
-                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${statusColor}`}>
-                                                {status}
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-transparent'}>
+                                        <td className="px-5 py-2.5 text-[10px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
+                                        <td className="px-4 py-2.5 text-center border-l border-slate-100 print:border-slate-300">
+                                            <span className={`text-[10px] font-black uppercase tracking-tighter italic ${statusColor}`}>
+                                                {status === '90' ? 'Mastered' : status === '70' ? 'Developing' : status === '40' ? 'Emerging' : status}
                                             </span>
                                         </td>
                                     </tr>
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan={2} className="py-10 text-center text-slate-400 font-bold italic text-xs">No specific assessment data recorded for this term.</td>
+                                    <td colSpan={2} className="py-12 text-center text-slate-400 font-bold italic text-xs">No narrative assessment recorded for this session.</td>
                                 </tr>
                             )}
                         </tbody>
                         {results.length > 0 && (
-                            <tfoot>
-                                <tr className="bg-slate-50/50 border-t border-slate-200 print:bg-transparent print:border-slate-950">
-                                    <td colSpan={2} className="px-5 py-2">
-                                        <div className="flex justify-center gap-8 py-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                <span className="text-[7px] font-black uppercase text-slate-400">Mastered (M)</span>
+                            <tfoot className="border-t-2 border-slate-950">
+                                <tr className="bg-slate-50 print:bg-white">
+                                    <td colSpan={2} className="px-5 py-3">
+                                        <div className="flex justify-start gap-12 py-1 items-center">
+                                            <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest mr-2">Status Key:</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 bg-green-100 border border-green-600 rounded-sm"></div>
+                                                <span className="text-[8px] font-black uppercase text-slate-600">Mastered (M)</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                                <span className="text-[7px] font-black uppercase text-slate-400">Developing (D)</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-600 rounded-sm"></div>
+                                                <span className="text-[8px] font-black uppercase text-slate-600">Developing (D)</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                                <span className="text-[7px] font-black uppercase text-slate-400">Emerging (E)</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 bg-orange-100 border border-orange-600 rounded-sm"></div>
+                                                <span className="text-[8px] font-black uppercase text-slate-600">Emerging (E)</span>
                                             </div>
                                         </div>
                                     </td>
@@ -487,23 +500,27 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 </div>
             </div>
 
-            {/* Qualitative Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-2 print:p-2 mb-4 print:mb-1 pt-4 border-t border-slate-100">
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em]">Class Teacher's Observation</span>
+            {/* Classic Narrative Feedback */}
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 mb-4 print:mb-1 pt-6 border-t border-slate-200">
+                <div className="space-y-6">
+                    <div className="relative">
+                        <div className="absolute -left-3 top-0 bottom-0 w-[2px] bg-slate-900 opacity-20"></div>
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Class Teacher's Evaluative Remark</span>
                         <textarea
                             value={teacherRemark}
                             onChange={(e) => setTeacherRemark(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded p-2 print:py-0.5 print:px-1 text-[10px] font-bold text-slate-800 italic leading-tight h-12 print:h-8 resize-none outline-none"
+                            className="w-full bg-slate-50/50 border border-slate-100 rounded-lg p-3 print:p-1 text-[11px] font-bold text-slate-900 italic leading-snug h-24 print:h-16 resize-none outline-none focus:ring-2 focus:ring-slate-100 transition-all border-dashed"
+                            placeholder="Type progress notes here..."
                         />
                     </div>
-                    <div className="space-y-1">
-                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em]">HT Remarks</span>
+                    <div className="relative">
+                        <div className="absolute -left-3 top-0 bottom-0 w-[2px] bg-slate-900"></div>
+                        <span className="text-[9px] font-black uppercase text-slate-900 tracking-[0.2em] mb-2 block">Principal's Directives</span>
                         <textarea
                             value={principalRemark}
                             onChange={(e) => setPrincipalRemark(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded p-2 print:py-0.5 print:px-1 text-[10px] font-bold text-slate-800 italic leading-tight h-10 print:h-6 resize-none outline-none"
+                            className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 print:p-1 text-[11px] font-black text-slate-950 italic leading-snug h-20 print:h-12 resize-none outline-none border-double"
+                            placeholder="..."
                         />
                     </div>
                 </div>
@@ -539,15 +556,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             </div>
                         </div>
 
-                        {/* Signatures for Nursery with Fees */}
-                        <div className="grid grid-cols-2 gap-4 mt-auto">
-                            <div className="text-center pt-8">
-                                <div className="h-px bg-slate-300 w-full mb-1"></div>
-                                <span className="text-[7px] font-black uppercase text-slate-400">Class Lead</span>
+                        {/* Classic Signatures */}
+                        <div className="grid grid-cols-2 gap-8 mt-auto">
+                            <div className="text-center pt-8 relative">
+                                <div className="h-[2px] bg-slate-950 w-full mb-1"></div>
+                                <div className="h-[1px] bg-slate-950 w-full opacity-30 mt-[-3px] mb-2"></div>
+                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest">Class Preceptor</span>
                             </div>
-                            <div className="text-center pt-8">
-                                <div className="h-px bg-slate-300 w-full mb-1"></div>
-                                <span className="text-[7px] font-black uppercase text-slate-400">Head Teacher</span>
+                            <div className="text-center pt-8 relative">
+                                <div className="h-[2px] bg-slate-950 w-full mb-1"></div>
+                                <div className="h-[1px] bg-slate-950 w-full opacity-30 mt-[-3px] mb-2"></div>
+                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest">Head of School</span>
                             </div>
                         </div>
                     </div>

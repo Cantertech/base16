@@ -4,7 +4,7 @@ import {
     BarChart2, Filter, ChevronDown, User, ArrowRight,
     ClipboardCheck, AlertCircle, Clock, BookOpen, Settings,
     Lock, Unlock, PlayCircle, StopCircle, Eye, Send, Users, X, Loader2,
-    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool
+    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool, Archive, Trash2
 } from 'lucide-react';
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
@@ -226,7 +226,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [expandedMonitoringClass, setExpandedMonitoringClass] = useState<string | null>(null);
     const [viewingSubmission, setViewingSubmission] = useState<any>(null);
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
-    const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number }>>({});
+    const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number; competencyStatus?: string }>>({});
     const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks'>('marks');
     const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest'>('teacher_remark');
     const [paintBrush, setPaintBrush] = useState<string>('');
@@ -238,6 +238,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
     const [releaseModalData, setReleaseModalData] = useState<{ className: string, studentCount: number, validPhones: number } | null>(null);
     const [isBulkPrinting, setIsBulkPrinting] = useState(false);
+    const [isLevelArchiveOpen, setIsLevelArchiveOpen] = useState(false);
+    const [newLevelName, setNewLevelName] = useState("");
     const bulkPrintRef = useRef<HTMLDivElement>(null);
 
 
@@ -683,7 +685,22 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     // Deprecated but keeping for reference if needed, functionality moved to handleConfirmRelease
     const publishResults = (className: string) => { };
 
-    const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore', value: string) => {
+    const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore' | 'competencyStatus', value: string) => {
+        if (field === 'competencyStatus') {
+            setPendingChanges(prev => {
+                const current = prev[studentId] || {
+                    classScore: getExistingScore(studentId, 'classScore'),
+                    examScore: getExistingScore(studentId, 'examScore'),
+                    competencyStatus: getExistingCompetency(studentId)
+                };
+                return {
+                    ...prev,
+                    [studentId]: { ...current, competencyStatus: value }
+                };
+            });
+            return;
+        }
+
         let numValue = Number(value);
         const maxClass = examConfig?.weights?.class || 30;
         const maxExam = examConfig?.weights?.exam || 70;
@@ -695,13 +712,23 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         setPendingChanges(prev => {
             const current = prev[studentId] || {
                 classScore: getExistingScore(studentId, 'classScore'),
-                examScore: getExistingScore(studentId, 'examScore')
+                examScore: getExistingScore(studentId, 'examScore'),
+                competencyStatus: getExistingCompetency(studentId)
             };
             return {
                 ...prev,
                 [studentId]: { ...current, [field]: numValue }
             };
         });
+    };
+
+    const getExistingCompetency = (studentId: string) => {
+        const res = results.find((r: Result) =>
+            r.studentId === studentId &&
+            r.class === selectedClass &&
+            r.subject === selectedSubject
+        );
+        return res ? (res as any).competency_status || '' : '';
     };
 
     const getExistingScore = (studentId: string, field: 'classScore' | 'examScore') => {
@@ -714,7 +741,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const saveMarks = async () => {
-        const updates = Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number }]) => {
+        const updates = Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number; competencyStatus?: string }]) => {
             return {
                 school_id: schoolId,
                 student_id: studentId,
@@ -723,7 +750,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 term: currentTerm,
                 academic_year: currentYear,
                 class_score: val.classScore,
-                exam_score: val.examScore
+                exam_score: val.examScore,
+                competency_status: val.competencyStatus
             };
         });
         if (updates.length > 0) {
@@ -739,7 +767,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
         if (Object.keys(pendingChanges).length > 0) {
             await saveMarksMutation.mutateAsync(
-                Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number }]) => ({
+                Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number; competencyStatus?: string }]) => ({
                     school_id: schoolId,
                     student_id: studentId,
                     class: selectedClass,
@@ -747,7 +775,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     term: currentTerm,
                     academic_year: currentYear,
                     class_score: val.classScore,
-                    exam_score: val.examScore
+                    exam_score: val.examScore,
+                    competency_status: val.competencyStatus
                 }))
             );
         }
@@ -846,12 +875,23 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 </select>
                             </div>
                             {teacherTab === 'marks' && (
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
-                                    <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer disabled:opacity-50">
-                                        <option value="">Select Subject</option>
-                                        {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
-                                    </select>
+                                <div className="flex gap-4 items-end">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
+                                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer disabled:opacity-50 font-bold">
+                                            <option value="">-- Select Subject --</option>
+                                            {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    
+                                    {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' && (
+                                        <button 
+                                            onClick={() => setIsLevelArchiveOpen(true)}
+                                            className="p-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200 h-[42px]"
+                                        >
+                                            <Archive className="w-3.5 h-3.5" /> Levels
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1128,20 +1168,49 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                         <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
                                                         {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' ? (
                                                             <td className="px-6 py-3 text-center">
-                                                                <select
-                                                                    value={dispExam || ''}
-                                                                    onChange={(e) => {
-                                                                        handleScoreChange(student.id, 'examScore', e.target.value);
-                                                                        handleScoreChange(student.id, 'classScore', '0');
-                                                                    }}
-                                                                    className="w-full max-w-[200px] p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-                                                                >
-                                                                    <option value="">Select Level...</option>
-                                                                    <option value="90">Mastered (Confident)</option>
-                                                                    <option value="70">Developing (Steady)</option>
-                                                                    <option value="40">Emerging (Beginning)</option>
-                                                                    <option value="0">Not Assessed</option>
-                                                                </select>
+                                                                <div className="flex flex-col gap-2">
+                                                                        <select
+                                                                            value={['90', '70', '40', '0', ''].includes(pending?.competencyStatus || (getExistingCompetency(student.id) || '')) ? (pending?.competencyStatus || getExistingCompetency(student.id)) : 'custom'}
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                if (val === 'custom') {
+                                                                                    handleScoreChange(student.id, 'competencyStatus', 'Improving...');
+                                                                                } else {
+                                                                                    handleScoreChange(student.id, 'competencyStatus', val);
+                                                                                    // Also set numeric for backwards/layout compatibility
+                                                                                    handleScoreChange(student.id, 'examScore', val === 'Mastered' || val === '90' ? '90' : val === 'Developing' || val === '70' ? '70' : val === 'Emerging' || val === '40' ? '40' : '0');
+                                                                                }
+                                                                                handleScoreChange(student.id, 'classScore', '0');
+                                                                            }}
+                                                                            className="w-full max-w-[200px] p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all mx-auto"
+                                                                        >
+                                                                            <option value="">Select Level...</option>
+                                                                            {/* Custom Levels from Archive */}
+                                                                            {(localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || []).map((level: string, lIdx: number) => (
+                                                                                <option key={lIdx} value={level}>{level}</option>
+                                                                            ))}
+                                                                            {/* Default levels if none set */}
+                                                                            {(!localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels.length === 0) && (
+                                                                                <>
+                                                                                    <option value="90">Mastered (Confident)</option>
+                                                                                    <option value="70">Developing (Steady)</option>
+                                                                                    <option value="40">Emerging (Beginning)</option>
+                                                                                </>
+                                                                            )}
+                                                                            <option value="custom">Custom Status...</option>
+                                                                            <option value="0">Not Assessed</option>
+                                                                        </select>
+                                                                    
+                                                                    {(!['90', '70', '40', '0', ''].includes(pending?.competencyStatus || getExistingCompetency(student.id)) || (pending?.competencyStatus === 'Improving...' || !['90','70','40','0',''].includes(getExistingCompetency(student.id)))) && (
+                                                                        <input 
+                                                                            type="text"
+                                                                            placeholder="Enter custom status..."
+                                                                            value={pending?.competencyStatus || getExistingCompetency(student.id)}
+                                                                            onChange={(e) => handleScoreChange(student.id, 'competencyStatus', e.target.value)}
+                                                                            className="w-full max-w-[200px] p-2 bg-white border-2 border-primary-100 rounded-lg text-xs font-bold text-primary-700 outline-none animate-in zoom-in-95 duration-200 mx-auto"
+                                                                        />
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                         ) : (
                                                             <>
@@ -1939,8 +2008,109 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         </div>
                     </div>
                 )}
-        </div >
-    );
+                {isLevelArchiveOpen && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Status Archive</h3>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{selectedClass} Custom Levels</p>
+                                </div>
+                                <button onClick={() => setIsLevelArchiveOpen(false)} className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-slate-200">
+                                    <X className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text"
+                                            value={newLevelName}
+                                            onChange={e => setNewLevelName(e.target.value)}
+                                            placeholder="Add new level (e.g. Excellent)"
+                                            className="flex-1 p-3 border border-slate-200 rounded-xl font-bold bg-slate-50 outline-none focus:border-primary-400"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                if(newLevelName) {
+                                                    const currentLevels = localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || [];
+                                                    const updatedLevels = [...currentLevels, newLevelName];
+                                                    const newConf = {
+                                                        ...localConfig,
+                                                        report_card_config: {
+                                                            ...localConfig.report_card_config,
+                                                            class_settings: {
+                                                                ...(localConfig.report_card_config?.class_settings || {}),
+                                                                [selectedClass]: {
+                                                                    ...(localConfig.report_card_config?.class_settings?.[selectedClass] || {}),
+                                                                    qualitative_levels: updatedLevels
+                                                                }
+                                                            }
+                                                        }
+                                                    };
+                                                    setLocalConfig(newConf);
+                                                    saveConfigMutation.mutate(newConf);
+                                                    setNewLevelName('');
+                                                }
+                                            }}
+                                            className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
+                                        >
+                                            <PlusCircle className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                                        {(localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || []).map((lvl: string, idx: number) => (
+                                            <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
+                                                <span className="text-sm font-bold text-slate-700">{lvl}</span>
+                                                <button 
+                                                    onClick={() => {
+                                                        const currentLevels = localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || [];
+                                                        const updatedLevels = currentLevels.filter((_: any, i: number) => i !== idx);
+                                                        const newConf = {
+                                                            ...localConfig,
+                                                            report_card_config: {
+                                                                ...localConfig.report_card_config,
+                                                                class_settings: {
+                                                                    ...(localConfig.report_card_config?.class_settings || {}),
+                                                                    [selectedClass]: {
+                                                                        ...(localConfig.report_card_config?.class_settings?.[selectedClass] || {}),
+                                                                        qualitative_levels: updatedLevels
+                                                                    }
+                                                                }
+                                                            }
+                                                        };
+                                                        setLocalConfig(newConf);
+                                                        saveConfigMutation.mutate(newConf);
+                                                    }}
+                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {(!localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || localConfig.report_card_config.class_settings[selectedClass].qualitative_levels.length === 0) && (
+                                            <div className="text-center py-10">
+                                                <Archive className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No custom levels yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8 bg-slate-50 border-t border-slate-100 text-center">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">
+                                    These levels will appear in your dropdown for <span className="text-slate-900">{selectedClass}</span>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
 };
 
 const ReleaseConfigModal = ({ data, onClose, onConfirm, isProcessing }: any) => {
