@@ -580,8 +580,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         const updates = Object.entries(pendingRemarks).map(([studentId, val]: [string, any]) => {
             const sr = allReportCards.find((r: any) => r.student_id === studentId);
             return {
-                school_id: schoolId || '',
-                student_id: studentId || '',
+                school_id: schoolId || null,
+                student_id: studentId || null,
                 class: selectedClass || '',
                 term: currentTerm || '',
                 academic_year: currentYear || '',
