@@ -368,89 +368,89 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* Header */}
             {/* Classic-Style Institutional Header */}
-            <div className="relative mb-1 text-center border-b-2 border-double border-slate-900 pb-10 print:pb-2 pt-6">
+            <div className="relative mb-1 text-center border-b-2 border-double border-slate-900 pb-4 print:pb-1 pt-2">
                 <div className="absolute top-0 left-0 w-full h-full opacity-[0.02] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]"></div>
                 
                 <div className="relative z-10 flex flex-col items-center">
-                    <div className="flex justify-center items-center gap-12 mb-4">
+                    <div className="flex justify-center items-center gap-10 mb-2 print:mb-1">
                         {schoolConfig?.logo_url && (
-                            <div className="h-24 w-24 print:h-20 print:w-20 flex items-center justify-center p-2 bg-white border border-slate-200 shadow-sm">
+                            <div className="h-16 w-16 print:h-14 print:w-14 flex items-center justify-center p-1.5 bg-white border border-slate-200 shadow-sm">
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         )}
-                        <div className="h-24 w-24 print:h-20 print:w-20 bg-slate-50 border-2 border-slate-900 shadow-xl flex items-center justify-center overflow-hidden shrink-0 print:border-slate-950">
+                        <div className="h-16 w-16 print:h-14 print:w-14 bg-slate-50 border-2 border-slate-900 shadow-lg flex items-center justify-center overflow-hidden shrink-0 print:border-slate-950">
                             {student.photo ? (
                                 <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
                             ) : (
-                                <div className="text-center p-2">
-                                    <Building2 className="w-8 h-8 text-slate-200 mx-auto" />
-                                    <span className="text-[6px] text-slate-300 font-black uppercase">Passport</span>
+                                <div className="text-center p-1">
+                                    <Building2 className="w-6 h-6 text-slate-200 mx-auto" />
+                                    <span className="text-[5px] text-slate-300 font-black uppercase">Passport</span>
                                 </div>
                             )}
                         </div>
                     </div>
                     
                     <div className="max-w-3xl mx-auto">
-                        <h1 className="font-serif text-3xl md:text-4xl print:text-4xl font-black uppercase tracking-tight text-slate-900 leading-none mb-1">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
-                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em] mb-4">Early Years Foundation Stage (EYFS)</p>
-                        <div className="flex items-center justify-center gap-4">
-                            <div className="h-px w-12 bg-slate-300"></div>
-                            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-800">Terminal Narrative Report</h2>
-                            <div className="h-px w-12 bg-slate-300"></div>
+                        <h1 className="font-serif text-2xl md:text-3xl print:text-2xl font-black uppercase tracking-tight text-slate-900 leading-none mb-0.5">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
+                        <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.4em] mb-2 print:mb-1">Early Years Foundation Stage (EYFS)</p>
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="h-[1px] w-8 bg-slate-300"></div>
+                            <h2 className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-800">Terminal Narrative Report</h2>
+                            <div className="h-[1px] w-8 bg-slate-300"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Disciplined Student Persona Grid (Consistent with Classic) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-x-6 gap-y-4 mb-8 print:mb-2 bg-slate-50/50 p-6 print:p-2 border border-slate-200 print:bg-white print:border-slate-950">
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Name of Learner</p>
-                    <p className="text-sm font-black text-slate-900 uppercase truncate">{student.name}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-x-4 gap-y-2 mb-4 print:mb-1.5 bg-slate-50/50 p-4 print:p-1.5 border border-slate-200 print:bg-white print:border-slate-950">
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Name of Learner</p>
+                    <p className="text-xs font-black text-slate-900 uppercase truncate leading-tight">{student.name}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Developmental Class</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{student.class}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Class</p>
+                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{student.class}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Academic Session</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{schoolConfig?.academic_year || '-'}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Session</p>
+                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{schoolConfig?.academic_year || '-'}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Assessment Term</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{schoolConfig?.current_term || schoolConfig?.term || '-'}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Term</p>
+                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{schoolConfig?.current_term || schoolConfig?.term || '-'}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Attendance</p>
-                    <p className="text-[10px] font-bold text-slate-700 uppercase">{attendancePresentDays} Days (Out of {attendanceTotalDays})</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance</p>
+                    <p className="text-[9px] font-bold text-slate-700 uppercase leading-tight">{attendancePresentDays} / {attendanceTotalDays}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Re-opening Date</p>
-                    <p className="text-[10px] font-bold text-slate-700 uppercase">{schoolConfig?.next_term_reopens || 'TBD'}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Re-opening</p>
+                    <p className="text-[9px] font-bold text-slate-700 uppercase leading-tight">{schoolConfig?.next_term_reopens || 'TBD'}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Learner ID</p>
-                     <p className="text-[10px] font-bold text-slate-700 uppercase">#{student.id.substring(0, 8).toUpperCase()}</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                     <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Learner ID</p>
+                     <p className="text-[9px] font-bold text-slate-700 uppercase leading-tight">#{student.id.substring(0, 8).toUpperCase()}</p>
                 </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-1">
-                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Status Tracking</p>
-                     <p className="text-[10px] font-black text-blue-600 uppercase">Narrative Assessment</p>
+                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
+                     <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none">Tracking</p>
+                     <p className="text-[9px] font-black text-blue-600 uppercase leading-tight">Narrative</p>
                 </div>
             </div>
 
             {/* Assessment Core - Tabular Design (Classic) */}
-            <div className="space-y-2 mb-2 print:mb-1 flex-1">
-                <div className="flex items-center gap-3 mb-4 print:mb-2">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-950 font-serif underline decoration-double decoration-slate-300 underline-offset-4">Academic & Developmental Milestones</h3>
-                    <div className="flex-1 h-[2px] bg-slate-900 print:bg-slate-950 opacity-10"></div>
+            <div className="space-y-1 mb-1 print:mb-0.5 flex-1">
+                <div className="flex items-center gap-2 mb-2 print:mb-1">
+                    <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-950 font-serif underline decoration-double decoration-slate-300 underline-offset-2">Academic & Developmental Milestones</h3>
+                    <div className="flex-1 h-[1px] bg-slate-950 opacity-10"></div>
                 </div>
 
-                <div className="border-t-2 border-b-2 border-slate-950 overflow-hidden bg-white">
+                <div className="border-t-[1.5px] border-b-[1.5px] border-slate-950 overflow-hidden bg-white">
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-slate-900 text-white print:bg-slate-50 print:text-slate-900">
-                                <th className="text-left px-5 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] print:py-1">Developmental Category</th>
-                                <th className="text-center px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] w-48 border-l border-white/20 print:border-slate-950 print:py-1">Performance Status</th>
+                                <th className="text-left px-4 py-1.5 text-[8px] font-black uppercase tracking-wider print:py-0.5">Category</th>
+                                <th className="text-center px-4 py-1.5 text-[8px] font-black uppercase tracking-wider w-40 border-l border-white/20 print:border-slate-950 print:py-0.5">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 print:divide-slate-950 border-x border-slate-950">
@@ -459,9 +459,9 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 const statusColor = (result as any).competency_status ? 'text-slate-900' : (result.total >= 80 ? 'text-green-700' : result.total >= 60 ? 'text-blue-700' : 'text-orange-700');
                                 return (
                                     <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-transparent'}>
-                                        <td className="px-5 py-2.5 text-[10px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
-                                        <td className="px-4 py-2.5 text-center border-l border-slate-100 print:border-slate-300">
-                                            <span className={`text-[10px] font-black uppercase tracking-tighter italic ${statusColor}`}>
+                                        <td className="px-4 py-1.5 text-[9px] font-black text-slate-900 uppercase tracking-tight print:py-1">{result.subject}</td>
+                                        <td className="px-4 py-1.5 text-center border-l border-slate-100 print:border-slate-300">
+                                            <span className={`text-[9px] font-black uppercase tracking-tighter italic ${statusColor}`}>
                                                 {status === '90' ? 'Mastered' : status === '70' ? 'Developing' : status === '40' ? 'Emerging' : status}
                                             </span>
                                         </td>
@@ -469,27 +469,27 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan={2} className="py-12 text-center text-slate-400 font-bold italic text-xs">No narrative assessment recorded for this session.</td>
+                                    <td colSpan={2} className="py-6 text-center text-slate-400 font-bold italic text-[10px]">No assessment recorded.</td>
                                 </tr>
                             )}
                         </tbody>
                         {results.length > 0 && (
-                            <tfoot className="border-t-2 border-slate-950">
-                                <tr className="bg-slate-50 print:bg-white">
-                                    <td colSpan={2} className="px-5 py-3">
-                                        <div className="flex justify-start gap-12 py-1 items-center">
-                                            <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest mr-2">Status Key:</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2.5 h-2.5 bg-green-100 border border-green-600 rounded-sm"></div>
-                                                <span className="text-[8px] font-black uppercase text-slate-600">Mastered (M)</span>
+                            <tfoot className="border-t-[1.5px] border-slate-950">
+                                <tr className="bg-slate-50 print:bg-white text-[7px]">
+                                    <td colSpan={2} className="px-4 py-1.5">
+                                        <div className="flex justify-start gap-8 items-center">
+                                            <span className="font-black uppercase text-slate-400 tracking-widest mr-1 opacity-50">Legend:</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 bg-green-100 border border-green-600 rounded-sm"></div>
+                                                <span className="font-black uppercase text-slate-600">Mastered</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-600 rounded-sm"></div>
-                                                <span className="text-[8px] font-black uppercase text-slate-600">Developing (D)</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 bg-blue-100 border border-blue-600 rounded-sm"></div>
+                                                <span className="font-black uppercase text-slate-600">Developing</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2.5 h-2.5 bg-orange-100 border border-orange-600 rounded-sm"></div>
-                                                <span className="text-[8px] font-black uppercase text-slate-600">Emerging (E)</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 bg-orange-100 border border-orange-600 rounded-sm"></div>
+                                                <span className="font-black uppercase text-slate-600">Emerging</span>
                                             </div>
                                         </div>
                                     </td>
@@ -501,25 +501,25 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
 
             {/* Classic Narrative Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 mb-4 print:mb-1 pt-6 border-t border-slate-200">
-                <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-3 mb-2 print:mb-1 pt-3 border-t border-slate-200">
+                <div className="space-y-3">
                     <div className="relative">
-                        <div className="absolute -left-3 top-0 bottom-0 w-[2px] bg-slate-900 opacity-20"></div>
-                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Class Teacher's Evaluative Remark</span>
+                        <div className="absolute -left-2 top-0 bottom-0 w-[1.5px] bg-slate-900 opacity-20"></div>
+                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Class Teacher's Evaluative Remark</span>
                         <textarea
                             value={teacherRemark}
                             onChange={(e) => setTeacherRemark(e.target.value)}
-                            className="w-full bg-slate-50/50 border border-slate-100 rounded-lg p-3 print:p-1 text-[11px] font-bold text-slate-900 italic leading-snug h-24 print:h-16 resize-none outline-none focus:ring-2 focus:ring-slate-100 transition-all border-dashed"
+                            className="w-full bg-slate-50/30 border border-slate-100 rounded-lg p-2 print:p-1 text-[10px] font-bold text-slate-900 italic leading-snug h-16 print:h-12 resize-none outline-none border-dashed"
                             placeholder="Type progress notes here..."
                         />
                     </div>
                     <div className="relative">
-                        <div className="absolute -left-3 top-0 bottom-0 w-[2px] bg-slate-900"></div>
-                        <span className="text-[9px] font-black uppercase text-slate-900 tracking-[0.2em] mb-2 block">Principal's Directives</span>
+                        <div className="absolute -left-2 top-0 bottom-0 w-[1.5px] bg-slate-900"></div>
+                        <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest mb-1 block">Principal's Directives</span>
                         <textarea
                             value={principalRemark}
                             onChange={(e) => setPrincipalRemark(e.target.value)}
-                            className="w-full bg-white border-2 border-slate-100 rounded-xl p-3 print:p-1 text-[11px] font-black text-slate-950 italic leading-snug h-20 print:h-12 resize-none outline-none border-double"
+                            className="w-full bg-white border-2 border-slate-100 rounded-lg p-2 print:p-1 text-[10px] font-black text-slate-950 italic leading-snug h-12 print:h-8 resize-none outline-none border-double"
                             placeholder="..."
                         />
                     </div>
@@ -527,29 +527,29 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
                 {/* Right Column: Financials OR Extra Details if no fees */}
                 {showFees ? (
-                    <div className="flex flex-col gap-6 print:gap-3 print:py-1 print:px-2">
-                        <div className="bg-slate-900 text-white p-8 print:p-4 print:py-1 print:px-2 rounded-3xl shadow-xl relative overflow-hidden print:bg-white print:text-slate-900 print:border-2 print:border-slate-900">
+                    <div className="flex flex-col gap-4 print:gap-2">
+                        <div className="bg-slate-900 text-white p-4 print:p-3 print:py-1.5 print:px-2.5 rounded-2xl shadow-lg relative overflow-hidden print:bg-white print:text-slate-900 print:border-[1.5px] print:border-slate-950">
                              {/* Decorative Shine */}
                             <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
                             
                             <div className="relative z-10">
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 opacity-60">Session Financial Overview</h4>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center pb-2 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-xs font-bold opacity-60">Tuition & Termly Fees</span>
-                                        <span className="font-mono text-base">GHS {pupilBill.toFixed(2)}</span>
+                                <h4 className="text-[8px] font-black uppercase tracking-widest mb-3 opacity-60">Financial Overview</h4>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
+                                        <span className="text-[10px] font-bold opacity-60">Termly Fees</span>
+                                        <span className="font-mono text-xs">GHS {pupilBill.toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center pb-2 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-xs font-bold opacity-60">Ancillary & Others</span>
-                                        <span className="font-mono text-base">GHS {otherFees.toFixed(2)}</span>
+                                    <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
+                                        <span className="text-[10px] font-bold opacity-60">Ancillary</span>
+                                        <span className="font-mono text-xs">GHS {otherFees.toFixed(2)}</span>
                                     </div>
-                                    <div className="pt-4 mt-2 flex justify-between items-end">
+                                    <div className="pt-2 flex justify-between items-end">
                                         <div>
-                                            <p className="text-[8px] font-black uppercase opacity-40 mb-1">Total Due</p>
-                                            <p className="text-2xl font-black">GHS {(pupilBill + otherFees).toFixed(2)}</p>
+                                            <p className="text-[7px] font-black uppercase opacity-40 mb-0.5">Total Due</p>
+                                            <p className="text-xl font-black">GHS {(pupilBill + otherFees).toFixed(2)}</p>
                                         </div>
-                                        <div className="h-10 w-10 bg-white/10 rounded-full flex items-center justify-center print:bg-slate-100">
-                                            <Building2 className="w-5 h-5 opacity-40 print:opacity-100 print:text-slate-400" />
+                                        <div className="h-6 w-6 bg-white/10 rounded-full flex items-center justify-center print:bg-slate-100">
+                                            <Building2 className="w-3 h-3 opacity-40 print:opacity-100 print:text-slate-400" />
                                         </div>
                                     </div>
                                 </div>
@@ -557,16 +557,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </div>
 
                         {/* Classic Signatures */}
-                        <div className="grid grid-cols-2 gap-8 mt-auto">
-                            <div className="text-center pt-8 relative">
-                                <div className="h-[2px] bg-slate-950 w-full mb-1"></div>
-                                <div className="h-[1px] bg-slate-950 w-full opacity-30 mt-[-3px] mb-2"></div>
-                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest">Class Preceptor</span>
+                        <div className="grid grid-cols-2 gap-6 mt-auto">
+                            <div className="text-center pt-5 relative">
+                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
+                                <div className="h-[0.5px] bg-slate-950 w-full opacity-30 mt-[-2px] mb-1"></div>
+                                <span className="text-[7px] font-black uppercase text-slate-900 tracking-widest">Class Preceptor</span>
                             </div>
-                            <div className="text-center pt-8 relative">
-                                <div className="h-[2px] bg-slate-950 w-full mb-1"></div>
-                                <div className="h-[1px] bg-slate-950 w-full opacity-30 mt-[-3px] mb-2"></div>
-                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest">Head of School</span>
+                            <div className="text-center pt-5 relative">
+                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
+                                <div className="h-[0.5px] bg-slate-950 w-full opacity-30 mt-[-2px] mb-1"></div>
+                                <span className="text-[7px] font-black uppercase text-slate-900 tracking-widest">Head of School</span>
                             </div>
                         </div>
                     </div>
@@ -605,12 +605,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 mt-8">
-                             <div className="text-center pt-10">
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+                             <div className="text-center pt-6">
                                 <div className="h-px bg-slate-200 w-full mb-1"></div>
                                 <span className="text-[7px] font-black uppercase text-slate-300 tracking-[0.2em]">Class Teacher</span>
                              </div>
-                             <div className="text-center pt-10">
+                             <div className="text-center pt-6">
                                 <div className="h-px bg-slate-200 w-full mb-1"></div>
                                 <span className="text-[7px] font-black uppercase text-slate-300 tracking-[0.2em]">Principal</span>
                              </div>
