@@ -354,20 +354,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const nurseryClasses = (rcConfig as any)?.nursery_classes || [];
 
     // Direct overrides
-    const isClassic = layoutPref === 'classic_tabular';
-    const isNursery = layoutPref === 'nursery' ? true : (
-        layoutPref === 'modern' ? false : (
-            // Check if class is in the explicit list OR use automatic logic
-            nurseryClasses.includes(student.class) || (
-                rcConfig?.use_nursery_layout !== false && (
-                    student.class.toLowerCase().includes('nursery') ||
-                    student.class.toLowerCase().includes('kg') ||
-                    student.class.toLowerCase().includes('creche') ||
-                    student.class.toLowerCase().includes('preschool')
-                )
-            )
-        )
-    );
+    const layoutAssignments = (rcConfig as any)?.class_layouts || {};
+    const classLayout = layoutAssignments[student.class] || layoutPref || 'modern';
+
+    const isNursery = classLayout === 'nursery';
+    const isClassic = classLayout === 'classic_tabular';
 
     const nurseryContent = (
         <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-12 print:p-4 print:p-2 min-h-[1056px] print:min-h-0 text-slate-800 flex flex-col font-serif relative overflow-hidden ${printMode ? 'p-0 shadow-none' : 'shadow-2xl border border-slate-100'}`} style={{ fontFamily: 'Georgia, serif' }}>

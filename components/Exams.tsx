@@ -1466,83 +1466,106 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         placeholder="e.g. 15th Jan, 2024"
                                     />
                                 </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Report Card Layout / Design</label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                        {[
-                                            { id: 'auto', name: 'Auto-detect', desc: 'Nursery vs Modern' },
-                                            { id: 'modern', name: 'Standard', desc: 'Modern Design' },
-                                            { id: 'classic_tabular', name: 'Classic', desc: 'Tabular Layout' },
-                                            { id: 'nursery', name: 'Nursery', desc: 'Early Years' }
-                                        ].map(layout => (
-                                            <button
-                                                key={layout.id}
-                                                type="button"
-                                                onClick={() => setLocalConfig({
-                                                    ...localConfig,
-                                                    report_card_config: {
-                                                        ...(localConfig.report_card_config || {}),
-                                                        layout: layout.id
-                                                    }
-                                                })}
-                                                className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                                                    (localConfig.report_card_config?.layout || 'auto') === layout.id
-                                                    ? 'border-primary-600 bg-primary-50 ring-4 ring-primary-100'
-                                                    : 'border-slate-100 bg-white hover:border-slate-200'
-                                                }`}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                                        (localConfig.report_card_config?.layout || 'auto') === layout.id ? 'text-primary-700' : 'text-slate-400'
-                                                    }`}>{layout.name}</span>
-                                                    <span className="text-[9px] font-bold text-slate-500 italic mt-0.5">{layout.desc}</span>
+                                <div className="md:col-span-2 pt-6 border-t border-slate-100">
+                                    <div className="flex justify-between items-end mb-6">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase text-slate-800 tracking-wider">Class Layout Assignments</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium">Assign a specific report card design to each class individually.</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400">
+                                                <div className="w-1.5 h-1.5 bg-primary-600 rounded-full"></div> Standard
+                                            </span>
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400">
+                                                <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></div> Classic
+                                            </span>
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400">
+                                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div> Nursery
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {[...availableClasses].sort().map(className => {
+                                            const currentLayout = localConfig?.report_card_config?.class_layouts?.[className] || 'modern';
+                                            return (
+                                                <div key={className} className="bg-white border-2 border-slate-100 rounded-2xl p-4 shadow-sm hover:border-primary-100 transition-all group">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <span className="text-[10px] font-black uppercase text-slate-700 truncate tracking-widest">{className}</span>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                            currentLayout === 'nursery' ? 'bg-blue-100 text-blue-700' :
+                                                            currentLayout === 'classic_tabular' ? 'bg-indigo-100 text-indigo-700' :
+                                                            'bg-primary-100 text-primary-700'
+                                                        }`}>
+                                                            {currentLayout === 'modern' ? 'Standard' : currentLayout === 'classic_tabular' ? 'Classic' : 'Nursery'}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-xl">
+                                                        {[
+                                                            { id: 'modern', icon: 'M', color: 'primary' },
+                                                            { id: 'classic_tabular', icon: 'C', color: 'indigo' },
+                                                            { id: 'nursery', icon: 'N', color: 'blue' }
+                                                        ].map(layout => (
+                                                            <button
+                                                                key={layout.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const currentMap = localConfig?.report_card_config?.class_layouts || {};
+                                                                    setLocalConfig({
+                                                                        ...localConfig,
+                                                                        report_card_config: {
+                                                                            ...(localConfig.report_card_config || {}),
+                                                                            class_layouts: {
+                                                                                ...currentMap,
+                                                                                [className]: layout.id
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                }}
+                                                                className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 ${
+                                                                    currentLayout === layout.id
+                                                                    ? `bg-${layout.color}-600 text-white shadow-md shadow-${layout.color}-100`
+                                                                    : 'text-slate-400 hover:bg-white hover:text-slate-600'
+                                                                }`}
+                                                            >
+                                                                <span className="text-[10px]">{layout.icon}</span>
+                                                                <span className="text-[7px] leading-none">
+                                                                    {layout.id === 'modern' ? 'Std' : layout.id === 'classic_tabular' ? 'Cls' : 'Nur'}
+                                                                </span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </button>
-                                        ))}
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="mt-6 flex flex-col items-center gap-2 p-4 bg-primary-50/50 rounded-2xl border border-primary-100">
+                                        <p className="text-[10px] text-primary-700 font-bold uppercase tracking-wider text-center">Batch Layout Actions</p>
+                                        <div className="flex gap-2">
+                                            {['modern', 'classic_tabular', 'nursery'].map(layoutId => (
+                                                <button
+                                                    key={layoutId}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newMap: any = {};
+                                                        availableClasses.forEach(c => newMap[c] = layoutId);
+                                                        setLocalConfig({
+                                                            ...localConfig,
+                                                            report_card_config: {
+                                                                ...(localConfig.report_card_config || {}),
+                                                                class_layouts: newMap
+                                                            }
+                                                        });
+                                                    }}
+                                                    className="bg-white px-3 py-1.5 rounded-lg border border-primary-100 text-[9px] font-black uppercase text-primary-600 hover:bg-primary-600 hover:text-white transition-all shadow-sm"
+                                                >
+                                                    Set All to {layoutId === 'modern' ? 'Standard' : layoutId === 'classic_tabular' ? 'Classic' : 'Nursery'}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                {(localConfig.report_card_config?.layout === 'auto' || localConfig.report_card_config?.layout === 'nursery') && (
-                                    <div className="md:col-span-2 pt-4 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 animate-in slide-in-from-top-2 duration-300">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <div>
-                                                <label className="block text-xs font-black text-slate-800 uppercase tracking-[0.2em]">Nursery / Creche Classes</label>
-                                                <p className="text-[10px] text-slate-400 font-medium">Select classes that should specifically use the Foundation/Nursery design.</p>
-                                            </div>
-                                            <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Layout Specific</span>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {availableClasses.map(className => {
-                                                const currentNursery = localConfig.report_card_config?.nursery_classes || [];
-                                                const isSelected = currentNursery.includes(className);
-                                                return (
-                                                    <button
-                                                        key={className}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const next = isSelected 
-                                                                ? currentNursery.filter((c: string) => c !== className)
-                                                                : [...currentNursery, className];
-                                                            setLocalConfig({
-                                                                ...localConfig,
-                                                                report_card_config: {
-                                                                    ...(localConfig.report_card_config || {}),
-                                                                    nursery_classes: next
-                                                                }
-                                                            });
-                                                        }}
-                                                        className={`px-4 py-2 rounded-xl border-2 text-xs font-black transition-all ${
-                                                            isSelected
-                                                            ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100'
-                                                            : 'border-slate-100 bg-white text-slate-500 hover:border-slate-300'
-                                                        }`}
-                                                    >
-                                                        {className}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
 
                                 <div className="md:col-span-2 space-y-4">
                                     <div className="flex justify-between items-center">
