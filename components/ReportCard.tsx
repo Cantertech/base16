@@ -346,12 +346,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const gpa = results.length > 0 ? (totalPoints / results.length).toFixed(2) : '0.00';
     const hasPointsSystem = schoolConfig?.grading?.some(g => g.points !== undefined && g.points > 0);
 
-    const isClassic = schoolConfig?.report_card_config?.layout === 'classic_tabular';
-    const isNursery = (schoolConfig?.report_card_config as any)?.use_nursery_layout !== false && (
-        student.class.toLowerCase().includes('nursery') ||
-        student.class.toLowerCase().includes('kg') ||
-        student.class.toLowerCase().includes('creche') ||
-        student.class.toLowerCase().includes('preschool')
+    const rcConfig = schoolConfig?.report_card_config;
+    const layoutPref = rcConfig?.layout;
+
+    // Direct overrides
+    const isClassic = layoutPref === 'classic_tabular';
+    const isNursery = layoutPref === 'nursery' ? true : (
+        layoutPref === 'modern' ? false : (
+            // Automatic logic (fallback if not explicitly set to 'modern', 'classic_tabular' or 'nursery')
+            rcConfig?.use_nursery_layout !== false && (
+                student.class.toLowerCase().includes('nursery') ||
+                student.class.toLowerCase().includes('kg') ||
+                student.class.toLowerCase().includes('creche') ||
+                student.class.toLowerCase().includes('preschool')
+            )
+        )
     );
 
     const nurseryContent = (

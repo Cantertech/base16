@@ -1439,6 +1439,41 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         placeholder="e.g. 15th Jan, 2024"
                                     />
                                 </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Report Card Layout / Design</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        {[
+                                            { id: 'auto', name: 'Auto-detect', desc: 'Nursery vs Modern' },
+                                            { id: 'modern', name: 'Standard', desc: 'Modern Design' },
+                                            { id: 'classic_tabular', name: 'Classic', desc: 'Tabular Layout' },
+                                            { id: 'nursery', name: 'Nursery', desc: 'Early Years' }
+                                        ].map(layout => (
+                                            <button
+                                                key={layout.id}
+                                                type="button"
+                                                onClick={() => setLocalConfig({
+                                                    ...localConfig,
+                                                    report_card_config: {
+                                                        ...(localConfig.report_card_config || {}),
+                                                        layout: layout.id
+                                                    }
+                                                })}
+                                                className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                                                    (localConfig.report_card_config?.layout || 'auto') === layout.id
+                                                    ? 'border-primary-600 bg-primary-50 ring-4 ring-primary-100'
+                                                    : 'border-slate-100 bg-white hover:border-slate-200'
+                                                }`}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${
+                                                        (localConfig.report_card_config?.layout || 'auto') === layout.id ? 'text-primary-700' : 'text-slate-400'
+                                                    }`}>{layout.name}</span>
+                                                    <span className="text-[9px] font-bold text-slate-500 italic mt-0.5">{layout.desc}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 <div className="md:col-span-2 space-y-4">
                                     <div className="flex justify-between items-center">
                                         <div>

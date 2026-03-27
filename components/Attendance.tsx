@@ -748,7 +748,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                     <table className="border-collapse w-full">
                                         <thead>
                                             <tr>
-                                                <th className="sticky left-0 top-0 z-40 bg-white border-b border-r border-slate-200 p-3 min-w-[200px] text-left text-xs font-bold text-slate-600 uppercase tracking-wider shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)]">
+                                                <th className="sticky left-0 top-0 z-40 bg-white border-b border-r border-slate-200 p-2 md:p-3 min-w-[100px] md:min-w-[200px] text-left text-[10px] md:text-xs font-bold text-slate-600 uppercase tracking-wider shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                                                     Student
                                                 </th>
                                                 {Array.from({ length: getDaysInMonth() }).map((_, i) => (
@@ -761,10 +761,10 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                         <tbody>
                                             {filteredStudents.map((student: any, idx: number) => (
                                                 <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-3 text-sm font-bold text-slate-700 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] whitespace-nowrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs text-slate-400 font-normal w-5">{idx + 1}.</span>
-                                                            {student.name}
+                                                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-2 md:p-3 text-xs md:text-sm font-bold text-slate-700 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)] truncate max-w-[100px] md:max-w-none">
+                                                        <div className="flex items-center gap-1 md:gap-2">
+                                                            <span className="text-[10px] text-slate-400 font-normal w-4 md:w-5 shrink-0">{idx + 1}.</span>
+                                                            <span className="truncate">{student.name}</span>
                                                         </div>
                                                     </td>
                                                     {Array.from({ length: getDaysInMonth() }).map((_, i) => {

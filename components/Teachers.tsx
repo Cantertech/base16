@@ -243,11 +243,33 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
     }
   });
 
+  const resetTeacherPasswordMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('admin_reset_teacher_password', { 
+        target_teacher_id: id, 
+        new_password: 'password123' 
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      alert('Password reset successfully to: password123');
+    },
+    onError: (error: any) => {
+      alert(`Failed to reset password: ${error.message}`);
+    }
+  });
+
   // --- Handlers ---
   const handleSaveTeacher = (data: any) => saveTeacherMutation.mutate(data);
   const handleDeleteTeacher = (id: string) => {
     if (window.confirm('Are you sure you want to remove this teacher? This will delete their login access too.')) {
       deleteTeacherMutation.mutate(id);
+    }
+  };
+
+  const handleResetPassword = (id: string) => {
+    if (window.confirm('Reset this teacher\'s password to default (password123)?')) {
+      resetTeacherPasswordMutation.mutate(id);
     }
   };
 
@@ -382,6 +404,13 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => handleResetPassword(teacher.id)}
+                        className="text-slate-400 hover:text-emerald-600 p-2 rounded-full hover:bg-emerald-50"
+                        title="Reset Password"
+                      >
+                        <Key className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleDeleteTeacher(teacher.id)}
                         className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50"
                       >
@@ -503,6 +532,13 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
                           title="Edit"
                         >
                           <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(teacher.id)}
+                          className="text-slate-400 hover:text-emerald-600 mx-1 p-1 rounded-full hover:bg-emerald-50 transition-colors"
+                          title="Reset Password"
+                        >
+                          <Key className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteTeacher(teacher.id)}
