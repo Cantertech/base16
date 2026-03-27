@@ -367,52 +367,60 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className="absolute inset-0 opacity-[0.02] pointer-events-none select-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
             {/* Header */}
-            <div className="text-center mb-10 print:mb-3 relative">
-                <div className="flex justify-center items-center gap-8 print:gap-4 print:p-4 print:p-2 mb-6 print:mb-2">
-                    {schoolConfig?.logo_url && (
-                        <div className="h-20 w-20 print:h-14 print:w-14 md:h-28 print:h-28 md:w-28 print:w-28 flex items-center justify-center p-2 bg-white border border-slate-200 rounded-full shadow-sm print-color-adjust-exact">
-                            <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
-                        </div>
-                    )}
-                    <div className="h-20 w-20 print:h-14 print:w-14 md:h-28 print:h-28 md:w-28 print:w-28 bg-slate-50 border-2 border-slate-900 rounded shadow-md flex items-center justify-center overflow-hidden shrink-0">
-                        {student.photo ? (
-                            <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
-                        ) : (
-                            <Building2 className="w-8 h-8 text-slate-200" />
+            {/* Header / Institutional Branding */}
+            <div className="relative mb-8 text-center border-b-4 border-slate-900 pb-10 print:pb-4 overflow-hidden rounded-t-[3rem]">
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/graphy-very-light.png')] h-full w-full"></div>
+                <div className="relative z-10 flex flex-col items-center">
+                    <div className="flex justify-center items-center gap-6 mb-6">
+                        {schoolConfig?.logo_url && (
+                            <div className="h-16 w-16 print:h-12 print:w-12 md:h-20 print:h-20 md:w-20 print:w-20 flex items-center justify-center p-2 bg-white border-2 border-slate-100 rounded-full shadow-lg print-color-adjust-exact">
+                                <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                            </div>
                         )}
+                        <div className="h-16 w-16 print:h-12 print:w-12 md:h-20 print:h-20 md:w-20 print:w-20 bg-slate-50 border-2 border-slate-900 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden shrink-0 rotate-3">
+                            {student.photo ? (
+                                <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
+                            ) : (
+                                <Building2 className="w-8 h-8 text-slate-200" />
+                            )}
+                        </div>
+                    </div>
+                    <div className="max-w-2xl mx-auto space-y-1">
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em] mb-1">Foundation Stage Unit</p>
+                        <h1 className="font-black text-2xl md:text-3xl print:text-3xl uppercase tracking-tighter text-slate-900 leading-tight mb-2">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
+                        <div className="w-16 h-1 bg-slate-900 mx-auto rounded-full"></div>
+                        <h2 className="font-black text-xl md:text-4xl print:text-4xl uppercase tracking-widest mt-6 text-slate-800 font-serif">Learner's Progress Report</h2>
                     </div>
                 </div>
-                <h1 className="font-black text-2xl md:text-4xl print:text-4xl uppercase tracking-tighter text-slate-900 mb-2">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
-                <p className="text-[10px] md:text-xs print:text-xs font-bold text-slate-500 uppercase tracking-[0.3em] mb-4">Foundation Stage Unit</p>
-                <div className="h-1 w-24 bg-slate-900 mx-auto rounded-full"></div>
-                <h2 className="font-black text-lg md:text-2xl print:text-2xl uppercase tracking-widest mt-6 text-slate-800">Learner's Progress Report</h2>
             </div>
 
             {/* Student Persona Grid */}
-            <div className="bg-slate-50 rounded-2xl p-6 print:p-3 print:py-1 print:px-2 mb-8 print:mb-3 border border-slate-200 grid grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-6 print:gap-3 print:p-3 print:py-1 print:px-2 relative z-10">
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Child's Full Name</span>
-                    <p className="text-sm md:text-lg print:text-lg font-black text-slate-900 border-b border-slate-300 pb-1">{student.name}</p>
+            <div className="bg-white rounded-3xl p-8 print:p-4 mb-10 print:mb-4 border-2 border-slate-100 shadow-xl shadow-slate-200/50 grid grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-8 relative z-10 overflow-hidden print:border-slate-950">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 opacity-50"></div>
+                
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Complete Name of Learner</span>
+                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{student.name}</p>
                 </div>
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Class / Developmental Stage</span>
-                    <p className="text-sm md:text-lg print:text-lg font-black text-slate-900 border-b border-slate-300 pb-1">{student.class}</p>
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Class / Developmental Stage</span>
+                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{student.class}</p>
                 </div>
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Academic Session</span>
-                    <p className="text-sm md:text-lg print:text-lg font-black text-slate-900 border-b border-slate-300 pb-1">{schoolConfig?.academic_year || '2025'}</p>
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Academic Session</span>
+                    <p className="text-sm md:text-xl print:text-xl font-black text-slate-900 border-b-2 border-slate-50 pb-1 leading-tight">{schoolConfig?.academic_year || '2025'}</p>
                 </div>
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Term</span>
-                    <p className="text-sm font-black text-slate-700 border-b border-slate-200 pb-1">{schoolConfig?.current_term || schoolConfig?.term || 'First Term'}</p>
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Current Term</span>
+                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1 uppercase">{schoolConfig?.current_term || schoolConfig?.term || 'First Term'}</p>
                 </div>
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Attendance</span>
-                    <p className="text-sm font-black text-slate-700 border-b border-slate-200 pb-1">{attendancePresentDays} / {attendanceTotalDays || '-'}</p>
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance Summary</span>
+                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1">{attendancePresentDays} Days Present (Out of {attendanceTotalDays || '-'})</p>
                 </div>
-                <div className="space-y-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase">Next Level Begins</span>
-                    <p className="text-sm font-black text-slate-700 border-b border-slate-200 pb-1">
+                <div className="space-y-1 relative z-10">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Next Level Commences</span>
+                    <p className="text-[11px] font-black text-slate-700 border-b border-slate-50 pb-1">
                         {schoolConfig?.next_term_reopens ? new Date(schoolConfig.next_term_reopens).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '................'}
                     </p>
                 </div>
@@ -420,32 +428,62 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* Core Assessment Areas */}
             <div className="space-y-2 mb-3 print:mb-1 flex-1">
-                <div className="flex items-center gap-3 print:p-1 mb-3 print:mb-1">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] bg-slate-900 text-white px-2 py-0.5 print:bg-transparent print:border-y print:border-slate-900 print:text-slate-900">Assessment of Learning</h3>
-                    <div className="flex-1 h-px bg-slate-200"></div>
+                <div className="flex items-center gap-3 mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] bg-slate-900 text-white px-3 py-1 rounded-sm shadow-sm print:bg-transparent print:border-y print:border-slate-950 print:text-slate-900">Assessment of Learning Pathways</h3>
+                    <div className="flex-1 h-px bg-slate-100"></div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-y-3">
-                    {results.length > 0 ? results.map((result, idx) => (
-                        <div key={idx} className="group">
-                            <div className="flex justify-between items-end gap-2 print:p-1 mb-0.5">
-                                <span className="text-[10px] font-black uppercase text-slate-900 tracking-wide">{result.subject}</span>
-                                <span className="text-[9px] font-bold text-slate-500 italic">
-                                    {result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging'}
-                                </span>
-                            </div>
-                            <div className="h-1 bg-slate-100 rounded-full overflow-hidden flex">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-1000 ${result.total >= 80 ? 'bg-green-500' : result.total >= 60 ? 'bg-blue-500' : 'bg-orange-500'}`}
-                                    style={{ width: `${result.total}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    )) : (
-                        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-xl">
-                            <p className="text-slate-400 font-bold italic">No specific assessment data recorded for this term.</p>
-                        </div>
-                    )}
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white print:border-slate-950">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 print:bg-slate-100 print:border-slate-950">
+                                <th className="text-left px-5 py-3 text-[9px] font-black uppercase text-slate-500 tracking-widest print:py-1">Developmental Area / Competency</th>
+                                <th className="text-center px-4 py-3 text-[9px] font-black uppercase text-slate-500 tracking-widest w-32 border-l border-slate-200 print:py-1 print:border-slate-950">Status achieved</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 print:divide-slate-950">
+                            {results.length > 0 ? results.map((result, idx) => {
+                                const status = result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging';
+                                const statusColor = result.total >= 80 ? 'text-green-600' : result.total >= 60 ? 'text-blue-600' : 'text-orange-600';
+                                return (
+                                    <tr key={idx} className="group hover:bg-slate-50 transition-colors">
+                                        <td className="px-5 py-2.5 text-[10px] font-bold text-slate-800 uppercase tracking-tight print:py-1">{result.subject}</td>
+                                        <td className="px-4 py-2.5 text-center border-l border-slate-100 print:py-1 print:border-slate-950">
+                                            <span className={`text-[9px] font-black uppercase tracking-tighter ${statusColor}`}>
+                                                {status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            }) : (
+                                <tr>
+                                    <td colSpan={2} className="py-10 text-center text-slate-400 font-bold italic text-xs">No specific assessment data recorded for this term.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                        {results.length > 0 && (
+                            <tfoot>
+                                <tr className="bg-slate-50/50 border-t border-slate-200 print:bg-transparent print:border-slate-950">
+                                    <td colSpan={2} className="px-5 py-2">
+                                        <div className="flex justify-center gap-8 py-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                                <span className="text-[7px] font-black uppercase text-slate-400">Mastered (M)</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                <span className="text-[7px] font-black uppercase text-slate-400">Developing (D)</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                                                <span className="text-[7px] font-black uppercase text-slate-400">Emerging (E)</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
                 </div>
             </div>
 

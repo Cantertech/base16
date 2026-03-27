@@ -1100,12 +1100,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         <thead className="bg-white border-b border-slate-200">
                                             <tr>
                                                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                                {examConfig.grading_type !== 'COMPETENCY' && (
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                                {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' ? (
+                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Progress Status</th>
+                                                ) : (
+                                                    <>
+                                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
+                                                        )}
+                                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
+                                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
+                                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
+                                                    </>
                                                 )}
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -1120,26 +1126,47 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 return (
                                                     <tr key={student.id} className="hover:bg-slate-50">
                                                         <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
-                                                        {examConfig.grading_type !== 'COMPETENCY' && (
+                                                        {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' ? (
                                                             <td className="px-6 py-3 text-center">
-                                                                <input
-                                                                    type="number"
-                                                                    value={dispClass || ''}
-                                                                    onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                    className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                                                                />
+                                                                <select
+                                                                    value={dispExam || ''}
+                                                                    onChange={(e) => {
+                                                                        handleScoreChange(student.id, 'examScore', e.target.value);
+                                                                        handleScoreChange(student.id, 'classScore', '0');
+                                                                    }}
+                                                                    className="w-full max-w-[200px] p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                                                                >
+                                                                    <option value="">Select Level...</option>
+                                                                    <option value="90">Mastered (Confident)</option>
+                                                                    <option value="70">Developing (Steady)</option>
+                                                                    <option value="40">Emerging (Beginning)</option>
+                                                                    <option value="0">Not Assessed</option>
+                                                                </select>
                                                             </td>
+                                                        ) : (
+                                                            <>
+                                                                {examConfig.grading_type !== 'COMPETENCY' && (
+                                                                    <td className="px-6 py-3 text-center">
+                                                                        <input
+                                                                            type="number"
+                                                                            value={dispClass || ''}
+                                                                            onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                                            className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                        />
+                                                                    </td>
+                                                                )}
+                                                                <td className="px-6 py-3 text-center">
+                                                                    <input
+                                                                        type="number"
+                                                                        value={dispExam || ''}
+                                                                        onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                                        className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-6 py-3 text-center font-bold">{total}</td>
+                                                                <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
+                                                            </>
                                                         )}
-                                                        <td className="px-6 py-3 text-center">
-                                                            <input
-                                                                type="number"
-                                                                value={dispExam || ''}
-                                                                onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                                className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-3 text-center font-bold">{total}</td>
-                                                        <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
                                                     </tr>
                                                 );
                                             })}
