@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Building2, Save, Plus } from 'lucide-react';
+import { X, Printer, Building2, Save, Plus, PenTool } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { supabase } from '../utils/supabaseClient';
 
@@ -362,9 +362,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     const nurseryContent = (
         <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-12 print:p-4 print:p-2 min-h-[1056px] print:min-h-0 text-slate-800 flex flex-col font-serif relative overflow-hidden ${printMode ? 'p-0 shadow-none' : 'shadow-2xl border border-slate-100'}`} style={{ fontFamily: 'Georgia, serif' }}>
+            {/* Premium Watermark */}
+            {schoolConfig?.logo_url && (
+                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none z-0">
+                    <img src={schoolConfig.logo_url} alt="" className="w-1/2 grayscale" />
+                </div>
+            )}
 
-            {/* Soft background pattern for Nursery */}
-            <div className="absolute inset-0 opacity-[0.02] pointer-events-none select-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+            {/* Elegant Corner Ornaments */}
+            <div className="absolute top-4 left-4 w-12 h-12 border-t-2 border-l-2 border-slate-200 pointer-events-none"></div>
+            <div className="absolute top-4 right-4 w-12 h-12 border-t-2 border-r-2 border-slate-200 pointer-events-none"></div>
+            <div className="absolute bottom-4 left-4 w-12 h-12 border-b-2 border-l-2 border-slate-200 pointer-events-none"></div>
+            <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-slate-200 pointer-events-none"></div>
+
+            {/* Soft texture background */}
+            <div className="absolute inset-0 opacity-[0.015] pointer-events-none select-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]"></div>
 
             {/* Header */}
             {/* Classic-Style Institutional Header */}
@@ -391,12 +403,14 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
                     
                     <div className="max-w-3xl mx-auto">
-                        <h1 className="font-serif text-2xl md:text-3xl print:text-2xl font-black uppercase tracking-tight text-slate-900 leading-none mb-0.5">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
-                        <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.4em] mb-2 print:mb-1">Early Years Foundation Stage (EYFS)</p>
-                        <div className="flex items-center justify-center gap-3">
-                            <div className="h-[1px] w-8 bg-slate-300"></div>
-                            <h2 className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-800">Terminal Narrative Report</h2>
-                            <div className="h-[1px] w-8 bg-slate-300"></div>
+                        <h1 className="font-serif text-3xl md:text-3xl print:text-3xl font-black uppercase tracking-tight text-slate-900 leading-none mb-1 shadow-sm">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
+                        <div className="flex items-center justify-center gap-2 mb-3">
+                            <span className="h-0.5 w-6 bg-slate-900/10"></span>
+                            <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.5em]">Foundation Stage Assessment</p>
+                            <span className="h-0.5 w-6 bg-slate-900/10"></span>
+                        </div>
+                        <div className="inline-block px-10 py-1 border-y-2 border-slate-950/20">
+                            <h2 className="text-[14px] font-black uppercase tracking-[0.25em] text-slate-950 italic">Terminal Narrative Report</h2>
                         </div>
                     </div>
                 </div>
@@ -438,14 +452,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 </div>
             </div>
 
-            {/* Assessment Core - Tabular Design (Classic) */}
-            <div className="space-y-1 mb-1 print:mb-0.5 flex-1">
-                <div className="flex items-center gap-2 mb-2 print:mb-1">
-                    <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-950 font-serif underline decoration-double decoration-slate-300 underline-offset-2">Academic & Developmental Milestones</h3>
-                    <div className="flex-1 h-[1px] bg-slate-950 opacity-10"></div>
+            {/* Assessment Core - Premium Classic Table */}
+            <div className="space-y-1 mb-1 print:mb-0.5 flex-1 relative z-10">
+                <div className="flex items-center gap-3 mb-3 print:mb-1.5 px-1">
+                    <div className="w-1.5 h-1.5 bg-slate-950 rotate-45"></div>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-950 font-serif">Assessment Summary</h3>
+                    <div className="flex-1 h-[1px] bg-slate-950/20"></div>
                 </div>
 
-                <div className="border-t-[1.5px] border-b-[1.5px] border-slate-950 overflow-hidden bg-white">
+                <div className="border border-slate-950 shadow-[4px_4px_0px_rgba(0,0,0,0.05)] bg-white">
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-slate-900 text-white print:bg-slate-50 print:text-slate-900">
@@ -456,12 +471,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <tbody className="divide-y divide-slate-100 print:divide-slate-950 border-x border-slate-950">
                             {results.length > 0 ? results.map((result, idx) => {
                                 const status = (result as any).competency_status || (result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging');
-                                const statusColor = (result as any).competency_status ? 'text-slate-900' : (result.total >= 80 ? 'text-green-700' : result.total >= 60 ? 'text-blue-700' : 'text-orange-700');
+                                const statusColor = (result as any).competency_status ? 'text-slate-900 font-black' : (result.total >= 80 ? 'text-green-700 font-black' : result.total >= 60 ? 'text-blue-700 font-black' : 'text-orange-700 font-black');
                                 return (
-                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-transparent'}>
-                                        <td className="px-4 py-1.5 text-[9px] font-black text-slate-900 uppercase tracking-tight print:py-1">{result.subject}</td>
-                                        <td className="px-4 py-1.5 text-center border-l border-slate-100 print:border-slate-300">
-                                            <span className={`text-[9px] font-black uppercase tracking-tighter italic ${statusColor}`}>
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30 print:bg-transparent'}>
+                                        <td className="px-5 py-2 text-[10px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
+                                        <td className="px-4 py-2 text-center border-l border-slate-100 print:border-slate-300">
+                                            <span className={`text-[10px] uppercase tracking-tighter italic ${statusColor}`}>
                                                 {status === '90' ? 'Mastered' : status === '70' ? 'Developing' : status === '40' ? 'Emerging' : status}
                                             </span>
                                         </td>
@@ -469,59 +484,67 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan={2} className="py-6 text-center text-slate-400 font-bold italic text-[10px]">No assessment recorded.</td>
+                                    <td colSpan={2} className="py-10 text-center text-slate-400 font-bold italic text-[11px] uppercase tracking-widest">No Narrative Recorded</td>
                                 </tr>
                             )}
                         </tbody>
-                        {results.length > 0 && (
-                            <tfoot className="border-t-[1.5px] border-slate-950">
-                                <tr className="bg-slate-50 print:bg-white text-[7px]">
-                                    <td colSpan={2} className="px-4 py-1.5">
-                                        <div className="flex justify-start gap-8 items-center">
-                                            <span className="font-black uppercase text-slate-400 tracking-widest mr-1 opacity-50">Legend:</span>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 bg-green-100 border border-green-600 rounded-sm"></div>
-                                                <span className="font-black uppercase text-slate-600">Mastered</span>
+                        <tfoot className="border-t border-slate-950">
+                            <tr className="bg-slate-50 print:bg-white text-[8px]">
+                                <td colSpan={2} className="px-5 py-2">
+                                    <div className="flex justify-between items-center opacity-80">
+                                        <span className="font-black uppercase text-slate-400 tracking-widest border-r border-slate-300 pr-4 mr-4">Performance Key</span>
+                                        <div className="flex flex-1 justify-start gap-10">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
+                                                <span className="font-black uppercase text-slate-600 tracking-wider">Mastered (M)</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 bg-blue-100 border border-blue-600 rounded-sm"></div>
-                                                <span className="font-black uppercase text-slate-600">Developing</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
+                                                <span className="font-black uppercase text-slate-600 tracking-wider">Developing (D)</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 bg-orange-100 border border-orange-600 rounded-sm"></div>
-                                                <span className="font-black uppercase text-slate-600">Emerging</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 bg-orange-600 rounded-full"></div>
+                                                <span className="font-black uppercase text-slate-600 tracking-wider">Emerging (E)</span>
                                             </div>
                                         </div>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
 
             {/* Classic Narrative Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-3 mb-2 print:mb-1 pt-3 border-t border-slate-200">
-                <div className="space-y-3">
-                    <div className="relative">
-                        <div className="absolute -left-2 top-0 bottom-0 w-[1.5px] bg-slate-900 opacity-20"></div>
-                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Class Teacher's Evaluative Remark</span>
-                        <textarea
-                            value={teacherRemark}
-                            onChange={(e) => setTeacherRemark(e.target.value)}
-                            className="w-full bg-slate-50/30 border border-slate-100 rounded-lg p-2 print:p-1 text-[10px] font-bold text-slate-900 italic leading-snug h-16 print:h-12 resize-none outline-none border-dashed"
-                            placeholder="Type progress notes here..."
-                        />
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 mb-2 print:mb-1 pt-4 border-t-2 border-slate-100 relative z-10">
+                <div className="space-y-4">
+                    <div className="relative group">
+                        <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
+                            <div className="w-1 h-3 bg-slate-900"></div>
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Lead Educator's Evaluation</span>
+                        </div>
+                        <div className="border border-slate-200 border-dashed rounded-lg p-0.5 bg-slate-50/20">
+                            <textarea
+                                value={teacherRemark}
+                                onChange={(e) => setTeacherRemark(e.target.value)}
+                                className="w-full bg-transparent border border-slate-100 rounded p-2.5 print:p-1.5 text-[11px] font-bold text-slate-900 italic leading-snug h-20 print:h-14 resize-none outline-none focus:bg-white transition-all"
+                                placeholder="..."
+                            />
+                        </div>
                     </div>
-                    <div className="relative">
-                        <div className="absolute -left-2 top-0 bottom-0 w-[1.5px] bg-slate-900"></div>
-                        <span className="text-[8px] font-black uppercase text-slate-900 tracking-widest mb-1 block">Principal's Directives</span>
-                        <textarea
-                            value={principalRemark}
-                            onChange={(e) => setPrincipalRemark(e.target.value)}
-                            className="w-full bg-white border-2 border-slate-100 rounded-lg p-2 print:p-1 text-[10px] font-black text-slate-950 italic leading-snug h-12 print:h-8 resize-none outline-none border-double"
-                            placeholder="..."
-                        />
+                    <div className="relative group">
+                        <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
+                            <div className="w-1 h-3 bg-slate-900 opacity-40"></div>
+                            <span className="text-[9px] font-black uppercase text-slate-900 tracking-[0.2em]">Principal's Final Remark</span>
+                        </div>
+                        <div className="border-2 border-double border-slate-200 rounded-lg p-0.5 bg-white">
+                            <textarea
+                                value={principalRemark}
+                                onChange={(e) => setPrincipalRemark(e.target.value)}
+                                className="w-full bg-transparent border-none p-2.5 print:p-1.5 text-[11px] font-black text-slate-950 italic leading-snug h-12 print:h-10 resize-none outline-none"
+                                placeholder="..."
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -557,16 +580,22 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </div>
 
                         {/* Classic Signatures */}
-                        <div className="grid grid-cols-2 gap-6 mt-auto">
-                            <div className="text-center pt-5 relative">
+                        <div className="grid grid-cols-2 gap-8 mt-auto px-4">
+                            <div className="text-center pt-6 relative group">
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <PenTool className="w-full h-full text-slate-900" />
+                                </div>
                                 <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
-                                <div className="h-[0.5px] bg-slate-950 w-full opacity-30 mt-[-2px] mb-1"></div>
-                                <span className="text-[7px] font-black uppercase text-slate-900 tracking-widest">Class Preceptor</span>
+                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5"></div>
+                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-[0.2em]">Lead Preceptor</span>
                             </div>
-                            <div className="text-center pt-5 relative">
+                            <div className="text-center pt-6 relative group">
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <PenTool className="w-full h-full text-slate-900" />
+                                </div>
                                 <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
-                                <div className="h-[0.5px] bg-slate-950 w-full opacity-30 mt-[-2px] mb-1"></div>
-                                <span className="text-[7px] font-black uppercase text-slate-900 tracking-widest">Head of School</span>
+                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5"></div>
+                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-[0.2em]">Head of Institution</span>
                             </div>
                         </div>
                     </div>

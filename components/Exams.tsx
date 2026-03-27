@@ -342,8 +342,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 const isClassTeacher = classAssignment.some((a: any) => a.isClassTeacher);
 
                 if (isClassTeacher) {
-                    // Class teacher: see target subjects or all subjects
-                    if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
+                    // Class teacher: see ALL subjects assigned to this class specifically
+                    const classSubjs = subjectAssignments
+                        .filter((sa: any) => sa.classes?.name === selectedClass)
+                        .map((sa: any) => sa.subjects?.name)
+                        .filter(Boolean);
+
+                    if (classSubjs.length > 0) {
+                        setAvailableSubjects(classSubjs);
+                    } else if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
                         setAvailableSubjects(examConfig.target_subjects);
                     } else {
                         setAvailableSubjects(allSubjects);
