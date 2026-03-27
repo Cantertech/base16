@@ -251,6 +251,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId
     });
 
+    const { data: subjectAssignments = [] } = useQuery({
+        queryKey: ['subjectAssignments', schoolId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('subject_assignments')
+                .select('class_id, classes(name), subject_id, subjects(name)')
+                .eq('school_id', schoolId);
+            return data || [];
+        },
+        enabled: !!schoolId
+    });
+
     const { data: examConfig, isLoading: isConfigLoading } = useQuery({
         queryKey: ['examConfig', schoolId],
         queryFn: () => fetchExamConfig(schoolId!, schoolInfo?.exam_config),
@@ -339,11 +351,26 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 }
             }
         } else if (allSubjects.length > 0) {
-            // Admin: see all subjects involved in exam (or just all subjects)
-            if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
-                setAvailableSubjects(examConfig.target_subjects);
+            // Admin: Filter by class if selected, otherwise show all subjs in config or school
+            if (selectedClass) {
+                const classAssigned = subjectAssignments
+                    .filter((sa: any) => sa.classes?.name === selectedClass)
+                    .map((sa: any) => sa.subjects?.name)
+                    .filter(Boolean);
+                
+                if (classAssigned.length > 0) {
+                    setAvailableSubjects(classAssigned);
+                } else if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
+                    setAvailableSubjects(examConfig.target_subjects);
+                } else {
+                    setAvailableSubjects(allSubjects);
+                }
             } else {
-                setAvailableSubjects(allSubjects);
+                if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
+                    setAvailableSubjects(examConfig.target_subjects);
+                } else {
+                    setAvailableSubjects(allSubjects);
+                }
             }
         }
     }, [selectedClass, myAssignments, examConfig, allSubjects, currentUser]);
@@ -1724,7 +1751,34 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 reportStudent && (
                     <ReportCard
                         student={students.find(s => s.id === reportStudent.id)!}
-                        results={results.filter((r: Result) => r.studentId === reportStudent.id)}
+                        results={(() => {
+                            const studentResults = results.filter((r: Result) => r.studentId === reportStudent.id);
+                            
+                            // Prefill subjects for the class that don't have results entered yet
+                            const classSubjects = subjectAssignments
+                                .filter((sa: any) => sa.classes?.name === reportStudent.class)
+                                .map((sa: any) => sa.subjects?.name)
+                                .filter(Boolean);
+                            
+                            if (classSubjects.length === 0) return studentResults;
+
+                            const fullResults = [...studentResults];
+                            classSubjects.forEach(subjName => {
+                                if (!fullResults.some(r => r.subject === subjName)) {
+                                    fullResults.push({
+                                        id: `temp-${subjName}`,
+                                        studentId: reportStudent.id,
+                                        studentName: reportStudent.name,
+                                        class: reportStudent.class,
+                                        subject: subjName,
+                                        classScore: 0,
+                                        examScore: 0,
+                                        total: 0
+                                    });
+                                }
+                            });
+                            return fullResults;
+                        })()}
                         schoolConfig={{
                             ...schoolInfo,
                             ...examConfig,
@@ -1750,7 +1804,34 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     <ReportCard
                                         key={student.id}
                                         student={student}
-                                        results={results.filter((r: Result) => r.studentId === student.id)}
+                                        results={(() => {
+                                            const studentResults = results.filter((r: Result) => r.studentId === student.id);
+                                            
+                                            // Prefill for bulk print as well
+                                            const classSubjects = subjectAssignments
+                                                .filter((sa: any) => sa.classes?.name === student.class)
+                                                .map((sa: any) => sa.subjects?.name)
+                                                .filter(Boolean);
+                                            
+                                            if (classSubjects.length === 0) return studentResults;
+
+                                            const fullResults = [...studentResults];
+                                            classSubjects.forEach(subjName => {
+                                                if (!fullResults.some(r => r.subject === subjName)) {
+                                                    fullResults.push({
+                                                        id: `temp-${subjName}`,
+                                                        studentId: student.id,
+                                                        studentName: student.name,
+                                                        class: student.class,
+                                                        subject: subjName,
+                                                        classScore: 0,
+                                                        examScore: 0,
+                                                        total: 0
+                                                    });
+                                                }
+                                            });
+                                            return fullResults;
+                                        })()}
                                         schoolConfig={{
                                             ...schoolInfo,
                                             ...examConfig,
