@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     CheckCircle, User, Loader2, Save, Download, Copy,
     History, ShoppingCart, MessageSquare, AlertCircle, RefreshCw, X, ChevronRight,
-    Building2, Lock, CreditCard, Upload, Gift, Layout, Smartphone
+    Building2, Lock, CreditCard, Upload, Gift, Layout, Smartphone,
+    Eye, EyeOff
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -131,6 +132,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<any>(null);
+    const [showPasswords, setShowPasswords] = useState(false);
 
 
 
@@ -730,25 +732,43 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-                                        <input
-                                            required
-                                            type="password"
-                                            value={passwords.new}
-                                            onChange={e => setPasswords({ ...passwords, new: e.target.value })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                            placeholder="••••••••"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                required
+                                                type={showPasswords ? "text" : "password"}
+                                                value={passwords.new}
+                                                onChange={e => setPasswords({ ...passwords, new: e.target.value })}
+                                                className="w-full p-2.5 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                                placeholder="••••••••"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPasswords(!showPasswords)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                {showPasswords ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                            </button>
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
-                                        <input
-                                            required
-                                            type="password"
-                                            value={passwords.confirm}
-                                            onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
-                                            placeholder="••••••••"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                required
+                                                type={showPasswords ? "text" : "password"}
+                                                value={passwords.confirm}
+                                                onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
+                                                className="w-full p-2.5 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                                placeholder="••••••••"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPasswords(!showPasswords)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                {showPasswords ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
