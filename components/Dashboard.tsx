@@ -301,7 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         enabled: !!currentUser.school_id
     });
 
-    // Check if teacher has payslips
+    /* Hide payslips for now
     const { data: hasPayslips = false } = useQuery({
         queryKey: ['checkPayslips', currentUser.id],
         queryFn: async () => {
@@ -315,6 +315,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         },
         enabled: currentUser.role === 'teacher'
     });
+    */
+    const hasPayslips = false; // Forced to false to hide menu
 
     // 4. Recent Notices
     const { data: recentNotices = [] } = useQuery({
@@ -640,7 +642,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         { name: 'My Students', icon: Users },
         { name: 'Attendance', icon: Calendar },
         ...(schoolConfig?.teachers_can_collect_feeding ? [{ name: 'Feeding', icon: Utensils }] : []),
-        ...(hasPayslips ? [{ name: 'My Payroll', icon: Banknote }] : []),
+        // ...(hasPayslips ? [{ name: 'My Payroll', icon: Banknote }] : []),
         { name: 'Mark Entry & Reports', icon: FileText },
         { name: 'Notice Board', icon: Bell },
         { name: 'Settings & Profile', icon: SettingsIcon },
@@ -703,7 +705,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'My Students': return <Students currentUser={currentUser} />;
                 case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
                 case 'Feeding': return <Feeding currentUser={currentUser} />;
-                case 'My Payroll': return <MyPayroll currentUser={currentUser} />;
+                // case 'My Payroll': return <MyPayroll currentUser={currentUser} />;
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} activeModules={activeModules} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
