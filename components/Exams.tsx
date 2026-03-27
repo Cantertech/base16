@@ -44,6 +44,7 @@ interface ExamsProps {
         name: string;
         assignedClass?: string;
     };
+    activeModules?: string[];
 }
 
 // --- Fetch Functions ---
@@ -104,8 +105,11 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
     };
 
     if (configData) {
-        if (configData.current_term) baseConfig.current_term = configData.current_term;
-        if (configData.academic_year) baseConfig.academic_year = configData.academic_year;
+        // Use spread to get all saved values, then override specific derived ones
+        baseConfig = {
+            ...baseConfig,
+            ...configData
+        };
         if (configData.mark_entry_enabled !== undefined) baseConfig.mark_entry_enabled = configData.mark_entry_enabled;
         if (baseConfig.mark_entry_enabled) baseConfig.status = 'OPEN';
         else if (!baseConfig.mark_entry_enabled && baseConfig.status === 'OPEN') baseConfig.status = 'LOCKED';
@@ -207,7 +211,7 @@ const fetchStudentRank = async (schoolId: string, studentId: string, term: strin
 
 
 // --- Main Component ---
-const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
+const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const queryClient = useQueryClient();
 
     // Admin Tabs: 'setup', 'monitoring', 'publishing'
@@ -1185,6 +1189,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         onClose={() => setReportStudent(null)}
                         position={studentRank}
                         schoolId={schoolId}
+                        activeModules={activeModules}
                         printMode={false}
                         savedReportData={allReportCards.find((r: any) => r.student_id === reportStudent.id)}
                     />
@@ -1406,6 +1411,98 @@ const Exams: React.FC<ExamsProps> = ({ currentUser }) => {
                         </div>
 
 
+
+                        <div className="pt-6 border-t border-slate-100 space-y-6">
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="text-sm font-black uppercase text-slate-800 tracking-tight">Report Card Defaults</h4>
+                                <span className="bg-primary-50 text-primary-700 text-[10px] font-black px-2 py-0.5 rounded tracking-widest uppercase">Customizable</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Total Attendance Days</label>
+                                    <input 
+                                        type="number" 
+                                        value={localConfig.term_total_days || ''} 
+                                        onChange={e => setLocalConfig({ ...localConfig, term_total_days: Number(e.target.value) })} 
+                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold" 
+                                        placeholder="e.g. 75"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Next Term Reopens</label>
+                                    <input 
+                                        type="text" 
+                                        value={localConfig.next_term_reopens || ''} 
+                                        onChange={e => setLocalConfig({ ...localConfig, next_term_reopens: e.target.value })} 
+                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold" 
+                                        placeholder="e.g. 15th Jan, 2024"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">Global Report Card Sections</label>
+                                            <p className="text-[10px] text-slate-400 font-medium">Add sections that will appear on ALL students' report cards (e.g. Items to Buy, Physical Notes, etc.)</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                const sections = [...(localConfig.global_report_sections || []), { title: '', content: '' }];
+                                                setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                            }}
+                                            className="flex items-center gap-1.5 bg-primary-50 text-primary-600 px-3 py-1.5 rounded-lg hover:bg-primary-100 transition-all font-black text-[10px] uppercase shadow-sm"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Add Global Section
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {(localConfig.global_report_sections || []).map((section: any, idx: number) => (
+                                            <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group">
+                                                <button 
+                                                    onClick={() => {
+                                                        const sections = localConfig.global_report_sections.filter((_: any, i: number) => i !== idx);
+                                                        setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                    }}
+                                                    className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg z-10"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                                <div className="space-y-3">
+                                                    <input 
+                                                        type="text" 
+                                                        value={section.title} 
+                                                        onChange={e => {
+                                                            const sections = [...localConfig.global_report_sections];
+                                                            sections[idx].title = e.target.value;
+                                                            setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                        }}
+                                                        placeholder="Section Title (e.g. Items to Buy)"
+                                                        className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-[10px] font-black uppercase text-primary-600 outline-none focus:bg-white focus:border-primary-300"
+                                                    />
+                                                    <textarea 
+                                                        value={section.content} 
+                                                        onChange={e => {
+                                                            const sections = [...localConfig.global_report_sections];
+                                                            sections[idx].content = e.target.value;
+                                                            setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                        }}
+                                                        className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-medium h-20 resize-none outline-none focus:bg-white focus:border-primary-300"
+                                                        placeholder="Default content for all students..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {(!localConfig.global_report_sections || localConfig.global_report_sections.length === 0) && (
+                                            <div className="md:col-span-2 p-8 border-2 border-dashed border-slate-100 rounded-2xl text-center">
+                                                <p className="text-xs font-bold text-slate-300 italic uppercase">No global sections added yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="flex justify-end pt-4">
                             <button onClick={() => handleSaveConfig(localConfig)} disabled={saveConfigMutation.isPending} className="w-full md:w-auto bg-primary-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-200 hover:bg-primary-700 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50">

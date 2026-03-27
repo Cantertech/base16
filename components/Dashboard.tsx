@@ -704,7 +704,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
                 case 'Feeding': return <Feeding currentUser={currentUser} />;
                 case 'My Payroll': return <MyPayroll currentUser={currentUser} />;
-                case 'Mark Entry & Reports': return <Exams currentUser={currentUser} />;
+                case 'Mark Entry & Reports': return <Exams currentUser={currentUser} activeModules={activeModules} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
@@ -717,7 +717,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
             case 'Fees': return <Fees currentUser={currentUser} />;
             case 'Feeding': return <Feeding currentUser={currentUser} />;
-            case 'Exam': return <Exams currentUser={currentUser} />;
+            case 'Exam': return <Exams currentUser={currentUser} activeModules={activeModules} />;
             case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice': return <Communication currentUser={currentUser} />;

@@ -800,6 +800,14 @@ const AddSubjectModal = ({ existingData, availableClasses, allSubjects, defaultC
         }
     };
 
+    const selectAllClasses = () => {
+        if (selectedClasses.length === availableClasses.length) {
+            setSelectedClasses([]);
+        } else {
+            setSelectedClasses([...availableClasses]);
+        }
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave({ id: existingData?.id || suggestedId, name, code, type, classes: selectedClasses });
@@ -840,7 +848,7 @@ const AddSubjectModal = ({ existingData, availableClasses, allSubjects, defaultC
                                             <p className="font-bold text-sm text-slate-800">{s.name}</p>
                                             <p className="text-[10px] text-slate-400 font-mono italic">Assigned to: {s.classes.join(', ')}</p>
                                         </div>
-                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">Assign Also</span>
+                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">Assign Classes</span>
                                     </button>
                                 ))}
                             </div>
@@ -872,8 +880,17 @@ const AddSubjectModal = ({ existingData, availableClasses, allSubjects, defaultC
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Assigned Classes</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-sm font-medium text-slate-700">Assigned Classes</label>
+                            <button 
+                                type="button" 
+                                onClick={selectAllClasses}
+                                className="text-[10px] font-black uppercase text-primary-600 hover:text-primary-700"
+                            >
+                                {selectedClasses.length === availableClasses.length ? 'Clear All' : 'Select All'}
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-slate-200 rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto scrollbar-thin">
                             {availableClasses.length > 0 ? availableClasses.map((cls: string) => (
                                 <button
                                     key={cls}
@@ -881,14 +898,14 @@ const AddSubjectModal = ({ existingData, availableClasses, allSubjects, defaultC
                                     onClick={() => toggleClass(cls)}
                                     className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all ${selectedClasses.includes(cls)
                                         ? 'bg-primary-600 text-white shadow-sm'
-                                        : 'bg-white border border-slate-200 text-slate-600 hover:border-primary-300'
+                                        : 'bg-white border border-slate-100 text-slate-600 hover:border-primary-300'
                                         }`}
                                 >
                                     {selectedClasses.includes(cls) ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}
-                                    {cls}
+                                    <span className="truncate">{cls}</span>
                                 </button>
                             )) : (
-                                <p className="text-xs text-slate-400 col-span-3">No classes available. Create classes first.</p>
+                                <p className="text-xs text-slate-400 col-span-3">No classes available.</p>
                             )}
                         </div>
                     </div>
