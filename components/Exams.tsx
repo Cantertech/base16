@@ -1501,6 +1501,49 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         ))}
                                     </div>
                                 </div>
+                                {(localConfig.report_card_config?.layout === 'auto' || localConfig.report_card_config?.layout === 'nursery') && (
+                                    <div className="md:col-span-2 pt-4 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 animate-in slide-in-from-top-2 duration-300">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div>
+                                                <label className="block text-xs font-black text-slate-800 uppercase tracking-[0.2em]">Nursery / Creche Classes</label>
+                                                <p className="text-[10px] text-slate-400 font-medium">Select classes that should specifically use the Foundation/Nursery design.</p>
+                                            </div>
+                                            <span className="bg-blue-100 text-blue-700 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest">Layout Specific</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableClasses.map(className => {
+                                                const currentNursery = localConfig.report_card_config?.nursery_classes || [];
+                                                const isSelected = currentNursery.includes(className);
+                                                return (
+                                                    <button
+                                                        key={className}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const next = isSelected 
+                                                                ? currentNursery.filter((c: string) => c !== className)
+                                                                : [...currentNursery, className];
+                                                            setLocalConfig({
+                                                                ...localConfig,
+                                                                report_card_config: {
+                                                                    ...(localConfig.report_card_config || {}),
+                                                                    nursery_classes: next
+                                                                }
+                                                            });
+                                                        }}
+                                                        className={`px-4 py-2 rounded-xl border-2 text-xs font-black transition-all ${
+                                                            isSelected
+                                                            ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                                            : 'border-slate-100 bg-white text-slate-500 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        {className}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="md:col-span-2 space-y-4">
                                     <div className="flex justify-between items-center">
                                         <div>

@@ -139,13 +139,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             const { data, error } = await supabase.rpc('get_student_attendance_summary', { p_student_id: student.id });
             if (!error && data) {
                 setAttendanceStats(data);
-                if (!savedReportData) {
-                    setAttendancePresentDays(d => d === 0 ? data.present : d);
-                    // Priority to schoolConfig set total days if present
-                    const configTotal = (schoolConfig as any)?.term_total_days;
-                    if (configTotal) setAttendanceTotalDays(configTotal);
-                    else setAttendanceTotalDays(d => d === 0 ? data.total : d);
-                }
+                // System Calculated Attendance - Always use data if available
+                setAttendancePresentDays(Number(data.present));
+                
+                // For Total Days, prioritize system total, fallback to config total, then student record
+                const sysTotal = Number(data.total);
+                const configTotal = (schoolConfig as any)?.term_total_days;
+                
+                if (sysTotal > 0) setAttendanceTotalDays(sysTotal);
+                else if (configTotal) setAttendanceTotalDays(configTotal);
+                else setAttendanceTotalDays(Number(student.attendance || 0));
             }
         };
         fetchAtt();
@@ -348,17 +351,20 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     const rcConfig = schoolConfig?.report_card_config;
     const layoutPref = rcConfig?.layout;
+    const nurseryClasses = (rcConfig as any)?.nursery_classes || [];
 
     // Direct overrides
     const isClassic = layoutPref === 'classic_tabular';
     const isNursery = layoutPref === 'nursery' ? true : (
         layoutPref === 'modern' ? false : (
-            // Automatic logic (fallback if not explicitly set to 'modern', 'classic_tabular' or 'nursery')
-            rcConfig?.use_nursery_layout !== false && (
-                student.class.toLowerCase().includes('nursery') ||
-                student.class.toLowerCase().includes('kg') ||
-                student.class.toLowerCase().includes('creche') ||
-                student.class.toLowerCase().includes('preschool')
+            // Check if class is in the explicit list OR use automatic logic
+            nurseryClasses.includes(student.class) || (
+                rcConfig?.use_nursery_layout !== false && (
+                    student.class.toLowerCase().includes('nursery') ||
+                    student.class.toLowerCase().includes('kg') ||
+                    student.class.toLowerCase().includes('creche') ||
+                    student.class.toLowerCase().includes('preschool')
+                )
             )
         )
     );
@@ -660,11 +666,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
                 )}
                 <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Attendance (Manual)</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Attendance (Auto)</p>
                     <div className="flex items-center gap-1 border-b border-slate-300 pb-1">
-                        <input type="number" value={attendancePresentDays} onChange={e => setAttendancePresentDays(Number(e.target.value))} className="w-8 bg-transparent outline-none text-[11px] font-bold text-center" />
+                        <input type="number" value={attendancePresentDays} readOnly={true} className="w-8 bg-transparent outline-none text-[11px] font-bold text-center text-blue-600 cursor-not-allowed" />
                         <span className="text-[9px] text-slate-400 lowercase italic">out of</span>
-                        <input type="number" value={attendanceTotalDays} onChange={e => setAttendanceTotalDays(Number(e.target.value))} className="w-8 bg-transparent outline-none text-[11px] font-bold text-center" />
+                        <input type="number" value={attendanceTotalDays} readOnly={true} className="w-8 bg-transparent outline-none text-[11px] font-bold text-center text-slate-500 cursor-not-allowed" />
                     </div>
                 </div>
                 <div className="space-y-1">
@@ -1045,15 +1051,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                         {schoolConfig?.report_card_config?.show_attendance !== false && (
-                            <div className="bg-slate-50 p-2 print:p-1 rounded-lg border border-slate-100 italic">
-                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Attendance</p>
+                            <div className="bg-slate-100/50 p-2 print:p-1 rounded-lg border border-slate-100 italic transition-all group">
+                                <p className="text-[7px] font-black text-blue-600 uppercase tracking-widest mb-0.5 leading-none flex items-center gap-1">
+                                    Attendance <span className="text-[6px] text-slate-400">(Auto)</span>
+                                </p>
                                 <div className="flex items-center gap-1 leading-none h-4">
                                     <div className="flex flex-col">
-                                        <input type="number" value={attendancePresentDays} onChange={e => setAttendancePresentDays(Number(e.target.value))} className="w-10 bg-transparent border-b border-slate-200 outline-none text-center font-bold text-[11px] text-blue-600 p-0" />
+                                        <input type="number" value={attendancePresentDays} readOnly={true} className="w-10 bg-transparent border-none outline-none text-center font-black text-[11px] text-blue-600 p-0 cursor-not-allowed" />
                                     </div>
                                     <span className="text-slate-300 font-bold">/</span>
                                     <div className="flex flex-col">
-                                        <input type="number" value={attendanceTotalDays} onChange={e => setAttendanceTotalDays(Number(e.target.value))} className="w-10 bg-transparent border-b border-slate-200 outline-none text-center font-bold text-[11px] p-0" />
+                                        <input type="number" value={attendanceTotalDays} readOnly={true} className="w-10 bg-transparent border-none outline-none text-center font-black text-[11px] text-slate-400 p-0 cursor-not-allowed" />
                                     </div>
                                 </div>
                             </div>
