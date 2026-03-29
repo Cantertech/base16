@@ -308,35 +308,91 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     // Fetch Class/Subject assignments for teachers (Robustness improvement)
     const { data: myAssignments = [] } = useQuery({
-        queryKey: ['teacherAssignments', currentUser?.id],
+        queryKey: ['teacherAssignments', currentUser?.id, schoolId],
         queryFn: async () => {
-            if (!currentUser?.id || currentUser.role !== 'teacher') return [];
-            const { data } = await supabase
+            if (!currentUser?.id || !schoolId) return [];
+
+            // 1. Fetch raw assignments (no joins for max reliability)
+            const { data: assignmentsData } = await supabase
                 .from('teacher_assignments')
-                .select('is_class_teacher, class_name, subject_name, class_id, classes(name), subject_id, subjects(name)')
+                .select('*')
                 .eq('teacher_id', currentUser.id);
-            
-            const list = data?.map((a: any) => ({
-                className: a.classes?.name || a.class_name,
-                subjectName: a.subjects?.name || a.subject_name,
-                isClassTeacher: a.is_class_teacher
-            })) || [];
-            
-            if (list.length === 0 && currentUser.assignedClass) {
-                list.push({
-                    className: currentUser.assignedClass,
+
+            // 2. Fetch primary record from teachers table
+            const { data: teacherRow } = await supabase
+                .from('teachers')
+                .select('assigned_class, subject')
+                .eq('id', currentUser.id)
+                .maybeSingle();
+
+            // 3. Fetch lookups for names (robust mapping)
+            const [{ data: lookupClasses }, { data: lookupSubjects }] = await Promise.all([
+                supabase.from('classes').select('id, name').eq('school_id', schoolId),
+                supabase.from('subjects').select('id, name').eq('school_id', schoolId)
+            ]);
+
+            const classMap = new Map(lookupClasses?.map(c => [c.id, c.name]) || []);
+            const subjectMap = new Map(lookupSubjects?.map(s => [s.id, s.name]) || []);
+
+            const combined = new Map<string, any>();
+
+            // Process text assignment from teachers table (Main Class Teacher role)
+            if (teacherRow?.assigned_class) {
+                const className = teacherRow.assigned_class.trim();
+                combined.set(`${className}-null`, {
+                    className,
+                    subjectName: teacherRow.subject || null,
+                    isClassTeacher: true
+                });
+            }
+
+            // Process entries from teacher_assignments (Both roles)
+            assignmentsData?.forEach((a: any) => {
+                const className = (classMap.get(a.class_id) || a.class_name || '').trim();
+                const subjectName = (subjectMap.get(a.subject_id) || a.subject_name || '').trim();
+                
+                if (className) {
+                    const key = `${className}-${subjectName || 'null'}`;
+                    const existing = combined.get(key);
+                    
+                    combined.set(key, {
+                        className,
+                        subjectName: subjectName || null,
+                        isClassTeacher: a.is_class_teacher || existing?.isClassTeacher || false
+                    });
+                    
+                    // If this assignment marks them as a class teacher, 
+                    // ensure a "base" class record exists too
+                    if (a.is_class_teacher) {
+                        const baseKey = `${className}-null`;
+                        const existingBase = combined.get(baseKey);
+                        combined.set(baseKey, {
+                            className,
+                            subjectName: existingBase?.subjectName || null,
+                            isClassTeacher: true
+                        });
+                    }
+                }
+            });
+
+            // Process profile fallback
+            if (currentUser.assignedClass && !combined.has(`${currentUser.assignedClass.trim()}-null`)) {
+                const className = currentUser.assignedClass.trim();
+                combined.set(`${className}-null`, {
+                    className,
                     subjectName: null,
                     isClassTeacher: true
                 });
             }
-            return list;
+
+            return Array.from(combined.values());
         },
-        enabled: !!currentUser?.id && currentUser.role === 'teacher',
+        enabled: !!currentUser?.id && !!schoolId,
         staleTime: 60 * 1000
     });
 
-    const { data: students = [], isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery({
-        queryKey: ['students', schoolId, myAssignments.map(a => a.className).join('|')], // More robust key tracking actual assigned classes
+    const { data: students = [], isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery<Student[]>({
+        queryKey: ['students', schoolId, myAssignments.map(a => a.className).join('|')],
         queryFn: async () => {
             const assignedClassList = [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] as string[];
             
@@ -393,11 +449,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
 
     useEffect(() => {
-        if (currentUser?.role === 'teacher' && myAssignments.length > 0) {
+        if (currentUser?.role === 'teacher') {
             // Teacher: filter subjects
             if (selectedClass) {
                 const classAssignment = myAssignments.filter((a: any) => a.className === selectedClass);
-                const isClassTeacher = classAssignment.some((a: any) => a.isClassTeacher);
+                const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
+                                       (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
+                                       classAssignment.some((a: any) => a.isClassTeacher);
 
                 if (isClassTeacher) {
                     // Class teacher: see ALL subjects assigned to this class specifically
@@ -498,7 +556,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             const PORTAL_LINK = 'https://base16.sixzones.com/login';
 
             // 1. Get recipients
-            const targetStudents = students.filter(s => s.class === className && s.parent_phone);
+            const targetStudents = (students as Student[]).filter(s => s.class === className && s.parent_phone);
 
             if (targetStudents.length === 0) return; // No parents to notify
 
@@ -526,9 +584,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     recipients: recipientsData,
                     message: finalMessage,
                     hubtelKeys: {
-                        clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
-                        clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
-                        senderId: import.meta.env.VITE_HUBTEL_SENDER_ID
+                        clientId: (import.meta as any).env.VITE_HUBTEL_CLIENT_ID,
+                        clientSecret: (import.meta as any).env.VITE_HUBTEL_CLIENT_SECRET,
+                        senderId: (import.meta as any).env.VITE_HUBTEL_SENDER_ID
                     }
                 }
             });
@@ -963,8 +1021,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     // --- TEACHER VIEW (AND ADMIN ASSESSMENT HUB) ---
-    if (currentUser?.role === 'teacher' || (currentUser?.role === 'admin' && activeTab === 'monitoring' && selectedClass)) {
-        const isClassTeacher = currentUser?.role === 'admin' || myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
+    if ((currentUser?.role || '').toLowerCase() === 'teacher' || (((currentUser?.role || '').toLowerCase().includes('admin')) && activeTab === 'monitoring' && selectedClass)) {
+        const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
+                               (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
+                               myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
         return (
             <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full pb-20 md:pb-0 overflow-y-auto bg-slate-50/30">
                 {/* Header */}
@@ -976,7 +1036,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         </p>
                     </div>
 
-                    {isClassTeacher && !!selectedClass && (
+                    {!!selectedClass && (
                         <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 flex gap-1">
                             <button
                                 onClick={() => setTeacherTab('marks')}
@@ -984,18 +1044,22 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             >
                                 <PlusCircle className="w-4 h-4" /> Mark Entry
                             </button>
-                            <button
-                                onClick={() => setTeacherTab('remarks')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'remarks' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                <MessageSquare className="w-4 h-4" /> Remarks & Conduct
-                            </button>
-                            <button
-                                onClick={() => setTeacherTab('reports')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'reports' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                <FileText className="w-4 h-4" /> Class Reports
-                            </button>
+                            {isClassTeacher && (
+                                <>
+                                    <button
+                                        onClick={() => setTeacherTab('remarks')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'remarks' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <MessageSquare className="w-4 h-4" /> Remarks & Conduct
+                                    </button>
+                                    <button
+                                        onClick={() => setTeacherTab('reports')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'reports' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <FileText className="w-4 h-4" /> Class Reports
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1008,10 +1072,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
                                 <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
                                     <option value="">-- Select Class --</option>
-                                    {(currentUser?.role === 'teacher' 
-                                        ? [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))]
-                                        : availableClasses
-                                    ).map((className: any, i: number) => (
+                                    {((currentUser?.role || '').toLowerCase() === 'teacher' 
+                                        ? [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] 
+                                        : availableClasses).map((className: any, i: number) => (
                                         <option key={i} value={className}>{className}</option>
                                     ))}
                                 </select>
@@ -2195,12 +2258,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     <div key={cls} className="p-4 border border-slate-200 rounded-lg hover:border-primary-300 transition-all bg-slate-50 hover:bg-white group">
                                         <div className="flex justify-between items-start mb-3">
                                             <h4 className="font-bold text-slate-900">{cls}</h4>
-                                            <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">{students.filter(s => s.class === cls).length} Students</span>
+                                            <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">{(students as Student[]).filter(s => s.class === cls).length} Students</span>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => { setViewingClassList(cls); setSelectedClass(cls); }} className="flex-1 py-2 text-xs font-bold text-primary-700 bg-primary-50 rounded hover:bg-primary-100 transition-colors">View Reports</button>
                                             <button
-                                                onClick={() => setReleaseModalData({ className: cls, studentCount: students.filter(s => s.class === cls).length, validPhones: students.filter(s => s.class === cls && s.parent_phone && s.parent_phone.length >= 9).length })}
+                                                onClick={() => setReleaseModalData({ className: cls, studentCount: (students as Student[]).filter(s => s.class === cls).length, validPhones: (students as Student[]).filter(s => s.class === cls && s.parent_phone && s.parent_phone.length >= 9).length })}
                                                 disabled={isReleased || publishResultsMutation.isPending}
                                                 className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isReleased ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}
                                             >
@@ -2246,7 +2309,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             </div>
                             <div className="p-6 overflow-y-auto bg-slate-50/50">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {students.filter(s => s.class === viewingClassList).map((student) => (
+                                    {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => (
                                         <div key={student.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-primary-300 cursor-pointer" onClick={() => setReportStudent(student)}>
                                             <div className="flex items-center gap-4">
                                                 <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden">{student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400 m-auto mt-3" />}</div>
@@ -2282,7 +2345,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 isBulkPrinting && viewingClassList && (
                     <div style={{ display: 'none' }}>
                         <div ref={bulkPrintRef} className="print:block">
-                            {students.filter(s => s.class === viewingClassList).map((student) => {
+                            {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => {
                                 // Optionally recalculate rank inline if we could, but right now we pass null or fetch it
                                 // For bulk print, rank isn't strictly requested per single report, or it may default to '-'
                                 // If needed, we'd pre-calculate an array of ranks.

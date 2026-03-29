@@ -115,7 +115,9 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices, assig
                                             <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Class Teacher</span>
                                         )}
                                     </div>
-                                    <h4 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">{assignment.subjectName}</h4>
+                                    <h4 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
+                                        {assignment.subjectName || (assignment.isClassTeacher ? 'Class Lead' : 'General Subjects')}
+                                    </h4>
                                     <div className="flex items-center gap-4 mt-4">
                                         <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="text-[10px] font-bold text-blue-600 hover:underline">RECORD MARKS</button>
                                         <button onClick={() => setActiveMenu('Attendance')} className="text-[10px] font-bold text-slate-600 hover:underline">ATTENDANCE</button>
@@ -368,13 +370,58 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const { data: teacherAssignments = [] } = useQuery({
         queryKey: ['myAssignments', currentUser.id],
         queryFn: async () => {
-            const { data } = await supabase
+            if (!currentUser.id) return [];
+
+            // 1. Fetch from teacher_assignments (multiple subjects)
+            const { data: assignmentsData } = await supabase
                 .from('teacher_assignments')
-                .select('class_name, subject_name, is_class_teacher')
-                .eq('teacher_id', currentUser.id);
-            return data || [];
+                .select('is_class_teacher, class_name, subject_name, class_id, classes (name), subject_id, subjects (name)')
+                .eq('teacher_id', currentUser.id)
+                .eq('school_id', currentUser.school_id);
+
+            // 2. Fetch from teachers (primary class/subject)
+            const { data: teacherRow } = await supabase
+                .from('teachers')
+                .select('assigned_class, subject')
+                .eq('id', currentUser.id)
+                .maybeSingle();
+
+            const combined = new Map<string, any>();
+
+            // Process text assignment from teachers table
+            if (teacherRow?.assigned_class) {
+                combined.set(`${teacherRow.assigned_class}-null`, {
+                    className: teacherRow.assigned_class,
+                    subjectName: teacherRow.subject || null,
+                    isClassTeacher: true // Characterized as primary class
+                });
+            }
+
+            // Process formal assignments
+            assignmentsData?.forEach((a: any) => {
+                const className = a.classes?.name || a.class_name;
+                const subjectName = a.subjects?.name || a.subject_name;
+                const key = `${className}-${subjectName}`;
+                
+                combined.set(key, {
+                    className,
+                    subjectName,
+                    isClassTeacher: a.is_class_teacher
+                });
+            });
+
+            // Process profile fallback
+            if (currentUser.assignedClass && !combined.has(`${currentUser.assignedClass}-null`)) {
+                combined.set(`${currentUser.assignedClass}-null`, {
+                    className: currentUser.assignedClass,
+                    subjectName: null,
+                    isClassTeacher: true
+                });
+            }
+
+            return Array.from(combined.values());
         },
-        enabled: currentUser.role === 'teacher'
+        enabled: !!currentUser.id
     });
 
     // 6. Top Defaulters (Fees)

@@ -75,7 +75,7 @@ const AppContent: React.FC = () => {
             const user: User = {
               id: profile.id,
               school_id: profile.school_id,
-              name: profile.name,
+              name: profile.full_name || 'Teacher', // Corrected from profile.name to profile.full_name
               role: profile.role as 'admin' | 'teacher' | 'super_admin',
               photo: null,
               schoolLogo: schoolLogo,
@@ -164,7 +164,7 @@ const AppContent: React.FC = () => {
       const targetUser: User = {
         id: adminProfile.id,
         school_id: adminProfile.school_id,
-        name: adminProfile.name,
+        name: adminProfile.full_name || 'Admin', // Corrected from adminProfile.name
         role: 'admin', // Force role to admin so Dashboard renders
         photo: null,
         schoolLogo: school?.logo_url,
