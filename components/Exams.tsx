@@ -4,7 +4,7 @@ import {
     BarChart2, Filter, ChevronDown, User, ArrowRight,
     ClipboardCheck, AlertCircle, Clock, BookOpen, Settings,
     Lock, Unlock, PlayCircle, StopCircle, Eye, Send, Users, X, Loader2,
-    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool, Archive, Trash2
+    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool, Archive, Trash2, ShieldAlert
 } from 'lucide-react';
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
@@ -445,6 +445,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     useEffect(() => {
         if (examConfig) setLocalConfig(examConfig);
     }, [examConfig]);
+
+    // Calculate if user has Class Teacher privileges for the current class
+    const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
+                           (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
+                           myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
+
+    // Auto-switch away from protected tabs if access is lost (e.g. switched to a class where only a subject teacher)
+    useEffect(() => {
+        if (!isClassTeacher && (teacherTab === 'remarks' || teacherTab === 'reports')) {
+            setTeacherTab('marks');
+        }
+    }, [isClassTeacher, teacherTab]);
 
     const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
 
@@ -1022,9 +1034,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     // --- TEACHER VIEW (AND ADMIN ASSESSMENT HUB) ---
     if ((currentUser?.role || '').toLowerCase() === 'teacher' || (((currentUser?.role || '').toLowerCase().includes('admin')) && activeTab === 'monitoring' && selectedClass)) {
-        const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
-                               (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
-                               myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
         return (
             <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full pb-20 md:pb-0 overflow-y-auto bg-slate-50/30">
                 {/* Header */}
@@ -1073,7 +1082,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
                                     <option value="">-- Select Class --</option>
                                     {((currentUser?.role || '').toLowerCase() === 'teacher' 
-                                        ? [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] 
+                                        ? [...new Set(myAssignments
+                                            .filter((a: any) => (teacherTab === 'marks') || a.isClassTeacher)
+                                            .map((a: any) => a.className).filter(Boolean))] 
                                         : availableClasses).map((className: any, i: number) => (
                                         <option key={i} value={className}>{className}</option>
                                     ))}
@@ -1131,7 +1142,16 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         </div>
                     </div>
 
-                    {teacherTab === 'remarks' ? (
+                    {(teacherTab === 'remarks' || teacherTab === 'reports') && !isClassTeacher ? (
+                        <div className="flex-1 flex items-center justify-center bg-slate-50 p-12 overflow-hidden min-h-[600px]">
+                            <div className="text-center max-w-sm">
+                                <ShieldAlert className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Access Restricted</h3>
+                                <p className="text-slate-500 text-sm font-medium">Only the designated Class Teacher is authorized to manage remarks and clinical reports for this class.</p>
+                                <button onClick={() => setTeacherTab('marks')} className="mt-6 px-6 py-2 bg-slate-800 text-white rounded-lg font-bold text-xs uppercase tracking-widest shadow-lg">Return to Mark Entry</button>
+                            </div>
+                        </div>
+                    ) : teacherTab === 'remarks' ? (
                         <div className="flex-1 flex flex-col min-h-[600px] bg-slate-50 relative pb-28">
                             {/* Top Bar: Target Field */}
                             <div className="bg-white border-b border-slate-200 p-3 md:p-4 sticky top-0 z-20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
