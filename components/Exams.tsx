@@ -210,13 +210,13 @@ const fetchReleasedClasses = async (schoolId: string, term: string) => {
 const fetchTeacherAssignments = async (teacherId: string) => {
     const { data } = await supabase
         .from('teacher_assignments')
-        .select('is_class_teacher, class_name, subject_name')
+        .select('is_class_teacher, class_name, subject_name, class_id, classes(name), subject_id, subjects(name)')
         .eq('teacher_id', teacherId);
 
     if (!data) return [];
     return data.map((a: any) => ({
-        className: a.class_name,
-        subjectName: a.subject_name,
+        className: a.classes?.name || a.class_name,
+        subjectName: a.subjects?.name || a.subject_name,
         isClassTeacher: a.is_class_teacher
     }));
 };
@@ -313,12 +313,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             if (!currentUser?.id || currentUser.role !== 'teacher') return [];
             const { data } = await supabase
                 .from('teacher_assignments')
-                .select('is_class_teacher, class_name, subject_name')
+                .select('is_class_teacher, class_name, subject_name, class_id, classes(name), subject_id, subjects(name)')
                 .eq('teacher_id', currentUser.id);
             
             const list = data?.map((a: any) => ({
-                className: a.class_name,
-                subjectName: a.subject_name,
+                className: a.classes?.name || a.class_name,
+                subjectName: a.subjects?.name || a.subject_name,
                 isClassTeacher: a.is_class_teacher
             })) || [];
             
@@ -401,10 +401,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
                 if (isClassTeacher) {
                     // Class teacher: see ALL subjects assigned to this class specifically
-                    const classSubjs = subjectAssignments
+                    const classSubjs = [...new Set(subjectAssignments
                         .filter((sa: any) => sa.classes?.name === selectedClass)
                         .map((sa: any) => sa.subjects?.name)
-                        .filter(Boolean);
+                        .filter(Boolean))];
 
                     if (classSubjs.length > 0) {
                         setAvailableSubjects(classSubjs);
@@ -414,10 +414,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         setAvailableSubjects(allSubjects);
                     }
                 } else {
-                    setAvailableSubjects(classAssignment.map((a: any) => a.subjectName).filter(Boolean));
+                    const mySubjs = [...new Set(classAssignment.map((a: any) => a.subjectName).filter(Boolean))];
+                    setAvailableSubjects(mySubjs);
                 }
             }
-        } else if (allSubjects.length > 0) {
+        } else if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && allSubjects.length > 0) {
             // Admin: Filter by class if selected, otherwise show all subjs in config or school
             if (selectedClass) {
                 const classAssigned = subjectAssignments
@@ -961,9 +962,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         return fullResults;
     };
 
-    // --- TEACHER VIEW ---
-    if (currentUser?.role === 'teacher') {
-        const isClassTeacher = myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
+    // --- TEACHER VIEW (AND ADMIN ASSESSMENT HUB) ---
+    if (currentUser?.role === 'teacher' || (currentUser?.role === 'admin' && activeTab === 'monitoring' && selectedClass)) {
+        const isClassTeacher = currentUser?.role === 'admin' || myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
         return (
             <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full pb-20 md:pb-0 overflow-y-auto bg-slate-50/30">
                 {/* Header */}
@@ -1005,9 +1006,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         <div className="flex flex-wrap gap-4 w-full lg:w-auto">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
-                                <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer font-bold">
-                                    <option value="">-- Class --</option>
-                                    {[...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))].map((className: any, i: number) => (
+                                <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
+                                    <option value="">-- Select Class --</option>
+                                    {(currentUser?.role === 'teacher' 
+                                        ? [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))]
+                                        : availableClasses
+                                    ).map((className: any, i: number) => (
                                         <option key={i} value={className}>{className}</option>
                                     ))}
                                 </select>
@@ -1016,7 +1020,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <div className="flex gap-4 items-end">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
-                                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer disabled:opacity-50 font-bold">
+                                        <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer disabled:opacity-50 font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
                                             <option value="">-- Select Subject --</option>
                                             {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
                                         </select>
