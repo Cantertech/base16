@@ -4,7 +4,8 @@ import {
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
   Table as TableIcon, LayoutList, Camera, UploadCloud, Lock,
-  Mail, MapPin, Shield, Copy, GraduationCap, School, CreditCard
+  Mail, MapPin, Shield, Copy, GraduationCap, School, CreditCard,
+  Users, RefreshCw
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
@@ -60,46 +61,23 @@ const fetchFeeStructure = async (schoolId: string) => {
   return data;
 };
 
-const fetchStudents = async (currentUser: any) => {
-  const schoolId = currentUser?.school_id;
-  if (!schoolId) throw new Error('No school ID');
-
-  const isTeacher = currentUser?.role === 'teacher';
+const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) => {
+  // Projection: Avoid fetching heavy or sensitive columns like 'pin' in the main list unless needed
   let query = supabase
     .from('students')
-    .select('*')
+    .select('id, name, class, gender, parent_name, parent_phone, balance, status, admission_no, photo_url, date_of_birth')
     .eq('school_id', schoolId)
     .order('name', { ascending: true });
 
-  if (isTeacher && currentUser?.id) {
-    // Fetch assignments first
-    const { data: assignments } = await supabase
-      .from('teacher_assignments')
-      .select('classes(name)')
-      .eq('teacher_id', currentUser.id);
-
-    let assignedClassNames: string[] = [];
-
-    if (assignments && assignments.length > 0) {
-      assignedClassNames = assignments.map((a: any) => a.classes?.name).filter(Boolean);
-    }
-
-    // Fallback to legacy assignedClass if no assignments found
-    if (assignedClassNames.length === 0 && currentUser.assignedClass) {
-      assignedClassNames = [currentUser.assignedClass];
-    }
-
-    if (assignedClassNames.length > 0) {
-      query = query.in('class', assignedClassNames);
-    } else {
-      // No classes assigned -> show nothing
-      // We can simulate an empty result by filtering on a non-existent ID
-      return [];
-    }
+  if (assignedClasses.length > 0) {
+    query = query.in('class', assignedClasses);
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    console.error("Critical: Failed to fetch students", error);
+    throw error;
+  }
 
   return data.map((s: any) => ({
     id: s.id,
@@ -111,7 +89,7 @@ const fetchStudents = async (currentUser: any) => {
     balance: s.balance,
     dob: s.date_of_birth,
     status: s.status,
-    attendance: 100, // Mock for now
+    attendance: 100, // Mock
     admission_no: s.admission_no,
     pin: s.pin,
     photo_url: s.photo_url
@@ -143,11 +121,33 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const isTeacher = currentUser?.role === 'teacher';
   const schoolId = currentUser?.school_id;
 
+  const { data: teacherClasses = [] } = useQuery({
+    queryKey: ['teacherClasses', currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser?.id || currentUser.role !== 'teacher') return [];
+      const { data: assignmentsData } = await supabase
+        .from('teacher_assignments')
+        .select('classes(name)')
+        .eq('teacher_id', currentUser.id);
+
+      const assigned = assignmentsData?.map((a: any) => a.classes?.name).filter(Boolean) || [];
+      if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
+        assigned.push(currentUser.assignedClass);
+      }
+      return Array.from(new Set(assigned)) as string[];
+    },
+    enabled: !!currentUser?.id && isTeacher,
+    staleTime: 60 * 1000
+  });
+
   // --- Queries ---
-  const { data: students = [], isLoading: isLoadingStudents } = useQuery({
-    queryKey: ['students', schoolId, currentUser?.id], // Add user ID to key for teachers
-    queryFn: () => fetchStudents(currentUser),
-    enabled: !!schoolId,
+  const { data: students = [], isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery({
+    queryKey: ['students', schoolId, teacherClasses.length], 
+    queryFn: () => fetchStudents(schoolId!, teacherClasses as string[]),
+    enabled: !!schoolId && (!isTeacher || teacherClasses.length > 0 || !!currentUser?.assignedClass),
+    staleTime: 10 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(attempt * 1000, 5000)
   });
 
   const { data: classes = [] } = useQuery({
@@ -160,25 +160,6 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     queryKey: ['feeStructure', schoolId],
     queryFn: () => fetchFeeStructure(schoolId!),
     enabled: !!schoolId,
-  });
-
-  const { data: teacherClasses = [] } = useQuery({
-    queryKey: ['teacherClasses', currentUser?.id],
-    queryFn: async () => {
-      if (!currentUser?.id) return [];
-      const { data: assignments } = await supabase
-        .from('teacher_assignments')
-        .select('classes(name)')
-        .eq('teacher_id', currentUser.id);
-
-      const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
-      // Combine with legacy assignedClass if present and not already in list
-      if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
-        assigned.push(currentUser.assignedClass);
-      }
-      return assigned;
-    },
-    enabled: !!currentUser?.id && isTeacher
   });
 
   const { data: activeModules = [] } = useQuery({
@@ -612,12 +593,30 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       </div>
 
       {/* Main Table Card */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1">
-        {/* Mobile View: Cards */}
-        <div className={`md:hidden divide-y divide-slate-100 ${mobileViewMode === 'table' ? 'hidden' : ''}`}>
-          {isLoadingStudents ? (
-            <div className="p-8"><Loading type="skeleton" fullScreen={false} /></div>
-          ) : paginatedStudents.length > 0 ? (
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
+        {isStudentError ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-in fade-in zoom-in-95">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Failed to load students</h3>
+            <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
+              Our servers are currently experiencing high traffic. Please try again in a few moments.
+            </p>
+            <button
+              onClick={() => refetchStudents()}
+              className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95 shadow-lg shadow-slate-200"
+            >
+              <RefreshCw className="h-4 w-4" /> Retry Fetching
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Mobile View: Cards */}
+            <div className={`md:hidden divide-y divide-slate-100 ${mobileViewMode === 'table' ? 'hidden' : ''}`}>
+              {isLoadingStudents ? (
+                <div className="p-8"><Loading type="skeleton" fullScreen={false} /></div>
+              ) : paginatedStudents.length > 0 ? (
             paginatedStudents.map((student) => (
               <div key={student.id} className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
@@ -817,6 +816,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
               </button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 

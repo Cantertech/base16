@@ -247,10 +247,14 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
 
             const { data: assignments } = await supabase
                 .from('teacher_assignments')
-                .select('classes(name)')
-                .eq('teacher_id', currentUser.id);
+                .select('is_class_teacher, class_name')
+                .eq('teacher_id', currentUser.id)
+                .eq('is_class_teacher', true); // Only Class Teachers
 
-            const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
+            const assigned = assignments?.map((a: any) => a.class_name).filter(Boolean) || [];
+            
+            // If they have a primary class set in their profile, that usually counts too (unless we want to be strict)
+            // But let's assume if it's in their profile, they have marking power for that class.
             if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
                 assigned.push(currentUser.assignedClass);
             }
@@ -514,6 +518,28 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     }
 
     // --- RENDER: TEACHER VIEW (Marking) ---
+    if (currentUser?.role === 'teacher' && teacherClasses.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200 m-8">
+                <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 transform -rotate-6">
+                    <AlertCircle className="w-10 h-10 text-amber-500" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">Attendance Marking Restricted</h2>
+                <p className="text-slate-500 mt-2 max-w-sm">Only teachers designated as <span className="font-bold text-slate-700">Class Teachers</span> can record attendance. Please contact your administrator to update your class assignments.</p>
+                <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
+                   <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-left">
+                       <p className="text-xs font-bold text-slate-400 uppercase mb-1">Step 1</p>
+                       <p className="text-sm font-medium text-slate-700">Login as Admin</p>
+                   </div>
+                   <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-left">
+                       <p className="text-xs font-bold text-slate-400 uppercase mb-1">Step 2</p>
+                       <p className="text-sm font-medium text-slate-700">Assign as Class Teacher</p>
+                   </div>
+                </div>
+            </div>
+        );
+    }
+
     const presentCount = Object.values(attendanceMap).filter(s => s === 'Present').length;
     const absentCount = Object.values(attendanceMap).filter(s => s === 'Absent').length;
     const lateCount = Object.values(attendanceMap).filter(s => s === 'Late').length;

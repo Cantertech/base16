@@ -58,7 +58,8 @@ const fetchSchoolInfo = async (schoolId: string) => {
         phone: data.phone,
         email: data.email,
         motto: data.motto,
-        exam_config: data.exam_config
+        exam_config: data.exam_config,
+        report_card_config: data.report_card_config
     };
 };
 
@@ -121,17 +122,35 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
 };
 
 const fetchClasses = async (schoolId: string) => {
-    const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
+    const { data, error } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name', { ascending: true });
+    if (error) throw error;
     return data ? data.map(c => c.name) : [];
 };
 
 const fetchSubjects = async (schoolId: string) => {
-    const { data } = await supabase.from('subjects').select('name').eq('school_id', schoolId).order('name');
+    const { data, error } = await supabase.from('subjects').select('name').eq('school_id', schoolId).order('name', { ascending: true });
+    if (error) throw error;
     return data ? data.map(s => s.name) : [];
 };
 
-const fetchStudents = async (schoolId: string) => {
-    const { data } = await supabase.from('students').select('*').eq('school_id', schoolId);
+const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) => {
+    // Robust column projection: only select what is strictly needed for the Exams interface
+    // Loading thousands of full student objects at once is what causes the "works for some, not for others" issue
+    let query = supabase.from('students')
+        .select('id, name, class, photo_url, parent_phone, parent_name, admission_no, pin, balance')
+        .eq('school_id', schoolId);
+
+    // If it's a teacher, filter on the server before the data even hits the browser
+    if (assignedClasses.length > 0) {
+        query = query.in('class', assignedClasses);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        console.error("Critical: Failed to fetch students", error);
+        throw error;
+    }
+
     return data ? data.map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -161,8 +180,10 @@ const fetchResults = async (schoolId: string, term: string, year: string) => {
         class: r.class,
         subject: r.subject,
         classScore: r.class_score,
+        exam_score: r.exam_score, // keep both for internal usage if needed
         examScore: r.exam_score,
-        total: r.total
+        total: r.total,
+        competency_status: r.competency_status
     })) as Result[] : [];
 };
 
@@ -189,13 +210,13 @@ const fetchReleasedClasses = async (schoolId: string, term: string) => {
 const fetchTeacherAssignments = async (teacherId: string) => {
     const { data } = await supabase
         .from('teacher_assignments')
-        .select('is_class_teacher, classes(name), subjects(name)')
+        .select('is_class_teacher, class_name, subject_name')
         .eq('teacher_id', teacherId);
 
     if (!data) return [];
     return data.map((a: any) => ({
-        className: a.classes?.name,
-        subjectName: a.subjects?.name,
+        className: a.class_name,
+        subjectName: a.subject_name,
         isClassTeacher: a.is_class_teacher
     }));
 };
@@ -230,7 +251,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number; competencyStatus?: string }>>({});
     const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks'>('marks');
-    const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest'>('teacher_remark');
+    const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest' | 'performance_status'>('teacher_remark');
     const [paintBrush, setPaintBrush] = useState<string>('');
     const [userPresets, setUserPresets] = useState<string[]>([]);
     const [conductPresets, setConductPresets] = useState<string[]>(["Excellent", "Very Good", "Satisfactory", "Good", "Fair", "Needs Improvement"]);
@@ -285,11 +306,52 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId
     });
 
-    const { data: students = [] } = useQuery({
-        queryKey: ['students', schoolId],
-        queryFn: () => fetchStudents(schoolId!),
-        enabled: !!schoolId,
-        staleTime: 5 * 60 * 1000
+    // Fetch Class/Subject assignments for teachers (Robustness improvement)
+    const { data: myAssignments = [] } = useQuery({
+        queryKey: ['teacherAssignments', currentUser?.id],
+        queryFn: async () => {
+            if (!currentUser?.id || currentUser.role !== 'teacher') return [];
+            const { data } = await supabase
+                .from('teacher_assignments')
+                .select('is_class_teacher, class_name, subject_name')
+                .eq('teacher_id', currentUser.id);
+            
+            const list = data?.map((a: any) => ({
+                className: a.class_name,
+                subjectName: a.subject_name,
+                isClassTeacher: a.is_class_teacher
+            })) || [];
+            
+            if (list.length === 0 && currentUser.assignedClass) {
+                list.push({
+                    className: currentUser.assignedClass,
+                    subjectName: null,
+                    isClassTeacher: true
+                });
+            }
+            return list;
+        },
+        enabled: !!currentUser?.id && currentUser.role === 'teacher',
+        staleTime: 60 * 1000
+    });
+
+    const { data: students = [], isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery({
+        queryKey: ['students', schoolId, myAssignments.map(a => a.className).join('|')], // More robust key tracking actual assigned classes
+        queryFn: async () => {
+            const assignedClassList = [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] as string[];
+            
+            // Critical Robustness Check: If a teacher is logged in but assignments haven't loaded yet,
+            // return empty array instead of accidentally fetching "all school students"
+            if (currentUser?.role === 'teacher' && assignedClassList.length === 0) {
+                // Wait briefly for assignments if they are still loading in background
+                return [];
+            }
+            
+            return fetchStudents(schoolId!, assignedClassList);
+        },
+        enabled: !!schoolId && (currentUser?.role !== 'teacher' || myAssignments.length > 0), // Only enable once classes are known
+        staleTime: 5 * 60 * 1000,
+        retry: 3
     });
 
     // Fetches dependent on Config
@@ -313,12 +375,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         queryKey: ['releasedClasses', schoolId, currentTerm],
         queryFn: () => fetchReleasedClasses(schoolId!, currentTerm),
         enabled: !!schoolId && !!examConfig && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')
-    });
-
-    const { data: myAssignments = [] } = useQuery({
-        queryKey: ['teacherAssignments', currentUser?.id],
-        queryFn: () => fetchTeacherAssignments(currentUser?.id!),
-        enabled: !!currentUser?.id && currentUser?.role === 'teacher'
     });
 
     const { data: studentRank } = useQuery({
@@ -385,6 +441,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             }
         }
     }, [selectedClass, myAssignments, examConfig, allSubjects, currentUser]);
+
+    // Removed global reset effect to allow subject-to-subject mark entry before saving.
+    // Persistence is handled by composite keys in pendingChanges.
 
     // Auto-select class for teacher if not set
     useEffect(() => {
@@ -577,6 +636,30 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }));
     };
 
+    const reportConfig = examConfig?.report_card_config || schoolInfo?.report_card_config;
+    const getLayoutForClass = (className: string) => {
+        if (!className || !reportConfig) return reportConfig?.layout || 'modern';
+        const layouts = reportConfig.class_layouts || {};
+        
+        // 1. Direct match (Fastest)
+        if (layouts[className]) return layouts[className];
+        
+        const searchTerm = className.trim().toLowerCase();
+        // 2. Case-insensitive exact trim match
+        const exactKey = Object.keys(layouts).find(k => k.trim().toLowerCase() === searchTerm);
+        if (exactKey) return layouts[exactKey];
+        
+        // 3. Fuzzy match (Robust: handle "Class 6" matching "Class 6 Green")
+        const fuzzyKey = Object.keys(layouts).find(k => {
+            const kLow = k.trim().toLowerCase();
+            return searchTerm.startsWith(kLow) || kLow.startsWith(searchTerm);
+        });
+        if (fuzzyKey) return layouts[fuzzyKey];
+
+        return reportConfig.layout || 'modern';
+    };
+    const isNurseryLayout = getLayoutForClass(selectedClass) === 'nursery';
+
     const saveBulkRemarks = () => {
         if (!selectedClass) return alert("Select Class");
         const updates = Object.entries(pendingRemarks).map(([studentId, val]: [string, any]) => {
@@ -703,17 +786,20 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     // Deprecated but keeping for reference if needed, functionality moved to handleConfirmRelease
     const publishResults = (className: string) => { };
 
+    const getPendingKey = (studentId: string, className = selectedClass, subjectName = selectedSubject) => `${studentId}|${className}|${subjectName}`;
+
     const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore' | 'competencyStatus', value: string) => {
+        const key = getPendingKey(studentId);
         if (field === 'competencyStatus') {
             setPendingChanges(prev => {
-                const current = prev[studentId] || {
+                const current = prev[key] || {
                     classScore: getExistingScore(studentId, 'classScore'),
                     examScore: getExistingScore(studentId, 'examScore'),
                     competencyStatus: getExistingCompetency(studentId)
                 };
                 return {
                     ...prev,
-                    [studentId]: { ...current, competencyStatus: value }
+                    [key]: { ...current, competencyStatus: value }
                 };
             });
             return;
@@ -728,14 +814,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         if (numValue < 0) numValue = 0;
 
         setPendingChanges(prev => {
-            const current = prev[studentId] || {
+            const current = prev[key] || {
                 classScore: getExistingScore(studentId, 'classScore'),
                 examScore: getExistingScore(studentId, 'examScore'),
                 competencyStatus: getExistingCompetency(studentId)
             };
             return {
                 ...prev,
-                [studentId]: { ...current, [field]: numValue }
+                [key]: { ...current, [field]: numValue }
             };
         });
     };
@@ -759,12 +845,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const saveMarks = async () => {
-        const updates = Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number; competencyStatus?: string }]) => {
+        const updates = Object.entries(pendingChanges).map(([key, val]: [string, any]) => {
+            const [studentId, className, subjectName] = key.split('|');
             return {
                 school_id: schoolId,
                 student_id: studentId,
-                class: selectedClass,
-                subject: selectedSubject,
+                class: className,
+                subject: subjectName,
                 term: currentTerm,
                 academic_year: currentYear,
                 class_score: val.classScore,
@@ -775,7 +862,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         if (updates.length > 0) {
             saveMarksMutation.mutate(updates);
         } else {
-            // Just refresh if no changes
             queryClient.invalidateQueries({ queryKey: ['examResults', schoolId] });
         }
     };
@@ -784,19 +870,21 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         if (!selectedClass || !selectedSubject) return alert("Select Class and Subject");
 
         if (Object.keys(pendingChanges).length > 0) {
-            await saveMarksMutation.mutateAsync(
-                Object.entries(pendingChanges).map(([studentId, val]: [string, { classScore: number; examScore: number; competencyStatus?: string }]) => ({
+            const updates = Object.entries(pendingChanges).map(([key, val]: [string, any]) => {
+                const [studentId, className, subjectName] = key.split('|');
+                return {
                     school_id: schoolId,
                     student_id: studentId,
-                    class: selectedClass,
-                    subject: selectedSubject,
+                    class: className,
+                    subject: subjectName,
                     term: currentTerm,
                     academic_year: currentYear,
                     class_score: val.classScore,
                     exam_score: val.examScore,
                     competency_status: val.competencyStatus
-                }))
-            );
+                };
+            });
+            await saveMarksMutation.mutateAsync(updates);
         }
 
         if (!confirm(`Submit marks for ${selectedSubject} (${selectedClass})? This signals you are done.`)) return;
@@ -917,9 +1005,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         <div className="flex flex-wrap gap-4 w-full lg:w-auto">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
-                                <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-32 cursor-pointer font-bold">
+                                <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-2 border border-slate-300 rounded-lg outline-none bg-white w-48 cursor-pointer font-bold">
                                     <option value="">-- Class --</option>
-                                    {myAssignments.map((a: any, i: number) => <option key={i} value={a.className}>{a.className}</option>)}
+                                    {[...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))].map((className: any, i: number) => (
+                                        <option key={i} value={className}>{className}</option>
+                                    ))}
                                 </select>
                             </div>
                             {teacherTab === 'marks' && (
@@ -932,7 +1022,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         </select>
                                     </div>
                                     
-                                    {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' && (
+                                    {isNurseryLayout && (
                                         <button 
                                             onClick={() => setIsLevelArchiveOpen(true)}
                                             className="p-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200 h-[42px]"
@@ -1057,91 +1147,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 </div>
                                             </button>
                                         );
-                                    })}
-                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
+                                    })}                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
                                 </div>
                             </div>
-
-                            {/* Floating Action Button */}
-                            <button
-                                onClick={() => setIsPresetModalOpen(true)}
-                                className="fixed bottom-24 right-4 md:bottom-8 md:right-8 bg-primary-600 text-white p-4 rounded-full shadow-2xl shadow-primary-500/50 hover:bg-primary-700 hover:scale-105 transition-all z-40 flex items-center justify-center group animate-bounce-slow border-2 border-white/20"
-                            >
-                                <PenTool className="w-7 h-7" />
-                                <span className="absolute right-full mr-4 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
-                                    Open Brush Palette
-                                </span>
-                            </button>
-
-                            {/* Preset Modal */}
-                            {isPresetModalOpen && (
-                                <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-end md:items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={(e) => { if (e.target === e.currentTarget) setIsPresetModalOpen(false); }}>
-                                    <div className="bg-white w-full max-w-md rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] mb-4 md:mb-0">
-                                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                            <div>
-                                                <h3 className="font-black text-slate-800 uppercase text-xs tracking-wider">Brush Palette</h3>
-                                                <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Select a value for {activeTool.replace('_', ' ')}</p>
-                                            </div>
-                                            <button onClick={() => setIsPresetModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-full transition-colors"><X className="w-5 h-5" /></button>
-                                        </div>
-
-                                        <div className="p-5 flex-1 overflow-y-auto">
-                                            <div className="flex gap-2 shrink-0 mb-6">
-                                                <input
-                                                    type="text"
-                                                    value={newPresetValue}
-                                                    onChange={e => setNewPresetValue(e.target.value)}
-                                                    placeholder="Type custom here..."
-                                                    className="flex-1 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:border-primary-400 font-bold bg-slate-50"
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter' && newPresetValue) {
-                                                            if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
-                                                            if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
-                                                            if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
-                                                            setPaintBrush(newPresetValue);
-                                                            setNewPresetValue('');
-                                                            setIsPresetModalOpen(false);
-                                                        }
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => {
-                                                        if (newPresetValue) {
-                                                            if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
-                                                            if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
-                                                            if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
-                                                            setPaintBrush(newPresetValue);
-                                                            setNewPresetValue('');
-                                                            setIsPresetModalOpen(false);
-                                                        }
-                                                    }}
-                                                    className="bg-slate-800 text-white px-4 rounded-xl shrink-0 hover:bg-slate-900 transition-colors"
-                                                >
-                                                    <Plus className="w-5 h-5" />
-                                                </button>
-                                            </div>
-
-                                            <div className="space-y-3 pb-4">
-                                                <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest pl-1 mb-3">Available Presets</h4>
-                                                {(activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets).map((preset, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => {
-                                                            setPaintBrush(preset);
-                                                            setIsPresetModalOpen(false);
-                                                        }}
-                                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all group hover:-translate-y-0.5 ${paintBrush === preset ? 'border-primary-500 bg-primary-50 shadow-sm relative' : 'border-slate-100 hover:border-primary-300 hover:shadow-md bg-white'}`}
-                                                    >
-                                                        <span className={`text-sm font-bold leading-tight block pr-8 ${paintBrush === preset ? 'text-primary-800' : 'text-slate-600 group-hover:text-slate-900'}`}>{preset}</span>
-                                                        {paintBrush === preset && <CheckCircle className="w-5 h-5 text-primary-500 absolute right-4 top-1/2 -translate-y-1/2" />}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
                         </div>
                     ) : teacherTab === 'reports' ? (
                         (!selectedClass) ? (
@@ -1219,91 +1227,89 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             <>
                                 {/* Teacher Grid (Desktop) */}
                                 <div className="hidden md:block overflow-x-auto bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className="bg-white border-b border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
-                                                {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' ? (
-                                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Progress Status</th>
-                                                ) : (
-                                                    <>
+                                    {isNurseryLayout ? (
+                                        <div className="hidden md:grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 p-6">
+                                            {classStudents.map(student => {
+                                                const currentVal = getExistingCompetency(student.id);
+                                                const pending = pendingChanges[getPendingKey(student.id)];
+                                                const dispVal = pending?.competencyStatus ?? currentVal;
+
+                                                return (
+                                                    <button
+                                                        key={student.id}
+                                                        onClick={() => {
+                                                            if (paintBrush) {
+                                                                handleScoreChange(student.id, 'competencyStatus', paintBrush);
+                                                                handleScoreChange(student.id, 'classScore', '0');
+                                                                handleScoreChange(student.id, 'examScore', '0');
+                                                            }
+                                                        }}
+                                                        className={`text-left p-6 rounded-[2rem] border-2 transition-all flex flex-col justify-between group relative min-h-[140px] ${paintBrush && dispVal !== paintBrush ? 'hover:border-primary-400 hover:shadow-2xl hover:-translate-y-1 cursor-pointer active:scale-95' : 'cursor-default'} ${dispVal ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-200 border-dashed'} ${dispVal === paintBrush && paintBrush ? 'ring-8 ring-primary-50 border-primary-500 bg-primary-50/10' : ''}`}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-4">
+                                                            <div className="min-w-0 flex-1">
+                                                                <h5 className="font-black text-slate-800 text-base uppercase tracking-tight truncate">{student.name}</h5>
+                                                                <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-widest mt-1 inline-block">ID: {student.id.substring(0, 8)}</span>
+                                                            </div>
+                                                            {paintBrush && dispVal === paintBrush && (
+                                                                <div className="h-8 w-8 rounded-full bg-primary-600 text-white flex items-center justify-center shadow-lg animate-in zoom-in-50 duration-300">
+                                                                    <Check className="w-4 h-4 stroke-[4px]" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all ${dispVal ? 'bg-primary-50/50 border border-primary-100 shadow-sm' : 'bg-white/50 border border-slate-100'}`}>
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-sm font-black leading-none ${dispVal ? 'text-primary-800' : 'text-slate-800'}`}>
+                                                                    {dispVal || 'No performance status'}
+                                                                </span>
+                                                            </div>
+                                                            {!paintBrush && !dispVal && (
+                                                                <div className="text-[10px] font-black text-primary-500/50 uppercase tracking-tighter">Use Brush Tool →</div>
+                                                            )}
+                                                            {paintBrush && dispVal !== paintBrush && (
+                                                                <div className="w-8 h-8 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 shadow-sm">
+                                                                    <Check className="w-4 h-4 text-primary-500 stroke-[3px]" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="hidden md:block overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead className="bg-white border-b border-slate-200">
+                                                    <tr>
+                                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/3">Student Name</th>
                                                         {examConfig.grading_type !== 'COMPETENCY' && (
                                                             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Class ({examConfig.weights?.class || 30})</th>
                                                         )}
                                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Exam ({examConfig.weights?.exam || 70})</th>
                                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-32">Total</th>
                                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center w-24">Grade</th>
-                                                    </>
-                                                )}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {classStudents.map(student => {
-                                                const savedClass = getExistingScore(student.id, 'classScore');
-                                                const savedExam = getExistingScore(student.id, 'examScore');
-                                                const pending = pendingChanges[student.id];
-                                                const dispClass = pending?.classScore ?? savedClass;
-                                                const dispExam = pending?.examScore ?? savedExam;
-                                                const total = dispClass + dispExam;
-                                                const grade = getGrade(total);
-                                                return (
-                                                    <tr key={student.id} className="hover:bg-slate-50">
-                                                        <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
-                                                        {localConfig?.report_card_config?.class_layouts?.[selectedClass] === 'nursery' ? (
-                                                            <td className="px-6 py-3 text-center">
-                                                                <div className="flex flex-col gap-2">
-                                                                        <select
-                                                                            value={['90', '70', '40', '0', ''].includes(pending?.competencyStatus || (getExistingCompetency(student.id) || '')) ? (pending?.competencyStatus || getExistingCompetency(student.id)) : 'custom'}
-                                                                            onChange={(e) => {
-                                                                                const val = e.target.value;
-                                                                                if (val === 'custom') {
-                                                                                    handleScoreChange(student.id, 'competencyStatus', 'Improving...');
-                                                                                } else {
-                                                                                    handleScoreChange(student.id, 'competencyStatus', val);
-                                                                                    // Also set numeric for backwards/layout compatibility
-                                                                                    handleScoreChange(student.id, 'examScore', val === 'Mastered' || val === '90' ? '90' : val === 'Developing' || val === '70' ? '70' : val === 'Emerging' || val === '40' ? '40' : '0');
-                                                                                }
-                                                                                handleScoreChange(student.id, 'classScore', '0');
-                                                                            }}
-                                                                            className="w-full max-w-[200px] p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-100 transition-all mx-auto"
-                                                                        >
-                                                                            <option value="">Select Level...</option>
-                                                                            {/* Custom Levels from Archive */}
-                                                                            {(localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || []).map((level: string, lIdx: number) => (
-                                                                                <option key={lIdx} value={level}>{level}</option>
-                                                                            ))}
-                                                                            {/* Default levels if none set */}
-                                                                            {(!localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels.length === 0) && (
-                                                                                <>
-                                                                                    <option value="90">Mastered (Confident)</option>
-                                                                                    <option value="70">Developing (Steady)</option>
-                                                                                    <option value="40">Emerging (Beginning)</option>
-                                                                                </>
-                                                                            )}
-                                                                            <option value="custom">Custom Status...</option>
-                                                                            <option value="0">Not Assessed</option>
-                                                                        </select>
-                                                                    
-                                                                    {(!['90', '70', '40', '0', ''].includes(pending?.competencyStatus || getExistingCompetency(student.id)) || (pending?.competencyStatus === 'Improving...' || !['90','70','40','0',''].includes(getExistingCompetency(student.id)))) && (
-                                                                        <input 
-                                                                            type="text"
-                                                                            placeholder="Enter custom status..."
-                                                                            value={pending?.competencyStatus || getExistingCompetency(student.id)}
-                                                                            onChange={(e) => handleScoreChange(student.id, 'competencyStatus', e.target.value)}
-                                                                            className="w-full max-w-[200px] p-2 bg-white border-2 border-primary-100 rounded-lg text-xs font-bold text-primary-700 outline-none animate-in zoom-in-95 duration-200 mx-auto"
-                                                                        />
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        ) : (
-                                                            <>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {classStudents.map(student => {
+                                                        const savedClass = getExistingScore(student.id, 'classScore');
+                                                        const savedExam = getExistingScore(student.id, 'examScore');
+                                                        const pending = pendingChanges[getPendingKey(student.id)];
+                                                        const dispClass = pending?.classScore ?? savedClass;
+                                                        const dispExam = pending?.examScore ?? savedExam;
+                                                        const total = dispClass + dispExam;
+                                                        const grade = getGrade(total);
+                                                        return (
+                                                            <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="px-6 py-3 font-medium text-slate-900">{student.name}</td>
                                                                 {examConfig.grading_type !== 'COMPETENCY' && (
                                                                     <td className="px-6 py-3 text-center">
                                                                         <input
                                                                             type="number"
                                                                             value={dispClass || ''}
                                                                             onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                            className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                            className="w-20 p-2 text-center border rounded-md focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                                                                         />
                                                                     </td>
                                                                 )}
@@ -1312,83 +1318,292 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                         type="number"
                                                                         value={dispExam || ''}
                                                                         onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                                        className="w-20 p-2 text-center border rounded-md disabled:bg-slate-100 disabled:text-slate-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                        className="w-20 p-2 text-center border rounded-md focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                                                                     />
                                                                 </td>
                                                                 <td className="px-6 py-3 text-center font-bold">{total}</td>
                                                                 <td className="px-6 py-3 text-center"><span className="font-bold text-slate-600">{grade}</span></td>
-                                                            </>
-                                                        )}
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                     {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
+                                    
+                                    {/* Bulk Paintbrush Info Panel for Marks tab */}
+                                    {isNurseryLayout && paintBrush && (
+                                        <div className="p-4 bg-primary-50 border-t border-primary-100 flex items-center justify-between sticky bottom-0 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shadow-lg">
+                                                    <PenTool className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest">Active Brush</p>
+                                                    <p className="text-sm font-black text-slate-800">{paintBrush}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setPaintBrush('')}
+                                                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        classStudents.forEach(s => {
+                                                            handleScoreChange(s.id, 'competencyStatus', paintBrush);
+                                                            handleScoreChange(s.id, 'classScore', '0');
+                                                            handleScoreChange(s.id, 'examScore', '0');
+                                                        });
+                                                        setPaintBrush('');
+                                                    }}
+                                                    className="px-6 py-2 bg-primary-600 text-white text-xs font-black uppercase rounded-lg shadow-lg hover:bg-primary-700 transition-all"
+                                                >
+                                                    Apply to All Students
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 {/* Mobile Card View */}
                                 <div className="md:hidden space-y-5 p-4 bg-slate-50/50">
                                     {classStudents.map(student => {
+                                        const pendingKey = getPendingKey(student.id);
+                                        const pending = pendingChanges[pendingKey];
                                         const savedClass = getExistingScore(student.id, 'classScore');
                                         const savedExam = getExistingScore(student.id, 'examScore');
-                                        const pending = pendingChanges[student.id];
+                                        const currentCompetency = getExistingCompetency(student.id);
+                                        
                                         const dispClass = pending?.classScore ?? savedClass;
                                         const dispExam = pending?.examScore ?? savedExam;
+                                        const dispCompetency = pending?.competencyStatus ?? currentCompetency;
                                         const total = dispClass + dispExam;
                                         const grade = getGrade(total);
 
                                         return (
-                                            <div key={student.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-100 transition-all active:scale-[0.98]">
+                                            <div 
+                                                key={student.id} 
+                                                className={`p-5 bg-white rounded-2xl border-2 transition-all ${paintBrush ? 'border-primary-200 ring-4 ring-primary-50 ring-offset-0 shadow-lg scale-[1.02] cursor-cell' : 'border-slate-200 shadow-sm'}`}
+                                                onClick={() => {
+                                                    if (paintBrush && isNurseryLayout) {
+                                                        handleScoreChange(student.id, 'competencyStatus', paintBrush);
+                                                        handleScoreChange(student.id, 'classScore', '0');
+                                                        handleScoreChange(student.id, 'examScore', '0');
+                                                    }
+                                                }}
+                                            >
                                                 <div className="flex justify-between items-center mb-5 border-b border-slate-50 pb-4">
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1">
                                                         <h4 className="font-black text-slate-800 uppercase tracking-tight truncate text-sm">{student.name}</h4>
                                                         <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest mt-1 inline-block">ID: {student.id.substring(0, 6)}</span>
                                                     </div>
-                                                    <div className="flex flex-col items-end gap-1 shrink-0 ml-4">
-                                                        <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center font-black text-white text-lg shadow-sm">{total}</div>
-                                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Grade {grade}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    {examConfig.grading_type !== 'COMPETENCY' && (
-                                                        <div className="space-y-1.5">
-                                                            <div className="flex justify-between items-center px-1">
-                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class ({examConfig.weights?.class || 30})</label>
-                                                            </div>
-                                                            <input
-                                                                type="number"
-                                                                value={dispClass || ''}
-                                                                onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
-                                                                placeholder="-"
-                                                            />
+                                                    {!isNurseryLayout && (
+                                                        <div className="flex flex-col items-end gap-1 shrink-0 ml-4">
+                                                            <div className="h-10 w-10 rounded-xl bg-slate-900 flex items-center justify-center font-black text-white text-lg shadow-sm">{total}</div>
+                                                            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Grade {grade}</span>
                                                         </div>
                                                     )}
-                                                    <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : 'space-y-1.5'}>
-                                                        <div className="flex justify-between items-center px-1">
-                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exam ({examConfig.weights?.exam || 70})</label>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    {isNurseryLayout ? (
+                                                        <div className="space-y-3">
+                                                            {paintBrush ? (
+                                                                <div className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-between min-h-[100px] group ${dispCompetency === paintBrush ? 'bg-primary-50 border-primary-500' : 'bg-slate-50 border-slate-100 active:border-primary-400'}`}>
+                                                                    <div className="flex items-center gap-3 py-2">
+                                                                        <span className={`text-lg font-black ${dispCompetency === paintBrush ? 'text-primary-900' : 'text-slate-800'}`}>
+                                                                            {dispCompetency === '90' ? 'Mastered' : 
+                                                                             dispCompetency === '70' ? 'Developing' : 
+                                                                             dispCompetency === '40' ? 'Emerging' : 
+                                                                             (dispCompetency || 'None')}
+                                                                        </span>
+                                                                        {dispCompetency !== paintBrush && (
+                                                                            <div className="w-8 h-8 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center animate-bounce-slow">
+                                                                                <Check className="w-4 h-4 text-primary-500 stroke-[3px]" />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${dispCompetency === paintBrush ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                                                        {dispCompetency === paintBrush ? `✓ ${paintBrush}` : `Tap to Set: ${paintBrush}`}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-3">
+                                                                    <select
+                                                                        value={['90', '70', '40', '0', ''].includes(dispCompetency) ? dispCompetency : 'custom'}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            if (val === 'custom') {
+                                                                                handleScoreChange(student.id, 'competencyStatus', 'Improving...');
+                                                                            } else {
+                                                                                handleScoreChange(student.id, 'competencyStatus', val);
+                                                                                handleScoreChange(student.id, 'examScore', '0');
+                                                                            }
+                                                                            handleScoreChange(student.id, 'classScore', '0');
+                                                                        }}
+                                                                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-slate-800 shadow-sm"
+                                                                    >
+                                                                        <option value="">Select Level...</option>
+                                                                        {(reportConfig?.class_settings?.[selectedClass]?.qualitative_levels || []).map((level: string, lIdx: number) => (
+                                                                            <option key={lIdx} value={level}>{level}</option>
+                                                                        ))}
+                                                                        {(!reportConfig?.class_settings?.[selectedClass]?.qualitative_levels || reportConfig?.class_settings?.[selectedClass]?.qualitative_levels.length === 0) && (
+                                                                            <>
+                                                                                <option value="Mastered">Mastered (Confident)</option>
+                                                                                <option value="Developing">Developing (Steady)</option>
+                                                                                <option value="Emerging">Emerging (Beginning)</option>
+                                                                            </>
+                                                                        )}
+                                                                        <option value="custom">Custom Status...</option>
+                                                                        <option value="0">Not Assessed</option>
+                                                                    </select>
+                                                                    {(!['90', '70', '40', 'Mastered', 'Developing', 'Emerging', '0', ''].includes(dispCompetency) || dispCompetency === 'Improving...') && (
+                                                                        <input 
+                                                                            type="text"
+                                                                            placeholder="Enter custom status..."
+                                                                            value={dispCompetency}
+                                                                            onChange={(e) => handleScoreChange(student.id, 'competencyStatus', e.target.value)}
+                                                                            className="w-full p-4 bg-white border-2 border-primary-100 rounded-xl text-sm font-bold text-primary-700 shadow-sm shadow-primary-50/50"
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <input
-                                                            type="number"
-                                                            value={dispExam || ''}
-                                                            onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                            className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
-                                                            placeholder="-"
-                                                        />
-                                                    </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            {examConfig.grading_type !== 'COMPETENCY' && (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="flex justify-between items-center px-1">
+                                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class ({examConfig.weights?.class || 30})</label>
+                                                                    </div>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={dispClass || ''}
+                                                                        onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
+                                                                        className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
+                                                                        placeholder="-"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            <div className={examConfig.grading_type === 'COMPETENCY' ? 'col-span-2' : 'space-y-1.5'}>
+                                                                <div className="flex justify-between items-center px-1">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Exam ({examConfig.weights?.exam || 70})</label>
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    value={dispExam || ''}
+                                                                    onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
+                                                                    className="w-full p-3 text-center font-black text-lg bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-50 outline-none transition-all"
+                                                                    placeholder="-"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                     {classStudents.length === 0 && (
                                         <div className="text-center text-slate-400 py-16 font-bold italic bg-white rounded-3xl border-2 border-dashed border-slate-100">
-                                            No students found.
+                                            No students found in {selectedClass}.
                                         </div>
                                     )}
                                 </div>
                             </>
                         )
+                    )}
+
+                    {/* Global Floating Action Button & Modal (available for marks-nursery or remarks) */}
+                    {(teacherTab === 'remarks' || (teacherTab === 'marks' && isNurseryLayout && !!selectedSubject)) && (
+                        <button
+                            onClick={() => {
+                                if (teacherTab === 'marks' && isNurseryLayout) setActiveTool('performance_status');
+                                setIsPresetModalOpen(true);
+                            }}
+                            className="fixed bottom-24 right-4 md:bottom-8 md:right-8 bg-primary-600 text-white p-4 rounded-full shadow-2xl shadow-primary-500/50 hover:bg-primary-700 hover:scale-105 transition-all z-40 flex items-center justify-center group animate-bounce-slow border-2 border-white/20"
+                        >
+                            <PenTool className="w-7 h-7" />
+                            <span className="absolute right-full mr-4 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
+                                Open {teacherTab === 'marks' ? 'Assessment' : 'Brush'} Palette
+                            </span>
+                        </button>
+                    )}
+
+                    {isPresetModalOpen && (
+                        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-end md:items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={(e) => { if (e.target === e.currentTarget) setIsPresetModalOpen(false); }}>
+                            <div className="bg-white w-full max-w-sm rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] mb-4 md:mb-0">
+                                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <div>
+                                        <h3 className="font-black text-slate-800 uppercase text-xs tracking-wider">Brush Palette</h3>
+                                        <p className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">Select a value for {activeTool.replace('_', ' ')}</p>
+                                    </div>
+                                    <button onClick={() => setIsPresetModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+                                </div>
+
+                                <div className="p-5 flex-1 overflow-y-auto">
+                                    <div className="flex gap-2 shrink-0 mb-6">
+                                        <input
+                                            type="text"
+                                            value={newPresetValue}
+                                            onChange={e => setNewPresetValue(e.target.value)}
+                                            placeholder="Type custom here..."
+                                            className="flex-1 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:border-primary-400 font-bold bg-slate-50"
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter' && newPresetValue) {
+                                                    if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
+                                                    if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
+                                                    if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
+                                                    setPaintBrush(newPresetValue);
+                                                    setNewPresetValue('');
+                                                    setIsPresetModalOpen(false);
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newPresetValue) {
+                                                    if (activeTool === 'teacher_remark') setUserPresets(p => [...p, newPresetValue]);
+                                                    if (activeTool === 'conduct') setConductPresets(p => [...p, newPresetValue]);
+                                                    if (activeTool === 'interest') setInterestPresets(p => [...p, newPresetValue]);
+                                                    setPaintBrush(newPresetValue);
+                                                    setNewPresetValue('');
+                                                    setIsPresetModalOpen(false);
+                                                }
+                                            }}
+                                            className="bg-slate-800 text-white px-4 rounded-xl shrink-0 hover:bg-slate-900 transition-colors"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3 pb-4">
+                                        <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest pl-1 mb-3">Available Presets</h4>
+                                        {(activeTool === 'performance_status' ? 
+                                            (reportConfig?.class_settings?.[selectedClass]?.qualitative_levels?.length > 0 ? 
+                                                reportConfig.class_settings[selectedClass].qualitative_levels : 
+                                                ['Mastered', 'Developing', 'Emerging']
+                                            ) :
+                                            (activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets)
+                                        ).map((preset: string, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setPaintBrush(preset);
+                                                    setIsPresetModalOpen(false);
+                                                }}
+                                                className={`w-full text-left p-4 rounded-xl border-2 transition-all group hover:-translate-y-0.5 ${paintBrush === preset ? 'border-primary-500 bg-primary-50 shadow-sm relative' : 'border-slate-100 hover:border-primary-300 hover:shadow-md bg-white'}`}
+                                            >
+                                                <span className={`text-sm font-bold leading-tight block pr-8 ${paintBrush === preset ? 'text-primary-800' : 'text-slate-600 group-hover:text-slate-900'}`}>{preset}</span>
+                                                {paintBrush === preset && <CheckCircle className="w-5 h-5 text-primary-500 absolute right-4 top-1/2 -translate-y-1/2" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
 

@@ -145,28 +145,52 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
         ? (classes.find((c: any) => c.id === primaryAssignment.classId)?.name || teacherData.assignedClass)
         : teacherData.assignedClass;
 
-      const payload = {
+      const payload: any = {
         school_id: schoolId,
-        name: teacherData.name,
-        email: teacherData.email,
-        phone: teacherData.phone,
-        subject: teacherData.subject,
-        assigned_class: derivedAssignedClass || null,
-        status: 'Active',
+        name: teacherData.name || '',
+        email: teacherData.email || '',
+        phone: teacherData.phone || '',
+        subject: teacherData.subject || '',
+        assigned_class: derivedAssignedClass || (editingTeacher?.assignedClass || null),
         salary: Number(teacherData.salary) || 0,
         allowances: teacherData.allowances || [],
         deductions: teacherData.deductions || []
       };
 
+      // Only hardcode status for new teachers, preserve for existing
+      if (!editingTeacher) {
+        payload.status = 'Active';
+      } else {
+        payload.status = editingTeacher.status;
+      }
+
       let teacherId = editingTeacher?.id;
 
       if (editingTeacher) {
         teacherId = editingTeacher.id;
-        const { error } = await supabase.from('teachers').update(payload).eq('id', teacherId);
-        if (error) throw error;
-        await supabase.from('profiles').update({
-          full_name: teacherData.name, email: teacherData.email, phone_number: teacherData.phone
-        }).eq('id', teacherId);
+        const { error: teacherUpdateError, data: updateResult } = await supabase
+          .from('teachers')
+          .update(payload)
+          .eq('id', teacherId)
+          .eq('school_id', schoolId)
+          .select();
+
+        if (teacherUpdateError) throw teacherUpdateError;
+        if (!updateResult || updateResult.length === 0) {
+          throw new Error('Teacher record not found or you do not have permission to update it.');
+        }
+
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: teacherData.name,
+            email: teacherData.email,
+            phone_number: teacherData.phone
+          })
+          .eq('id', teacherId)
+          .eq('school_id', schoolId);
+        
+        if (profileUpdateError) throw profileUpdateError;
       } else {
         // Create New User Logic
         const tempSupabase = createClient(
@@ -176,13 +200,29 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
         );
 
         const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-          email: teacherData.email, password: 'password123',
+          email: teacherData.email,
+          password: 'password123',
         });
 
-        if (authError) throw authError;
-        if (!authData.user) throw new Error('Failed to create user account');
+        if (authError) {
+          // If user exists, we'll try to find their ID via profiles to 're-claim' them
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', teacherData.email)
+            .single();
 
-        teacherId = authData.user.id;
+          if (existingProfile) {
+            teacherId = existingProfile.id;
+          } else {
+            throw authError; // Really a new error or truly already exists elsewhere
+          }
+        } else if (authData.user) {
+          teacherId = authData.user.id;
+        } else {
+          throw new Error('Failed to create or find user account');
+        }
+
         await supabase.rpc('confirm_user_by_email', { target_email: teacherData.email });
 
         // Profile Insert
@@ -197,23 +237,31 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
           }).eq('id', teacherId);
         }
 
-        const { error: teacherError } = await supabase.from('teachers').insert([{ id: teacherId, ...payload, password: 'password123' }]);
+        // Final Teacher Upsert (using upsert instead of insert to handle orphaned rows)
+        const { error: teacherError } = await supabase.from('teachers').upsert([{ id: teacherId, ...payload, password: 'password123' }]);
         if (teacherError) throw teacherError;
       }
 
       // Handle Assignments
       if (teacherId && teacherData.assignments) {
-        await supabase.from('teacher_assignments').delete().eq('teacher_id', teacherId);
+        const { error: deleteError } = await supabase.from('teacher_assignments').delete().eq('teacher_id', teacherId);
+        if (deleteError) throw new Error("Error clearing old assignments: " + deleteError.message);
+
         if (teacherData.assignments.length > 0) {
-          const assignmentInserts = teacherData.assignments.map((a: any) => ({
-            teacher_id: teacherId,
-            school_id: schoolId,
-            class_id: a.classId,
-            subject_id: a.isClassTeacher ? null : a.subjectId,
-            is_class_teacher: a.isClassTeacher
-          }));
-          const { error: assignError } = await supabase.from('teacher_assignments').insert(assignmentInserts);
-          if (assignError) throw new Error("Error saving assignments: " + assignError.message);
+          const assignmentInserts = teacherData.assignments
+            .filter((a: any) => a.classId) // Ensure classId exists
+            .map((a: any) => ({
+              teacher_id: teacherId,
+              school_id: schoolId,
+              class_id: a.classId,
+              subject_id: a.isClassTeacher ? null : a.subjectId || null,
+              is_class_teacher: a.isClassTeacher
+            }));
+
+          if (assignmentInserts.length > 0) {
+            const { error: assignError } = await supabase.from('teacher_assignments').insert(assignmentInserts);
+            if (assignError) throw new Error("Error saving new assignments: " + assignError.message);
+          }
         }
       }
       return { isNew: !editingTeacher };
@@ -222,7 +270,11 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
       queryClient.invalidateQueries({ queryKey: ['teachers', schoolId] });
       setIsModalOpen(false);
       setEditingTeacher(null);
-      if (data.isNew) alert('Teacher created! Password: password123');
+      if (data.isNew) {
+        alert('Teacher created! Password: password123');
+      } else {
+        alert('Staff profile updated successfully!');
+      }
     },
     onError: (error: any) => {
       console.error("Error saving teacher", error);
@@ -615,11 +667,20 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
 const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubjects = [], initialData = null, isLoading = false }: any) => {
   const { currency } = useCurrency();
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', subject: '', salary: 0,
+    name: '',
+    email: '',
+    phone: '',
+    subject: '',
+    salary: 0,
     assignments: [] as any[],
     allowances: [] as any[],
     deductions: [] as any[]
   });
+
+  // Bulk Selection States
+  const [bulkClasses, setBulkClasses] = useState<string[]>([]);
+  const [bulkSubjects, setBulkSubjects] = useState<string[]>([]);
+  const [bulkIsClassTeacher, setBulkIsClassTeacher] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -681,6 +742,46 @@ const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubje
       ...prev,
       assignments: prev.assignments.map(a => a.id === id ? { ...a, [field]: value } : a)
     }));
+  };
+
+  const handleBulkAdd = () => {
+    if (bulkClasses.length === 0) return alert("Select at least one class");
+    if (!bulkIsClassTeacher && bulkSubjects.length === 0) return alert("Select at least one subject or check 'Class Teacher'");
+
+    const newAssignments: any[] = [];
+
+    bulkClasses.forEach(classId => {
+      if (bulkIsClassTeacher) {
+        newAssignments.push({
+          id: Math.random().toString(),
+          classId: classId,
+          subjectId: null,
+          isClassTeacher: true
+        });
+      } else {
+        bulkSubjects.forEach(subjectId => {
+          newAssignments.push({
+            id: Math.random().toString(),
+            classId: classId,
+            subjectId: subjectId,
+            isClassTeacher: false
+          });
+        });
+      }
+    });
+
+    // Filter duplicates
+    const finalAssignments = [...formData.assignments];
+    newAssignments.forEach(na => {
+      const exists = finalAssignments.find(fa => fa.classId === na.classId && fa.subjectId === na.subjectId && fa.isClassTeacher === na.isClassTeacher);
+      if (!exists) finalAssignments.push(na);
+    });
+
+    setFormData(prev => ({ ...prev, assignments: finalAssignments }));
+    // Reset bulk selections
+    setBulkClasses([]);
+    setBulkSubjects([]);
+    setBulkIsClassTeacher(false);
   };
 
   return (
@@ -793,69 +894,143 @@ const TeacherModal = ({ onClose, onSubmit, availableClasses = [], availableSubje
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-sm font-bold text-slate-800">Class & Subject Assignments</h4>
-              <button type="button" onClick={addAssignment} className="text-sm text-primary-600 font-medium hover:bg-primary-50 px-3 py-1 rounded-lg flex items-center gap-1">
-                <Plus className="h-4 w-4" /> Add Assignment
+          <div className="border-t-4 border-slate-100 pt-6 space-y-6">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-primary-600 rounded-lg shadow-sm">
+                    <Shield className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Bulk Assignment Tool</h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Assign multiple classes and subjects at once</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Classes Multi-select */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Classes</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setBulkClasses(bulkClasses.length === availableClasses.length ? [] : availableClasses.map((c: any) => c.id))}
+                      className="text-[9px] font-black text-primary-600 uppercase hover:underline"
+                    >
+                      {bulkClasses.length === availableClasses.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white border border-slate-200 rounded-xl shadow-inner scrollbar-thin scrollbar-thumb-slate-200">
+                    {availableClasses.map((c: any) => (
+                      <label key={c.id} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${bulkClasses.includes(c.id) ? 'bg-primary-50 border-primary-200 ring-1 ring-primary-200' : 'bg-slate-50/50 border-slate-100 hover:border-slate-300'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                          checked={bulkClasses.includes(c.id)}
+                          onChange={e => {
+                            if (e.target.checked) setBulkClasses([...bulkClasses, c.id]);
+                            else setBulkClasses(bulkClasses.filter(id => id !== c.id));
+                          }}
+                        />
+                        <span className={`text-[11px] font-bold ${bulkClasses.includes(c.id) ? 'text-primary-700' : 'text-slate-600'}`}>{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subjects Multi-select */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Subjects</label>
+                    <label className="flex items-center gap-1.5 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        checked={bulkIsClassTeacher}
+                        onChange={e => {
+                            setBulkIsClassTeacher(e.target.checked);
+                            if (e.target.checked) setBulkSubjects([]);
+                        }}
+                      />
+                      <span className="text-[10px] font-black text-primary-600 uppercase group-hover:underline italic">Class Teacher (All Subjs)</span>
+                    </label>
+                  </div>
+                  <div className={`grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-3 bg-white border border-slate-200 rounded-xl shadow-inner transition-opacity ${bulkIsClassTeacher ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                    {availableSubjects.map((s: any) => (
+                      <label key={s.id} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${bulkSubjects.includes(s.id) ? 'bg-purple-50 border-purple-200 ring-1 ring-purple-200' : 'bg-slate-50/50 border-slate-100 hover:border-slate-300'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                          checked={bulkSubjects.includes(s.id)}
+                          onChange={e => {
+                            if (e.target.checked) setBulkSubjects([...bulkSubjects, s.id]);
+                            else setBulkSubjects(bulkSubjects.filter(id => id !== s.id));
+                          }}
+                        />
+                        <span className={`text-[11px] font-bold ${bulkSubjects.includes(s.id) ? 'text-purple-700' : 'text-slate-600'}`}>{s.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={handleBulkAdd}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Generate Assignments From Selection
               </button>
             </div>
 
-            <div className="space-y-3">
-              {formData.assignments.map((assignment, index) => (
-                <div key={assignment.id} className="flex flex-col sm:flex-row gap-3 items-start bg-slate-50 p-3 rounded-lg border border-slate-200 relative group">
-                  <div className="w-full sm:flex-1">
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Class</label>
-                    <select
-                      required
-                      className="w-full p-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-primary-500"
-                      value={assignment.classId}
-                      onChange={e => updateAssignment(assignment.id, 'classId', e.target.value)}
-                    >
-                      <option value="">Select Class</option>
-                      {availableClasses.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-slate-800">
+                <h4 className="text-sm font-black uppercase tracking-tight">Active Assignments ({formData.assignments.length})</h4>
+                <button type="button" onClick={() => setFormData({ ...formData, assignments: [] })} className="text-[10px] font-black text-red-500 uppercase hover:underline">Clear All</button>
+              </div>
 
-                  <div className="w-full sm:flex-1">
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Subject</label>
-                    <select
-                      disabled={assignment.isClassTeacher}
-                      className={`w-full p-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-primary-500 ${assignment.isClassTeacher ? 'bg-slate-100 text-slate-400' : 'bg-white'}`}
-                      value={assignment.subjectId || ''}
-                      onChange={e => updateAssignment(assignment.id, 'subjectId', e.target.value)}
-                    >
-                      <option value="">{assignment.isClassTeacher ? '(All Subjects)' : 'Select Subject'}</option>
-                      {availableSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
+              <div className="space-y-2">
+                {formData.assignments.map((assignment, index) => {
+                  const classObj = availableClasses.find((c: any) => c.id === assignment.classId);
+                  const subjectObj = availableSubjects.find((s: any) => s.id === assignment.subjectId);
+                  
+                  return (
+                    <div key={assignment.id} className="flex items-center justify-between bg-white px-4 py-3 rounded-xl border border-slate-200 hover:border-primary-300 transition-all group shadow-sm">
+                      <div className="flex items-center gap-4">
+                        <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center font-black text-slate-500 text-xs shadow-inner">
+                          {index + 1}
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Class</span>
+                            <span className="text-xs font-black text-slate-700">{classObj?.name || 'Unknown'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-0.5">{assignment.isClassTeacher ? 'Role' : 'Subject'}</span>
+                            <span className={`text-xs font-black ${assignment.isClassTeacher ? 'text-primary-600 italic' : 'text-purple-600'}`}>
+                              {assignment.isClassTeacher ? 'Main Class Teacher' : (subjectObj?.name || 'Unknown')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="flex flex-col justify-center pt-2 sm:pt-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={assignment.isClassTeacher}
-                        onChange={e => updateAssignment(assignment.id, 'isClassTeacher', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-xs font-medium text-slate-700">Class Teacher</span>
-                    </label>
+                      <button
+                        type="button"
+                        onClick={() => removeAssignment(assignment.id)}
+                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+                {formData.assignments.length === 0 && (
+                  <div className="text-center p-8 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No assignments created yet</p>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removeAssignment(assignment.id)}
-                    className="self-end sm:self-center mt-2 sm:mt-4 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {formData.assignments.length === 0 && (
-                <p className="text-center text-sm text-slate-500 py-4 italic bg-slate-50 rounded-lg border border-dashed border-slate-300">
-                  No assignments yet. Click "Add Assignment" to start.
-                </p>
-              )}
+                )}
+              </div>
             </div>
           </div>
 

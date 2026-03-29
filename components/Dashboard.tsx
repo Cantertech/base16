@@ -27,7 +27,8 @@ import {
     Utensils,
     History,
     ChevronRight,
-    Download
+    Download,
+    UserCheck
 } from 'lucide-react';
 import {
     AreaChart,
@@ -75,66 +76,82 @@ interface DashboardProps {
     onExitImpersonation?: () => void;
 }
 
-const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices }: any) => {
+const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices, assignments = [] }: any) => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold mb-2">Welcome back, {currentUser.name}!</h1>
-                    <p className="text-blue-100 mb-6 max-w-xl">Ready to inspire your students today? You have upcoming classes and pending reports to review.</p>
+                    <p className="text-blue-100 mb-6 max-w-xl">Ready to inspire your students today? You have {assignments.length || 0} active class assignments to manage.</p>
                     <div className="flex gap-4">
-                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="bg-white text-blue-600 px-6 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-sm">Enter Marks</button>
-                        <button onClick={() => setActiveMenu('My Students')} className="bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-800 transition-colors shadow-sm">View Students</button>
+                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="bg-white text-blue-600 px-6 py-2.5 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-sm text-sm">Enter Marks</button>
+                        <button onClick={() => setActiveMenu('My Students')} className="bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-800 transition-colors shadow-sm text-sm">View Students</button>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveMenu('Notice Board')}>
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Bell className="h-6 w-6" /></div>
-                        <h3 className="font-bold text-slate-800">Recent Notices</h3>
-                    </div>
-                    <div className="space-y-3">
-                        {recentNotices.length > 0 ? recentNotices.slice(0, 3).map((n: any) => (
-                            <div key={n.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${n.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{n.priority}</span>
-                                    <span className="text-[10px] text-slate-400">{new Date(n.created_at).toLocaleDateString()}</span>
-                                </div>
-                                <p className="text-sm font-medium text-slate-700 line-clamp-2">{n.title}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Assignments Section */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Layers className="h-6 w-6" /></div>
+                            <div>
+                                <h3 className="font-bold text-slate-800">My Assignments</h3>
+                                <p className="text-xs text-slate-500">Classes and subjects assigned to you</p>
                             </div>
-                        )) : <p className="text-sm text-slate-400 italic">No recent notices.</p>}
+                        </div>
                     </div>
+                    {assignments.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {assignments.map((assignment: any, idx: number) => (
+                                <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all group">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                                            {assignment.className}
+                                        </div>
+                                        {assignment.isClassTeacher && (
+                                            <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Class Teacher</span>
+                                        )}
+                                    </div>
+                                    <h4 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">{assignment.subjectName}</h4>
+                                    <div className="flex items-center gap-4 mt-4">
+                                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="text-[10px] font-bold text-blue-600 hover:underline">RECORD MARKS</button>
+                                        <button onClick={() => setActiveMenu('Attendance')} className="text-[10px] font-bold text-slate-600 hover:underline">ATTENDANCE</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                            <Layers className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-medium text-slate-500">No classes assigned yet.</p>
+                            <p className="text-xs text-slate-400 mt-1">Contact your admin to assign classes to your profile.</p>
+                        </div>
+                    )}
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle className="h-6 w-6" /></div>
-                        <h3 className="font-bold text-slate-800">Quick Actions</h3>
-                    </div>
-                    <div className="space-y-3">
-                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
-                            <FileText className="h-4 w-4 text-slate-400" /> Record Exam Scores
-                        </button>
-                        <button onClick={() => setActiveMenu('My Students')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
-                            <Users className="h-4 w-4 text-slate-400" /> View Class List
-                        </button>
-                        <button onClick={() => setActiveMenu('Settings & Profile')} className="w-full text-left p-3 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-3 text-sm font-medium text-slate-600">
-                            <SettingsIcon className="h-4 w-4 text-slate-400" /> Update Profile
-                        </button>
-                    </div>
-                </div>
-
+                {/* Notices Section */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><Clock className="h-6 w-6" /></div>
-                        <h3 className="font-bold text-slate-800">Today's Schedule</h3>
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Bell className="h-6 w-6" /></div>
+                        <h3 className="font-bold text-slate-800">School Notices</h3>
                     </div>
-                    <div className="flex flex-col items-center justify-center h-40 text-center">
-                        <div className="bg-slate-50 p-4 rounded-full mb-3"><Clock className="h-6 w-6 text-slate-300" /></div>
-                        <p className="text-sm text-slate-500">No classes scheduled for today.</p>
+                    <div className="space-y-4">
+                        {recentNotices.length > 0 ? recentNotices.slice(0, 3).map((n: any) => (
+                            <div key={n.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white hover:shadow-md transition-all cursor-pointer" onClick={() => setActiveMenu('Notice Board')}>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${n.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{n.priority}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">{new Date(n.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight">{n.title}</p>
+                            </div>
+                        )) : (
+                            <div className="py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <p className="text-xs text-slate-400 italic">No recent notices.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -202,6 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     academic_year: school.academic_year,
                     teachers_can_collect_feeding: school.teachers_can_collect_feeding || false,
                     feeding_fee_amount: school.feeding_fee_amount || 5,
+                    report_card_config: school.report_card_config,
                 };
                 // Cache the config to prevent flashing on reload
                 localStorage.setItem(`base16_school_config_${currentUser.school_id}`, JSON.stringify(config));
@@ -272,7 +290,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 girls: girlsCount || 0
             };
         },
-        enabled: !!currentUser.school_id && !!schoolConfig
+        enabled: !!currentUser.school_id && !!schoolConfig && currentUser.role === 'admin'
     });
 
     // 3. Financial History
@@ -298,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             }
             return months;
         },
-        enabled: !!currentUser.school_id
+        enabled: !!currentUser.school_id && currentUser.role === 'admin'
     });
 
     /* Hide payslips for now
@@ -342,7 +360,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
             return data ? data.map(sub => sub.module_id) : [];
         },
-        enabled: !!currentUser.school_id
+        enabled: !!currentUser.school_id,
+        staleTime: 60 * 60 * 1000 // Invalidate only manually or on reload
+    });
+
+    // 5.5 Teacher Assignments (New Robust Context)
+    const { data: teacherAssignments = [] } = useQuery({
+        queryKey: ['myAssignments', currentUser.id],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('teacher_assignments')
+                .select('class_name, subject_name, is_class_teacher')
+                .eq('teacher_id', currentUser.id);
+            return data || [];
+        },
+        enabled: currentUser.role === 'teacher'
     });
 
     // 6. Top Defaulters (Fees)
@@ -359,7 +391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 .limit(5);
             return data || [];
         },
-        enabled: !!currentUser.school_id && (activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle'))
+        enabled: !!currentUser.school_id && currentUser.role === 'admin' && (activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle'))
     });
 
     // 7. Teacher Attendance Stats for Today
@@ -373,7 +405,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             const present = tAttendance?.filter(a => a.status === 'Present' || a.status === 'Late').length || 0;
             return { present, total: tTotal || 0 };
         },
-        enabled: !!currentUser.school_id
+        enabled: !!currentUser.school_id && currentUser.role === 'admin'
     });
 
     // 7. Student Today's Attendance Stats
@@ -459,7 +491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
             return { currentTerm: current, lastTerm: last, growth };
         },
-        enabled: !!currentUser.school_id
+        enabled: !!currentUser.school_id && currentUser.role === 'admin'
     });
 
     // 10. Revenue Growth Stats
@@ -495,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
             return { growth };
         },
-        enabled: !!currentUser.school_id
+        enabled: !!currentUser.school_id && currentUser.role === 'admin'
     });
 
     // Combined Loading State
@@ -700,7 +732,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const renderContent = () => {
         if (currentUser.role === 'teacher') {
             switch (activeMenu) {
-                case 'Dashboard': return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
+                case 'Dashboard': return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} />;
                 case 'Timetable': return <Timetable currentUser={currentUser} />;
                 case 'My Students': return <Students currentUser={currentUser} />;
                 case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
@@ -709,7 +741,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 case 'Mark Entry & Reports': return <Exams currentUser={currentUser} activeModules={activeModules} />;
                 case 'Notice Board': return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
-                default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} />;
+                default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} />;
             }
         }
         switch (activeMenu) {

@@ -779,12 +779,23 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         {results.map((result, index) => {
                             const grade = calculateGrade(result.total);
                             const remark = calculateRemark(result.total);
+                            const isNurseryScore = ['90', '70', '40'].includes(result.total.toString()) || (result as any).competency_status;
+                            const nurseryStatus = (result as any).competency_status || (result.total === 90 ? 'Mastered' : result.total === 70 ? 'Developing' : result.total === 40 ? 'Emerging' : result.total.toString());
+
                             return (
                                 <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 print:bg-transparent'}>
                                     <td className="p-1.5 print:py-0.5 print:px-1.5 font-black text-slate-900 border-r border-slate-200 uppercase">{result.subject}</td>
-                                    <td className="p-1.5 print:py-0.5 print:px-1.5 text-center text-slate-700 border-r border-slate-200 font-bold">{result.classScore}</td>
-                                    <td className="p-1.5 print:py-0.5 print:px-1.5 text-center text-slate-700 border-r border-slate-200 font-bold">{result.examScore}</td>
-                                    <td className="p-1.5 print:py-0.5 print:px-1.5 text-center font-black text-slate-900 bg-slate-100/50 border-r border-slate-200">{result.total}</td>
+                                    {isNurseryScore ? (
+                                        <td colSpan={3} className="p-1.5 print:py-0.5 print:px-1.5 text-center font-black text-slate-900 bg-slate-100/30 border-r border-slate-200 uppercase tracking-widest italic text-[10px]">
+                                            {nurseryStatus === '90' ? 'Mastered' : nurseryStatus === '70' ? 'Developing' : nurseryStatus === '40' ? 'Emerging' : nurseryStatus}
+                                        </td>
+                                    ) : (
+                                        <>
+                                            <td className="p-1.5 print:py-0.5 print:px-1.5 text-center text-slate-700 border-r border-slate-200 font-bold">{result.classScore}</td>
+                                            <td className="p-1.5 print:py-0.5 print:px-1.5 text-center text-slate-700 border-r border-slate-200 font-bold">{result.examScore}</td>
+                                            <td className="p-1.5 print:py-0.5 print:px-1.5 text-center font-black text-slate-900 bg-slate-100/50 border-r border-slate-200">{result.total}</td>
+                                        </>
+                                    )}
                                     <td className="p-1.5 print:py-0.5 print:px-1.5 text-center font-black text-slate-900 border-r border-slate-200">
                                         <span className={`inline-block w-8 py-0.5 rounded-sm ${grade === 'A' || grade === 'B' ? 'bg-green-100 text-green-800' : grade === 'F' ? 'bg-red-100 text-red-800' : ''}`}>
                                             {grade}
