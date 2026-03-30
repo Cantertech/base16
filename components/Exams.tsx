@@ -168,8 +168,8 @@ const fetchResults = async (schoolId: string, term: string, year: string) => {
         .from('exam_results')
         .select('*, students(name)')
         .eq('school_id', schoolId)
-        .eq('term', term)
-        .eq('academic_year', year);
+        .ilike('term', (term || '').trim())
+        .ilike('academic_year', (year || '').trim());
 
     return data ? data.map((r: any) => ({
         id: r.id,
@@ -642,6 +642,95 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }
     });
 
+    const submitMarksMutation = useMutation({
+        mutationFn: async ({ className, subjectName }: { className: string, subjectName: string }) => {
+            const { error } = await supabase.rpc('submit_exam_marks_v3', {
+                p_school_id: schoolId,
+                p_class: className,
+                p_subject: subjectName,
+                p_term: currentTerm,
+                p_year: currentYear
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            alert("Marks submitted successfully to Admin.");
+            queryClient.invalidateQueries({ queryKey: ['submissionOverview', schoolId] });
+        },
+        onError: (e: any) => {
+            alert("Submission failed: " + e.message);
+        }
+    });
+
+    const clearMarksMutation = useMutation({
+        mutationFn: async ({ className, subjectName }: { className: string, subjectName: string }) => {
+            const cleanSubj = (subjectName || '').trim().toUpperCase();
+            const cleanTerm = (currentTerm || '').trim().toUpperCase();
+            const cleanYear = (currentYear || '').trim().toUpperCase();
+            const studentIds = classStudents.map(s => s.id);
+
+            console.log("NUCLEAR OVERWRITE & DELETE START", { subject: cleanSubj, students: studentIds.length });
+
+            // 1. FORCE OVERWRITE TO ZERO (Saves even if Delete fails)
+            // This is the fallback: if we can't delete the row, we at least make it zero.
+            const resetDatas = studentIds.map(sid => ({
+                school_id: schoolId,
+                student_id: sid,
+                class: className.trim().toUpperCase(),
+                subject: cleanSubj,
+                term: cleanTerm,
+                academic_year: cleanYear,
+                class_score: 0,
+                exam_score: 0,
+                competency_status: 'Reset'
+            }));
+
+            const { error: upsertError } = await supabase
+                .from('exam_results')
+                .upsert(resetDatas, { onConflict: 'student_id,class,subject,term,academic_year' });
+            
+            console.log("ZERO-OVERWRITE RESULT:", { error: upsertError });
+
+            // 2. SURGICAL DELETE (Try to remove them entirely)
+            const recordsToDelete = results.filter((r: Result) => 
+                r.class?.trim().toUpperCase() === className.trim().toUpperCase() &&
+                r.subject?.trim().toUpperCase() === cleanSubj
+            );
+            const idsToDelete = recordsToDelete.map(r => r.id);
+
+            if (idsToDelete.length > 0) {
+                const { error: delErr, count } = await supabase
+                    .from('exam_results')
+                    .delete({ count: 'exact' })
+                    .in('id', idsToDelete);
+                console.log("ID-DELETE RESULT:", { error: delErr, count });
+            }
+
+            // 3. CLEAR STATUS
+            const statusTargets = ['exam_submissions', 'submission_status', 'submission_overview', 'exam_submission_overview'];
+            for (const table of statusTargets) {
+                 await supabase.from(table).delete().eq('school_id', schoolId).ilike('subject_name', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
+                 if (studentIds.length > 0) {
+                    await supabase.from(table).delete().eq('school_id', schoolId).in('student_id', studentIds).ilike('subject', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
+                 }
+            }
+            
+            try { await supabase.rpc('unsubmit_exam_marks', { p_school_id: schoolId, p_class: className, p_subject: cleanSubj, p_term: cleanTerm }); } catch(e){}
+        },
+        onSuccess: async () => {
+            queryClient.setQueryData(['examResults', schoolId, currentTerm, currentYear], () => []);
+            await queryClient.invalidateQueries({ queryKey: ['examResults'] });
+            await queryClient.invalidateQueries({ queryKey: ['submissionOverview'] });
+            await queryClient.refetchQueries({ queryKey: ['examResults'] });
+            await queryClient.refetchQueries({ queryKey: ['submissionOverview'] });
+            alert("Subject marks successfully cleared and reset to zero.");
+        },
+        onError: (e: any) => {
+            console.error("Reset Failed:", e);
+            alert("Reset Error: " + e.message);
+        }
+    });
+
     const sendResultNotifications = async (className: string) => {
         try {
             const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
@@ -854,25 +943,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     ];
     const allPresets = [...remarkPresets, ...userPresets];
 
-    const submitMarksMutation = useMutation({
-        mutationFn: async () => {
-            const { error } = await supabase.rpc('submit_exam_marks_v3', {
-                p_school_id: schoolId,
-                p_class: selectedClass,
-                p_subject: selectedSubject,
-                p_term: currentTerm,
-                p_year: currentYear
-            });
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            alert("Marks submitted successfully to Admin.");
-            queryClient.invalidateQueries({ queryKey: ['submissionOverview', schoolId] });
-        },
-        onError: (e: any) => {
-            alert("Submission failed: " + e.message);
-        }
-    });
 
 
     // --- Handlers ---
@@ -987,24 +1057,46 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const getExistingScore = (studentId: string, field: 'classScore' | 'examScore') => {
-        const res = results.find((r: Result) =>
+        const cleanClass = (selectedClass || '').trim().toUpperCase();
+        const cleanSubject = (selectedSubject || '').trim().toUpperCase();
+
+        // Standardize search to match normalized storage
+        const res = results.find((r: Result) => 
             r.studentId === studentId &&
-            r.class === selectedClass &&
-            r.subject === selectedSubject
+            r.class?.trim().toUpperCase() === cleanClass &&
+            r.subject?.trim().toUpperCase() === cleanSubject
         );
-        return res ? res[field] : 0;
+        
+        if (!res) return 0;
+        const val = res[field];
+
+        // Ensure we handle non-numeric strings correctly during transitions
+        const numVal = Number(val);
+        const isActuallyNumber = !isNaN(numVal) && (val as any) !== '' && (val as any) !== null;
+        
+        const isCompetencyMode = examConfig?.grading_type?.trim().toLowerCase().includes('competency') || 
+                                 examConfig?.grading_type?.trim().toLowerCase().includes('numeracy');
+
+        if (!isActuallyNumber && !isCompetencyMode) {
+            return 0; // Return zero for text-based grades like "MASTERED" when in numeric mode
+        }
+
+        return isActuallyNumber ? numVal : val || 0;
     };
 
     const saveMarks = async () => {
+        const cleanTerm = (currentTerm || '').trim().toUpperCase();
+        const cleanYear = (currentYear || '').trim().toUpperCase();
+
         const updates = Object.entries(pendingChanges).map(([key, val]: [string, any]) => {
             const [studentId, className, subjectName] = key.split('|');
             return {
                 school_id: schoolId,
                 student_id: studentId,
-                class: className,
-                subject: subjectName,
-                term: currentTerm,
-                academic_year: currentYear,
+                class: (className || '').trim().toUpperCase(),
+                subject: (subjectName || '').trim().toUpperCase(),
+                term: cleanTerm,
+                academic_year: cleanYear,
                 class_score: val.classScore,
                 exam_score: val.examScore,
                 competency_status: val.competencyStatus
@@ -1039,7 +1131,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }
 
         if (!confirm(`Submit marks for ${selectedSubject} (${selectedClass})? This signals you are done.`)) return;
-        submitMarksMutation.mutate();
+        submitMarksMutation.mutate({ className: selectedClass, subjectName: selectedSubject });
+    };
+
+    const handleResetSubjectMarks = (className: string, subjectName: string) => {
+        if (!confirm(`Are you sure you want to PERMANENTLY delete all marks for ${subjectName} in ${className}? This is used to "wipe" the subject for re-entry if the grading system was changed. This action cannot be undone.`)) return;
+        clearMarksMutation.mutate({ className, subjectName });
     };
 
     const getGrade = (total: number) => {
@@ -1080,7 +1177,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     }
 
     // --- Render Filtered Lists ---
-    const classStudents = students.filter(s => s.class === selectedClass);
+    const classStudents = students.filter(s => 
+        s.class?.trim().toLowerCase() === (selectedClass || '').trim().toLowerCase()
+    );
 
     const getPrefilledResults = (student: any) => {
         if (!student) return [];
@@ -2434,7 +2533,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                          <span className="text-[10px] font-black text-primary-700 uppercase tracking-widest flex items-center gap-2">
                                                                             <ShieldAlert className="w-3.5 h-3.5" /> Read-Only Mark Sheet - {sub.subject_name}
                                                                          </span>
-                                                                         <button onClick={() => setSelectedSubject('')} className="p-1 hover:bg-primary-100 rounded text-primary-500"><X className="w-4 h-4" /></button>
+                                                                         <div className="flex items-center gap-2">
+                                                                            <button 
+                                                                                onClick={() => handleResetSubjectMarks(className, sub.subject_name)}
+                                                                                className="text-[9px] font-black uppercase px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                                                                            >
+                                                                                <Trash2 className="w-3 h-3" /> Reset Marks
+                                                                            </button>
+                                                                            <button onClick={() => setSelectedSubject('')} className="p-1 hover:bg-primary-100 rounded text-primary-500"><X className="w-4 h-4" /></button>
+                                                                         </div>
                                                                     </div>
                                                                     <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                                                                         <table className="w-full text-left border-collapse">
@@ -2500,12 +2607,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     <div key={cls} className="p-4 border border-slate-200 rounded-lg hover:border-primary-300 transition-all bg-slate-50 hover:bg-white group">
                                         <div className="flex justify-between items-start mb-3">
                                             <h4 className="font-bold text-slate-900">{cls}</h4>
-                                            <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">{(students as Student[]).filter(s => s.class === cls).length} Students</span>
+                                            <span className="text-xs font-medium bg-slate-200 text-slate-600 px-2 py-1 rounded">
+                                                {(students as Student[]).filter(s => s.class?.trim().toLowerCase() === cls.trim().toLowerCase()).length} Students
+                                            </span>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => { setViewingClassList(cls); setSelectedClass(cls); }} className="flex-1 py-2 text-xs font-bold text-primary-700 bg-primary-50 rounded hover:bg-primary-100 transition-colors">View Reports</button>
                                             <button
-                                                onClick={() => setReleaseModalData({ className: cls, studentCount: (students as Student[]).filter(s => s.class === cls).length, validPhones: (students as Student[]).filter(s => s.class === cls && s.parent_phone && s.parent_phone.length >= 9).length })}
+                                                onClick={() => {
+                                                    const classCount = (students as Student[]).filter(s => s.class?.trim().toLowerCase() === cls.trim().toLowerCase()).length;
+                                                    const phoneCount = (students as Student[]).filter(s => s.class?.trim().toLowerCase() === cls.trim().toLowerCase() && s.parent_phone && s.parent_phone.length >= 9).length;
+                                                    setReleaseModalData({ className: cls, studentCount: classCount, validPhones: phoneCount });
+                                                }}
                                                 disabled={isReleased || publishResultsMutation.isPending}
                                                 className={`flex-1 py-2 text-xs font-bold text-white rounded transition-colors flex items-center justify-center gap-1 ${isReleased ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-slate-800 hover:bg-slate-900'}`}
                                             >
@@ -2551,7 +2664,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             </div>
                             <div className="p-6 overflow-y-auto bg-slate-50/50">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => (
+                                    {(students as Student[]).filter(s => s.class?.trim().toLowerCase() === viewingClassList?.trim().toLowerCase()).map((student) => (
                                         <div key={student.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-primary-300 cursor-pointer" onClick={() => setReportStudent(student)}>
                                             <div className="flex items-center gap-4">
                                                 <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden">{student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400 m-auto mt-3" />}</div>
