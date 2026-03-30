@@ -248,6 +248,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [viewingSubmission, setViewingSubmission] = useState<any>(null);
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number; competencyStatus?: string }>>({});
+    const isAdmin = (currentUser?.role || '').toLowerCase().includes('admin');
     const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks'>('marks');
     const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest' | 'performance_status'>('teacher_remark');
     const [paintBrush, setPaintBrush] = useState<string>('');
@@ -292,7 +293,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId && !!schoolInfo
     });
 
-    const { data: availableClasses = [] } = useQuery({
+    const { data: allClassesData = [] } = useQuery({
         queryKey: ['classNames', schoolId],
         queryFn: () => fetchClasses(schoolId!),
         enabled: !!schoolId
@@ -430,7 +431,77 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const { data: submissionOverview = [] } = useQuery({
         queryKey: ['submissionOverview', schoolId, currentTerm, currentYear],
         queryFn: () => fetchSubmissionOverview(schoolId!, currentTerm, currentYear),
-        enabled: !!schoolId && !!examConfig && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')
+        enabled: !!schoolId && !!examConfig && ((currentUser?.role || '').toLowerCase().includes('admin'))
+    });
+
+    const { data: allAssignments = [] } = useQuery({
+        queryKey: ['allAssignments', schoolId],
+        queryFn: async () => {
+            if (!schoolId) return [];
+            
+            // 1. Fetch from teacher_assignments (Specific assignments)
+            const { data: q1 } = await supabase
+                .from('teacher_assignments')
+                .select('class_name, classes(name), subject_name, subjects(name), teachers(name), teacher(name)')
+                .eq('school_id', schoolId);
+            
+            // 2. Fetch from subject_assignments (Standard school config)
+            const { data: q2 } = await supabase
+                .from('subject_assignments')
+                .select('classes(name), subjects(name), teachers(name), teacher(name)')
+                .eq('school_id', schoolId);
+
+            // 3. Fetch from teachers table (Primary class teacher assignments)
+            const { data: q3 } = await supabase
+                .from('teachers')
+                .select('name, assigned_class, subject')
+                .eq('school_id', schoolId);
+
+            const combined: any[] = [];
+
+            // Helper to handle singleton arrays from joins
+            const getVal = (v: any) => (Array.isArray(v) ? v[0] : v);
+
+            // Add Specific Teacher Assignments
+            q1?.forEach((d: any) => {
+                const cls = getVal(d.classes);
+                const subj = getVal(d.subjects);
+                const tObj = getVal(d.teachers) || getVal(d.teacher);
+                combined.push({
+                    class_name: cls?.name || d.class_name,
+                    subject_name: subj?.name || d.subject_name,
+                    teacher_name: tObj?.name
+                });
+            });
+
+            // Add Subject Assignments mappings
+            q2?.forEach((d: any) => {
+                const cls = getVal(d.classes);
+                const subj = getVal(d.subjects);
+                const tObj = getVal(d.teachers) || getVal(d.teacher);
+                if (tObj) {
+                    combined.push({
+                        class_name: cls?.name,
+                        subject_name: subj?.name,
+                        teacher_name: tObj.name
+                    });
+                }
+            });
+
+            // Add Primary Class Teachers Mapping
+            q3?.forEach((d: any) => {
+                if (d.assigned_class) {
+                    combined.push({
+                        class_name: d.assigned_class,
+                        subject_name: d.subject || null, // Might be NULL for generic class teacher
+                        teacher_name: d.name
+                    });
+                }
+            });
+
+            return combined.filter(c => c.teacher_name);
+        },
+        enabled: !!schoolId && ((currentUser?.role || '').toLowerCase().includes('admin'))
     });
 
     const { data: releasedClasses = [] } = useQuery({
@@ -451,11 +522,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     useEffect(() => {
         if (examConfig) setLocalConfig(examConfig);
     }, [examConfig]);
+    const availableClasses: string[] = Array.isArray(localConfig?.target_classes) 
+        ? localConfig.target_classes 
+        : (localConfig?.target_classes || '').split(',').map((c: string) => c.trim()).filter(Boolean);
 
     // Calculate if user has Class Teacher privileges for the current class
     const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
                            (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
-                           myAssignments.some((a: any) => a.isClassTeacher && a.className === selectedClass);
+                           myAssignments.some((a: any) => a.isClassTeacher && (a.className?.trim().toLowerCase() === selectedClass?.trim().toLowerCase()));
 
     // Auto-switch away from protected tabs if access is lost (e.g. switched to a class where only a subject teacher)
     useEffect(() => {
@@ -1038,8 +1112,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         return fullResults;
     };
 
-    // --- TEACHER VIEW (AND ADMIN ASSESSMENT HUB) ---
-    if ((currentUser?.role || '').toLowerCase() === 'teacher' || (((currentUser?.role || '').toLowerCase().includes('admin')) && activeTab === 'monitoring' && selectedClass)) {
+    // --- TEACHER VIEW (FOR ASSIGNED SUBJECTS) ---
+    if ((currentUser?.role || '').toLowerCase() === 'teacher') {
         return (
             <div className="p-4 md:p-8 space-y-4 md:space-y-6 h-full pb-20 md:pb-0 overflow-y-auto bg-slate-50/30">
                 {/* Header */}
@@ -1127,7 +1201,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     {saveBulkRemarksMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Remarks
                                 </button>
                             )}
-                            {teacherTab === 'marks' && (
+                            {teacherTab === 'marks' && !((currentUser?.role || '').toLowerCase().includes('admin')) && (
                                 <>
                                     <button
                                         onClick={saveMarks}
@@ -1403,11 +1477,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                             )}
                                                         </div>
                                                     </button>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="hidden md:block overflow-x-auto">
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="hidden md:block overflow-x-auto">
+                                            {isAdmin && (
+                                                <div className="bg-amber-50 p-4 border-b border-amber-100 flex items-center justify-center gap-2">
+                                                    <ShieldAlert className="w-4 h-4 text-amber-600" />
+                                                    <span className="text-xs font-black text-amber-700 uppercase tracking-widest">Read-Only Mode (Administrator)</span>
+                                                </div>
+                                            )}
                                             <table className="w-full text-left border-collapse">
                                                 <thead className="bg-white border-b border-slate-200">
                                                     <tr>
@@ -1438,7 +1518,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                             type="number"
                                                                             value={dispClass || ''}
                                                                             onChange={(e) => handleScoreChange(student.id, 'classScore', e.target.value)}
-                                                                            className="w-20 p-2 text-center border rounded-md focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                            readOnly={isAdmin}
+                                                                            className={`w-20 p-2 text-center border rounded-md outline-none ${isAdmin ? 'bg-slate-50 border-transparent text-slate-500 font-bold' : 'focus:border-primary-500 focus:ring-1 focus:ring-primary-500'}`}
                                                                         />
                                                                     </td>
                                                                 )}
@@ -1447,7 +1528,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                         type="number"
                                                                         value={dispExam || ''}
                                                                         onChange={(e) => handleScoreChange(student.id, 'examScore', e.target.value)}
-                                                                        className="w-20 p-2 text-center border rounded-md focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                                                                        readOnly={isAdmin}
+                                                                        className={`w-20 p-2 text-center border rounded-md outline-none ${isAdmin ? 'bg-slate-50 border-transparent text-slate-500 font-bold' : 'focus:border-primary-500 focus:ring-1 focus:ring-primary-500'}`}
                                                                     />
                                                                 </td>
                                                                 <td className="px-6 py-3 text-center font-bold">{total}</td>
@@ -1816,8 +1898,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         <Settings className="w-4 h-4" /> <span className="hidden sm:inline">1. Configuration</span><span className="sm:hidden">Setup</span>
                     </button>
                     <div className="w-px bg-slate-300 my-2 mx-1 hidden sm:block"></div>
-                    <button onClick={() => setActiveTab('monitoring')} className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'monitoring' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <ClipboardCheck className="w-4 h-4" /> <span className="hidden sm:inline">2. Mark Entry</span><span className="sm:hidden">Entry</span>
+                    <button onClick={() => { setActiveTab('monitoring'); setSelectedClass(''); }} className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'monitoring' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <ClipboardCheck className="w-4 h-4" /> <span className="hidden sm:inline">2. Submission Tracking</span><span className="sm:hidden">Status</span>
                     </button>
                     <div className="w-px bg-slate-300 my-2 mx-1 hidden sm:block"></div>
                     <button onClick={() => setActiveTab('publishing')} className={`flex-1 md:flex-none px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'publishing' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -2242,83 +2324,153 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 </div>
             )}
 
-            {/* Step 2: Monitoring */}
+            {/* Step 2: Submission Tracking */}
             {activeTab === 'monitoring' && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="mb-6">
                         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Submission Monitoring</h3>
-                        <p className="text-sm text-slate-500 font-medium tracking-wide">Select a class below to view subject-wise mark entry progress.</p>
+                        <p className="text-sm text-slate-500 font-medium tracking-wide italic">Click a class to see subjects, then click a subject to view submitted marks.</p>
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100 italic">
+                    <div className="space-y-3">
                         {availableClasses.map((className: string) => {
-                            const classSubs = submissionOverview.filter((s: any) => s.class_name === className);
+                            // Primary source should be the school's configured subject-to-class assignments
+                            const classConf = (subjectAssignments || []).filter((sa: any) => {
+                                const cls = Array.isArray(sa.classes) ? sa.classes[0] : sa.classes;
+                                return cls?.name?.trim().toLowerCase() === className.trim().toLowerCase();
+                            });
+                            
+                            const classSubs = classConf.map(sa => {
+                                const subj = Array.isArray(sa.subjects) ? sa.subjects[0] : sa.subjects;
+                                const subjName = subj?.name;
+                                // Find all teachers assigned to this specific pair (Class Teacher + Subject Teachers)
+                                const teachers = (allAssignments || []).filter((a: any) => 
+                                    a.class_name?.trim().toLowerCase() === className.trim().toLowerCase() &&
+                                    (
+                                        a.subject_name?.trim().toLowerCase() === subjName?.trim().toLowerCase() ||
+                                        a.subject_name === null // Map class teachers to all subjects for oversight
+                                    )
+                                ).map((a: any) => a.teacher_name).filter(Boolean);
+
+                                const teacherLabel = teachers.length > 0 ? [...new Set(teachers)].join(', ') : 'Unassigned';
+
+                                // Find current submission status
+                                const statusEntry = (submissionOverview || []).find((s: any) => 
+                                    s.class_name?.trim().toLowerCase() === className.trim().toLowerCase() && 
+                                    s.subject_name?.trim().toLowerCase() === subjName?.trim().toLowerCase()
+                                );
+
+                                return {
+                                    subject_name: subjName,
+                                    status: statusEntry?.status || 'Pending',
+                                    teacherName: teacherLabel
+                                };
+                            });
+
                             const submittedCount = classSubs.filter((s: any) => s.status === 'Submitted').length;
                             const totalCount = classSubs.length || 0;
-                            const progress = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : 0;
-                            const isExpanded = expandedMonitoringClass === className;
+                            const isClassExpanded = expandedMonitoringClass === className;
 
                             return (
-                                <div key={className} className="flex flex-col">
+                                <div key={className} className={`bg-white rounded-2xl border transition-all ${isClassExpanded ? 'border-primary-200 shadow-md ring-4 ring-primary-50/50' : 'border-slate-200 shadow-sm hover:border-primary-100 hover:shadow-md'}`}>
+                                    {/* Class Header (The "Drop Down" trigger) */}
                                     <button
-                                        onClick={() => setExpandedMonitoringClass(isExpanded ? null : className)}
-                                        className={`w-full p-5 flex flex-col md:flex-row md:items-center justify-between text-left hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-slate-50/50' : ''}`}
+                                        onClick={() => {
+                                            setExpandedMonitoringClass(isClassExpanded ? null : className);
+                                            setSelectedClass(className);
+                                            setSelectedSubject('');
+                                        }}
+                                        className={`w-full p-5 flex items-center justify-between text-left group ${isClassExpanded ? 'border-b border-primary-50' : ''}`}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className={`h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center font-black text-xs md:text-sm shadow-sm ${progress === 100 ? 'bg-green-100 text-green-700' : 'bg-primary-50 text-primary-600'}`}>
-                                                {progress}%
+                                            <div className={`h-12 w-12 rounded-xl flex items-center justify-center font-black transition-all ${isClassExpanded ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600'}`}>
+                                                <Users className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <h4 className="font-black text-slate-800 uppercase tracking-tight text-base md:text-lg">{className}</h4>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">
-                                                    {submittedCount} / {totalCount} Subjects Done
-                                                </p>
+                                                <h4 className="font-black text-slate-800 uppercase tracking-tight text-lg">{className}</h4>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${submittedCount === totalCount && totalCount > 0 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                        {submittedCount} / {totalCount} Done
+                                                    </span>
+                                                    {isClassExpanded && <span className="text-[10px] font-black text-primary-500 uppercase animate-pulse">Select a subject below</span>}
+                                                </div>
                                             </div>
                                         </div>
-
-                                        <div className="flex items-center gap-6 mt-4 md:mt-0">
-                                            <div className="hidden lg:block w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className="h-full bg-primary-500 transition-all duration-700" style={{ width: `${progress}%` }}></div>
-                                            </div>
-                                            <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center transition-all ${isExpanded ? 'rotate-180 bg-slate-200 text-slate-800' : 'bg-slate-50 text-slate-400'}`}>
-                                                <ChevronDown className="w-5 h-5" />
-                                            </div>
+                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${isClassExpanded ? 'rotate-180 bg-primary-50 text-primary-600' : 'bg-slate-50 text-slate-300'}`}>
+                                            <ChevronDown className="w-5 h-5" />
                                         </div>
                                     </button>
 
-                                    {isExpanded && (
-                                        <div className="bg-slate-50/50 p-6 md:p-8 animate-in slide-in-from-top-4 duration-300">
-                                            <div className="space-y-6">
-                                                {/* Summary Counts */}
-                                                <div className="flex gap-4">
-                                                    <div className="flex-1 bg-green-50 p-3 rounded-xl border border-green-100">
-                                                        <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Submitted</p>
-                                                        <p className="text-xl font-black text-green-700">{submittedCount}</p>
-                                                    </div>
-                                                    <div className="flex-1 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                                                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Pending</p>
-                                                        <p className="text-xl font-black text-amber-700">{totalCount - submittedCount}</p>
-                                                    </div>
-                                                </div>
+                                    {/* Subject List (The "Dropped Down" content) */}
+                                    {isClassExpanded && (
+                                        <div className="p-4 bg-slate-50/50 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {classSubs.map((sub: any, idx: number) => {
+                                                    const isSubSubmitted = sub.status === 'Submitted';
+                                                    const isSelected = selectedSubject === sub.subject_name;
 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                    {classSubs.map((sub: any, idx: number) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                                                            <div className="flex items-center gap-3 min-w-0">
-                                                                <div className={`shrink-0 h-2 w-2 rounded-full ${sub.status === 'Submitted' ? 'bg-green-500' : 'bg-amber-500'}`} />
-                                                                <span className="font-bold text-slate-700 text-xs truncate italic">{sub.subject_name}</span>
-                                                            </div>
-                                                            <span className={`shrink-0 text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-md ${sub.status === 'Submitted' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                                {sub.status || 'Pending'}
-                                                            </span>
+                                                    return (
+                                                        <div key={idx} className="flex flex-col gap-2">
+                                                            <button
+                                                                onClick={() => setSelectedSubject(isSelected ? '' : sub.subject_name)}
+                                                                className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isSelected ? 'bg-white border-primary-500 shadow-lg -translate-y-1' : 'bg-white border-slate-200 hover:border-primary-300 hover:shadow-md shadow-sm'}`}
+                                                            >
+                                                                <div className="flex items-center gap-3 min-w-0">
+                                                                    <div className={`h-3 w-3 rounded-full shrink-0 shadow-sm ${isSubSubmitted ? 'bg-green-500' : 'bg-amber-400 animate-pulse'}`} />
+                                                                    <div className="min-w-0">
+                                                                        <span className="font-black text-slate-800 text-xs block truncate uppercase tracking-tight">{sub.subject_name}</span>
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{sub.teacherName}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${isSubSubmitted ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                                    {isSubSubmitted ? 'Submitted' : sub.status}
+                                                                </div>
+                                                            </button>
+
+                                                            {/* Nested Results Preview */}
+                                                            {isSelected && (
+                                                                <div className="lg:col-span-full bg-white rounded-2xl border border-primary-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 mt-2">
+                                                                    <div className="bg-primary-50 p-3 border-b border-primary-100 flex items-center justify-between">
+                                                                         <span className="text-[10px] font-black text-primary-700 uppercase tracking-widest flex items-center gap-2">
+                                                                            <ShieldAlert className="w-3.5 h-3.5" /> Read-Only Mark Sheet - {sub.subject_name}
+                                                                         </span>
+                                                                         <button onClick={() => setSelectedSubject('')} className="p-1 hover:bg-primary-100 rounded text-primary-500"><X className="w-4 h-4" /></button>
+                                                                    </div>
+                                                                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                                                                        <table className="w-full text-left border-collapse">
+                                                                            <thead className="bg-slate-50 sticky top-0 z-10">
+                                                                                <tr>
+                                                                                    <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Student Name</th>
+                                                                                    <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-100 w-24">Class</th>
+                                                                                    <th className="px-5 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-100 w-24">Exam</th>
+                                                                                    <th className="px-5 py-3 text-[9px] font-black text-slate-800 uppercase tracking-widest text-center border-b border-slate-100 w-24 font-bold">Total</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody className="divide-y divide-slate-100">
+                                                                                {classStudents.map(student => {
+                                                                                    const savedClass = getExistingScore(student.id, 'classScore');
+                                                                                    const savedExam = getExistingScore(student.id, 'examScore');
+                                                                                    const total = savedClass + savedExam;
+                                                                                    return (
+                                                                                        <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                                                            <td className="px-5 py-2.5 font-bold text-slate-700 text-[11px] uppercase truncate">{student.name}</td>
+                                                                                            <td className="px-5 py-2.5 text-center"><span className="text-[11px] font-black text-slate-400">{savedClass}</span></td>
+                                                                                            <td className="px-5 py-2.5 text-center"><span className="text-[11px] font-black text-slate-400">{savedExam}</span></td>
+                                                                                            <td className="px-5 py-2.5 text-center"><span className="text-[11px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md">{total}</span></td>
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                            </tbody>
+                                                                        </table>
+                                                                        {classStudents.length === 0 && (
+                                                                            <div className="p-10 text-center text-slate-300 font-black uppercase text-[10px] italic">No students found</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    ))}
-                                                    {classSubs.length === 0 && (
-                                                        <div className="col-span-full p-8 text-center text-slate-400 font-bold italic border-2 border-dashed border-slate-100 rounded-2xl">
-                                                            No subjects found for this class.
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
@@ -2327,16 +2479,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         })}
 
                         {availableClasses.length === 0 && (
-                            <div className="col-span-full p-20 text-center bg-white rounded-3xl border-4 border-dashed border-slate-100">
+                            <div className="p-20 text-center bg-white rounded-3xl border-4 border-dashed border-slate-100">
                                 <Users className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                                <h3 className="text-xl font-bold text-slate-400">No Target Classes Set Up</h3>
-                                <p className="text-sm text-slate-300">Target classes will appear here once configured in the Setup tab.</p>
+                                <h3 className="text-xl font-bold text-slate-400">No Target Classes Found</h3>
+                                <p className="text-sm text-slate-300">Set up your target classes in the Configuration tab first.</p>
                             </div>
                         )}
                     </div>
                 </div>
             )}
-
             {/* Step 3: Publishing */}
             {activeTab === 'publishing' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
