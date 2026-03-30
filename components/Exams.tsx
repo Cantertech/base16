@@ -1391,14 +1391,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         const pending = pendingRemarks[student.id] || {};
 
                                         const currentVal = pending[activeTool] ?? saved?.[activeTool] ?? '';
+                                        const termTotal = examConfig?.term_total_days || 0;
 
                                         return (
-                                            <button
+                                            <div
                                                 key={student.id}
-                                                onClick={() => {
-                                                    if (paintBrush) handleRemarkChange(student.id, activeTool, paintBrush);
-                                                }}
                                                 className={`text-left p-4 rounded-xl border-2 transition-all flex flex-col justify-between group ${paintBrush && currentVal !== paintBrush ? 'hover:border-primary-400 hover:shadow-md cursor-pointer' : ''} ${currentVal ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}
+                                                onClick={(e) => {
+                                                    // Only handle if clicking the card, not the input inside
+                                                    if (paintBrush && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+                                                        handleRemarkChange(student.id, activeTool, paintBrush);
+                                                    }
+                                                }}
                                             >
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div>
@@ -1407,16 +1411,41 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                     </div>
                                                 </div>
                                                 <div className="w-full bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[44px] flex items-center justify-between group-hover:bg-primary-50/30 transition-colors mt-2">
-                                                    <span className={`text-xs font-bold leading-tight ${currentVal ? 'text-slate-600' : 'text-slate-400 italic'}`}>
-                                                        {activeTool === 'attendance_present' ? (currentVal ? `${currentVal} Days` : 'No Attendance') : (currentVal || `No ${activeTool.replace('_', ' ')}`)}
-                                                    </span>
+                                                    {activeTool === 'attendance_present' ? (
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <input 
+                                                                type="number"
+                                                                value={currentVal || ''}
+                                                                max={termTotal}
+                                                                onChange={(e) => handleRemarkChange(student.id, 'attendance_present', e.target.value)}
+                                                                className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-800 outline-none focus:border-primary-500"
+                                                                placeholder="Present"
+                                                            />
+                                                            <span className="text-xs font-black text-slate-400">/ {termTotal || '--'}</span>
+                                                        </div>
+                                                    ) : activeTool === 'teacher_remark' ? (
+                                                        <textarea 
+                                                            value={currentVal || ''}
+                                                            onChange={(e) => handleRemarkChange(student.id, 'teacher_remark', e.target.value)}
+                                                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-800 outline-none focus:border-primary-500 min-h-[44px] resize-none"
+                                                            placeholder="Enter remark..."
+                                                        />
+                                                    ) : (
+                                                        <input 
+                                                            type="text"
+                                                            value={currentVal || ''}
+                                                            onChange={(e) => handleRemarkChange(student.id, activeTool, e.target.value)}
+                                                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-800 outline-none focus:border-primary-500"
+                                                            placeholder={`Enter ${activeTool.replace('_', ' ')}...`}
+                                                        />
+                                                    )}
                                                     {paintBrush && currentVal !== paintBrush && (
                                                         <div className="w-6 h-6 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                                                             <Check className="w-3 h-3 text-primary-500" />
                                                         </div>
                                                     )}
                                                 </div>
-                                            </button>
+                                            </div>
                                         );
                                     })}                                    {classStudents.length === 0 && (
                                         <div className="col-span-full p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-xl bg-white/50">
