@@ -610,11 +610,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     // --- Mutations ---
     const saveConfigMutation = useMutation({
         mutationFn: async (newConfig: any) => {
+            console.log("MUTATING EXAM CONFIG:", newConfig);
             const { error } = await supabase.rpc('save_exam_config', {
                 p_school_id: schoolId,
                 p_config: newConfig
             });
-            if (error) throw error;
+            if (error) {
+                console.error("RPC ERROR:", error);
+                throw error;
+            }
             return newConfig;
         },
         onSuccess: (newConfig) => {
@@ -985,6 +989,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             target_classes: availableClasses,
             target_subjects: allSubjects
         };
+        console.log("HANDLESAVECONFIG - FINAL PAYLOAD:", finalConfig);
         saveConfigMutation.mutate(finalConfig);
     };
     const toggleMarkEntry = (enable: boolean) => toggleMarkEntryMutation.mutate(enable);
