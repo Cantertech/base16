@@ -138,13 +138,11 @@ const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) =
     // Loading thousands of full student objects at once is what causes the "works for some, not for others" issue
     let query = supabase.from('students')
         .select('id, name, class, photo_url, parent_phone, parent_name, admission_no, pin, balance')
-        .eq('school_id', schoolId);
+        .eq('school_id', schoolId)
+        .limit(5000);
 
-    // If it's a teacher, filter on the server before the data even hits the browser
-    if (assignedClasses.length > 0) {
-        query = query.in('class', assignedClasses);
-    }
-
+    // We fetch all active students for the school and filter locally 
+    // to handle inconsistencies in class name casing or trailing spaces
     const { data, error } = await query;
     if (error) {
         console.error("Critical: Failed to fetch students", error);
@@ -403,7 +401,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 return [];
             }
             
-            return fetchStudents(schoolId!, assignedClassList);
+            const allStudents = await fetchStudents(schoolId!, []);
+
+            // Performance and Robustness: Filter locally for teachers using normalized names
+            if ((currentUser?.role || '').toLowerCase() === 'teacher') {
+                const assignedSet = new Set(assignedClassList.map(c => c.trim().toLowerCase()));
+                return allStudents.filter(s => s.class && assignedSet.has(s.class.trim().toLowerCase()));
+            }
+
+            return allStudents;
         },
         enabled: !!schoolId && (currentUser?.role !== 'teacher' || myAssignments.length > 0), // Only enable once classes are known
         staleTime: 5 * 60 * 1000,
@@ -1234,7 +1240,27 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 </div>
                                             </button>
                                         );
-                                    })}                                    {classStudents.length === 0 && <div className="col-span-full p-8 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-xl">No students found.</div>}
+                                    })}                                    {classStudents.length === 0 && (
+                                        <div className="col-span-full p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-xl bg-white/50">
+                                            {!selectedClass ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Filter className="w-8 h-8 text-slate-300" />
+                                                    <p>Select a class to view students</p>
+                                                </div>
+                                            ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
+                                                <div className="flex flex-col items-center gap-2 text-orange-400">
+                                                    <ShieldAlert className="w-8 h-8" />
+                                                    <p>Assignment Check Failed: You don't appear to be assigned to {selectedClass}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black px-4">Contact your school administrator to verify your class/subject records</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Users className="w-8 h-8 text-slate-300" />
+                                                    <p>No students found in {selectedClass}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1298,7 +1324,23 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     })}
                                     {classStudents.length === 0 && (
                                         <div className="col-span-full p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-3xl bg-white/50">
-                                            No students found in {selectedClass}.
+                                            {!selectedClass ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Filter className="w-8 h-8 text-slate-300" />
+                                                    <p>Select a class to view students</p>
+                                                </div>
+                                            ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
+                                                <div className="flex flex-col items-center gap-2 text-orange-400">
+                                                    <ShieldAlert className="w-8 h-8" />
+                                                    <p>Assignment Check Failed: You don't appear to be assigned to {selectedClass}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black px-4">Contact your school administrator to verify your class/subject records</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Users className="w-8 h-8 text-slate-300" />
+                                                    <p>No students found in {selectedClass}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1417,7 +1459,27 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             </table>
                                         </div>
                                     )}
-                                    {classStudents.length === 0 && <div className="p-12 text-center text-slate-400 italic">No students found in {selectedClass}.</div>}
+                                    {classStudents.length === 0 && (
+                                        <div className="p-20 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-[2.5rem] bg-slate-50/50">
+                                            {!selectedClass ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Filter className="w-8 h-8 text-slate-300" />
+                                                    <p>Select a class to view subjects and students</p>
+                                                </div>
+                                            ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
+                                                <div className="flex flex-col items-center gap-2 text-orange-400">
+                                                    <ShieldAlert className="w-8 h-8" />
+                                                    <p>Access Mismatch: You are not assigned to {selectedClass}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black">Verify your assignments in the Staff Directory</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Users className="w-8 h-8 text-slate-300" />
+                                                    <p>No students found in {selectedClass}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     
                                     {/* Bulk Paintbrush Info Panel for Marks tab */}
                                     {isNurseryLayout && paintBrush && (
@@ -1594,8 +1656,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         );
                                     })}
                                     {classStudents.length === 0 && (
-                                        <div className="text-center text-slate-400 py-16 font-bold italic bg-white rounded-3xl border-2 border-dashed border-slate-100">
-                                            No students found in {selectedClass}.
+                                        <div className="text-center text-slate-400 py-16 px-6 font-bold bg-white rounded-[2rem] border-4 border-dashed border-slate-50">
+                                             {!selectedClass ? (
+                                                <p>Please select a class</p>
+                                            ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
+                                                <div className="space-y-2">
+                                                    <ShieldAlert className="w-6 h-6 mx-auto text-orange-300" />
+                                                    <p className="text-sm">Assignment Required: {selectedClass}</p>
+                                                </div>
+                                            ) : (
+                                                <p>No students found in {selectedClass}</p>
+                                            )}
                                         </div>
                                     )}
                                 </div>

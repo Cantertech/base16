@@ -337,8 +337,8 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
 
   // --- Filtering ---
   const filteredTeachers = teachers.filter(t =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.subject.toLowerCase().includes(searchQuery.toLowerCase())
+    ((t.name || '').toLowerCase().includes(searchQuery.toLowerCase())) ||
+    ((t.subject || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage);

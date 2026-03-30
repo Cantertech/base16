@@ -67,6 +67,7 @@ const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) =
     .from('students')
     .select('id, name, class, gender, parent_name, parent_phone, balance, status, admission_no, photo_url, date_of_birth')
     .eq('school_id', schoolId)
+    .limit(5000)
     .order('name', { ascending: true });
 
   if (assignedClasses.length > 0) {
@@ -493,8 +494,9 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
   // --- Filtering & Pagination ---
   const filteredStudents = students.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.admission_no || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesClass = classFilter === 'All' || s.class === classFilter;
     return matchesSearch && matchesClass;
   });
