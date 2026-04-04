@@ -202,7 +202,7 @@ const AppContent: React.FC = () => {
           {/* Public Routes */}
           <Route path="/" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main>
                 <Hero onStartWizard={() => navigate('/setup')} />
                 <KumasiOffer />
@@ -216,7 +216,7 @@ const AppContent: React.FC = () => {
 
           <Route path="/features" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main className="pt-16">
                 <Features />
               </main>
@@ -226,7 +226,7 @@ const AppContent: React.FC = () => {
 
           <Route path="/pricing" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main className="pt-16">
                 <Pricing />
               </main>
@@ -236,7 +236,7 @@ const AppContent: React.FC = () => {
 
           <Route path="/about" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main className="pt-16">
                 <About />
               </main>
@@ -246,7 +246,7 @@ const AppContent: React.FC = () => {
 
           <Route path="/contact" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main className="pt-16">
                 <Contact />
               </main>
@@ -256,7 +256,7 @@ const AppContent: React.FC = () => {
 
           <Route path="/legal" element={
             <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar />
+              <Navbar onStartWizard={() => navigate('/setup')} />
               <main className="pt-16">
                 <Legal />
               </main>
@@ -269,7 +269,7 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={
             currentUser ? <Navigate to="/dashboard" /> :
               <div className="font-sans text-slate-900">
-                <Navbar />
+                <Navbar onStartWizard={() => navigate('/setup')} />
                 <div className="pt-16">
                   <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
                 </div>

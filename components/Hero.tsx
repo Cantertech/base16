@@ -24,13 +24,13 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
             </div>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
-              The Engine for <br className="hidden md:block" />
+              The <span className="inline-block animate-[bounce_3s_infinite] text-primary-600">Simplest</span> Engine for <br className="hidden md:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-blue-500">
                 Modern Schools
               </span>
             </h1>
             <p className="text-lg md:text-xl text-slate-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">
-              The all-in-one platform to streamline admissions, automate fee collection, and generate reports without the expensive per-student fees.
+              The world's <span className="text-primary-600 font-bold">simplest</span> all-in-one platform to streamline admissions, automate fee collection, and generate reports without the expensive per-student fees.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -40,6 +40,13 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
               >
                 Start for Free
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <button
+                onClick={() => window.location.href = '/login'}
+                className="md:hidden block flex-1 bg-white text-slate-900 border border-slate-200 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all shadow-sm"
+              >
+                Login
               </button>
             </div>
 

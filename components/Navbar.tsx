@@ -5,9 +5,10 @@ import { useInstall } from '../contexts/InstallContext';
 
 interface NavbarProps {
   showLinks?: boolean;
+  onStartWizard?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
+const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const { isInstallable, showInstallPrompt } = useInstall();
@@ -25,10 +26,10 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
-            <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-auto" />
+            <img src="/orbit_logo.jpg" alt="Orbit Logo" className="h-10 w-auto" />
             <div className="flex flex-col justify-center">
-              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Base16</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">School Management System</span>
+              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Orbit</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">The Simplest School Engine</span>
             </div>
           </div>
 
@@ -42,12 +43,8 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
 
               <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
-              <Link
-                to="/login"
-                className="text-primary-900 font-medium hover:underline flex items-center gap-2"
-              >
-                <LogIn className="h-4 w-4" /> Login
-              </Link>
+              {/* Desktop Login hidden for simplicity as requested */}
+
 
               <Link
                 to="/demo"
@@ -115,14 +112,6 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
               Contact
             </Link>
 
-            <Link
-              to="/login"
-              onClick={() => setIsOpen(false)}
-              className="block w-full text-left px-3 py-3 text-base font-medium text-primary-900 hover:bg-blue-50 rounded-md"
-            >
-              Login
-            </Link>
-
             {isInstallable && (
               <button
                 onClick={() => {
@@ -131,9 +120,27 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true }) => {
                 }}
                 className="w-full flex items-center gap-3 px-3 py-3 text-base font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
               >
-                <Download className="h-5 w-5" /> Install Orbit (Base16)
+                <Download className="h-5 w-5" /> Install Orbit App
               </button>
             )}
+
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onStartWizard && onStartWizard();
+              }}
+              className="block w-full text-center bg-slate-900 text-white px-5 py-3 rounded-xl font-bold shadow-md"
+            >
+              Start for Free
+            </button>
+
+            <Link
+              to="/login"
+              onClick={() => setIsOpen(false)}
+              className="block w-full text-center px-5 py-3 text-base font-bold text-primary-900 bg-primary-50 rounded-xl"
+            >
+              Login to Account
+            </Link>
 
             <div className="pt-4">
               <Link
