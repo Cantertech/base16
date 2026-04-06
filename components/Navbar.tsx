@@ -26,9 +26,9 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
-            <img src="/orbit_logo.jpg" alt="Orbit Logo" className="h-10 w-auto" />
+            <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-auto" />
             <div className="flex flex-col justify-center">
-              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Orbit</span>
+              <span className="font-bold text-xl text-primary-900 tracking-tight leading-none">Base16</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-widest mt-0.5">The Simplest School Engine</span>
             </div>
           </div>
@@ -120,7 +120,7 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
                 }}
                 className="w-full flex items-center gap-3 px-3 py-3 text-base font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors"
               >
-                <Download className="h-5 w-5" /> Install Orbit App
+                <Download className="h-5 w-5" /> Install Base16 App
               </button>
             )}
 

@@ -24,13 +24,11 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
             </div>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
-              The <span className="inline-block animate-[bounce_3s_infinite] text-primary-600">Simplest</span> Engine for <br className="hidden md:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-blue-500">
-                Modern Schools
-              </span>
+              Modern Schooling, <br className="hidden md:block" />
+              <span className="inline-block animate-[bounce_3s_infinite] text-primary-600">Effortlessly Simple.</span>
             </h1>
             <p className="text-lg md:text-xl text-slate-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">
-              The world's <span className="text-primary-600 font-bold">simplest</span> all-in-one platform to streamline admissions, automate fee collection, and generate reports without the expensive per-student fees.
+              Base16 is the intuitive school engine designed for <span className="text-slate-900 font-bold underline decoration-primary-300 decoration-4">school owners, not IT experts</span>. Automate your admissions, fees, and exams with zero stress.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
