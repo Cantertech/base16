@@ -164,12 +164,18 @@ const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) =
 };
 
 const fetchResults = async (schoolId: string, term: string, year: string) => {
-    const { data } = await supabase
+    console.log(`DEBUG: fetchResults called for School: ${schoolId}, Term: "${term}", Year: "${year}"`);
+    const { data, error } = await supabase
         .from('exam_results')
         .select('*, students(name)')
         .eq('school_id', schoolId)
         .ilike('term', (term || '').trim())
         .ilike('academic_year', (year || '').trim());
+
+    if (error) {
+        console.error('DEBUG: fetchResults Error:', error);
+    }
+    console.log(`DEBUG: fetchResults returned ${data?.length || 0} rows.`);
 
     return data ? data.map((r: any) => ({
         id: r.id,
@@ -421,9 +427,22 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const currentTerm = examConfig?.current_term || 'First Term';
     const currentYear = examConfig?.academic_year || new Date().getFullYear().toString();
 
+    useEffect(() => {
+        console.log('DEBUG: Exam Environment State:', {
+            schoolId,
+            currentTerm,
+            currentYear,
+            hasConfig: !!examConfig,
+            markEntryEnabled: examConfig?.mark_entry_enabled
+        });
+    }, [schoolId, currentTerm, currentYear, examConfig]);
+
     const { data: results = [] } = useQuery({
         queryKey: ['examResults', schoolId, currentTerm, currentYear],
-        queryFn: () => fetchResults(schoolId!, currentTerm, currentYear),
+        queryFn: () => {
+            console.log(`DEBUG: QueryFn [examResults] executing for ${currentTerm} ${currentYear}`);
+            return fetchResults(schoolId!, currentTerm, currentYear);
+        },
         enabled: !!schoolId && !!examConfig,
         staleTime: 5 * 60 * 1000
     });
@@ -819,16 +838,26 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const saveMarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
-            const { error: resultError } = await supabase
+            console.log('DEBUG: Saving marks to Supabase...', updates);
+            const { data, error: resultError } = await supabase
                 .from('exam_results')
-                .upsert(updates, { onConflict: 'student_id,class,subject,term,academic_year' });
-            if (resultError) throw resultError;
+                .upsert(updates, { onConflict: 'student_id,class,subject,term,academic_year' })
+                .select();
+            
+            if (resultError) {
+                console.error('DEBUG: Supabase save error:', resultError);
+                throw resultError;
+            }
+            console.log('DEBUG: Supabase save success:', data);
         },
-        onSuccess: () => {
+        onSuccess: (data: any) => {
+            console.log('DEBUG: Save Success hook triggered. Data:', data);
+            console.log('DEBUG: Invalidating [examResults] for school:', schoolId);
             queryClient.invalidateQueries({ queryKey: ['examResults', schoolId] });
             setPendingChanges({});
         },
         onError: (error: any) => {
+            console.error('DEBUG: Mutation error hook:', error);
             alert(`Failed to save marks: ${error.message}`);
         }
     });
@@ -906,6 +935,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const saveBulkRemarks = () => {
         if (!selectedClass) return alert("Select Class");
+        const cleanClass = (selectedClass || '').trim().toUpperCase();
+        const cleanTerm = (currentTerm || '').trim().toUpperCase();
+        const cleanYear = (currentYear || '').trim().toUpperCase();
+
         const updates = Object.entries(pendingRemarks).map(([studentId, val]: [string, any]) => {
             const sr = allReportCards.find((r: any) => r.student_id === studentId);
             return {
@@ -1062,14 +1095,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const getExistingScore = (studentId: string, field: 'classScore' | 'examScore') => {
-        const cleanClass = (selectedClass || '').trim().toUpperCase();
-        const cleanSubject = (selectedSubject || '').trim().toUpperCase();
-
-        // Standardize search to match normalized storage
         const res = results.find((r: Result) => 
             r.studentId === studentId &&
-            r.class?.trim().toUpperCase() === cleanClass &&
-            r.subject?.trim().toUpperCase() === cleanSubject
+            r.class === selectedClass &&
+            r.subject === selectedSubject
         );
         
         if (!res) return 0;
@@ -1090,26 +1119,31 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const saveMarks = async () => {
-        const cleanTerm = (currentTerm || '').trim().toUpperCase();
-        const cleanYear = (currentYear || '').trim().toUpperCase();
-
+        console.log('DEBUG: saveMarks triggered.');
+        console.log('DEBUG: Context - School:', schoolId, 'Term:', currentTerm, 'Year:', currentYear);
+        console.log('DEBUG: pendingChanges:', JSON.stringify(pendingChanges, null, 2));
+        
         const updates = Object.entries(pendingChanges).map(([key, val]: [string, any]) => {
             const [studentId, className, subjectName] = key.split('|');
             return {
                 school_id: schoolId,
                 student_id: studentId,
-                class: (className || '').trim().toUpperCase(),
-                subject: (subjectName || '').trim().toUpperCase(),
-                term: cleanTerm,
-                academic_year: cleanYear,
+                class: (className || '').trim(),
+                subject: (subjectName || '').trim(),
+                term: (currentTerm || '').trim(),
+                academic_year: (currentYear || '').trim(),
                 class_score: val.classScore,
                 exam_score: val.examScore,
                 competency_status: val.competencyStatus
             };
         });
+
+        console.log('DEBUG: Formatted updates for Supabase:', JSON.stringify(updates, null, 2));
+
         if (updates.length > 0) {
             saveMarksMutation.mutate(updates);
         } else {
+            console.warn('DEBUG: No updates found to save.');
             queryClient.invalidateQueries({ queryKey: ['examResults', schoolId] });
         }
     };
@@ -1123,10 +1157,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 return {
                     school_id: schoolId,
                     student_id: studentId,
-                    class: className,
-                    subject: subjectName,
-                    term: currentTerm,
-                    academic_year: currentYear,
+                    class: (className || '').trim(),
+                    subject: (subjectName || '').trim(),
+                    term: (currentTerm || '').trim(),
+                    academic_year: (currentYear || '').trim(),
                     class_score: val.classScore,
                     exam_score: val.examScore,
                     competency_status: val.competencyStatus

@@ -43,7 +43,12 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
 
               <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
-              {/* Desktop Login hidden for simplicity as requested */}
+              <Link
+                to="/login"
+                className="text-slate-600 hover:text-primary-900 font-bold transition-all flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50"
+              >
+                <LogIn className="w-4 h-4" /> Login
+              </Link>
 
 
               <Link
