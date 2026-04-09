@@ -779,7 +779,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         {results.map((result, index) => {
                             const grade = calculateGrade(result.total);
                             const remark = calculateRemark(result.total);
-                            const isNurseryScore = ['90', '70', '40'].includes(result.total.toString()) || (result as any).competency_status;
+                            // Only treat as a Narrative/Nursery score if we are in Nursery layout OR it's exclusively competency data without numeric scores 
+                            const isNurseryScore = isNursery || (!!(result as any).competency_status && !result.classScore && !result.examScore);
                             const nurseryStatus = (result as any).competency_status || (result.total === 90 ? 'Mastered' : result.total === 70 ? 'Developing' : result.total === 40 ? 'Emerging' : result.total.toString());
 
                             return (

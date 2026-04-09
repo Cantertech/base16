@@ -1222,21 +1222,37 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const getPrefilledResults = (student: any) => {
         if (!student) return [];
+        
+        // 1. Get existing results for this student
         const studentResults = results.filter((r: Result) => r.studentId === student.id);
 
-        // Prefill subjects for the class that don't have results entered yet
+        // 2. Identify all expected subjects for this student's class
         const classSubjects = subjectAssignments
             .filter((sa: any) => sa.classes?.name === (student.class || selectedClass))
             .map((sa: any) => sa.subjects?.name)
             .filter(Boolean);
 
-        if (classSubjects.length === 0) return studentResults;
+        // 3. Combine and De-duplicate by subject name
+        // We use a Map to ensure only one entry per subject.
+        // If duplicates exist, we prioritize the one that already has a score.
+        const resultsMap = new Map<string, any>();
 
-        const fullResults = [...studentResults];
+        // First, add existing results IF they are part of the current class subjects
+        studentResults.forEach(r => {
+            // Only include in report if subject is still assigned to this class
+            if (classSubjects.includes(r.subject)) {
+                const existing = resultsMap.get(r.subject);
+                if (!existing || (r.total || 0) > (existing.total || 0)) {
+                    resultsMap.set(r.subject, r);
+                }
+            }
+        });
+
+        // Then, ensure all class subjects are represented (prefill with 0 if missing)
         classSubjects.forEach(subjName => {
-            if (!fullResults.some(r => r.subject === subjName)) {
-                fullResults.push({
-                    id: `temp-${subjName}`,
+            if (!resultsMap.has(subjName)) {
+                resultsMap.set(subjName, {
+                    id: `temp-${subjName}-${student.id}`,
                     studentId: student.id,
                     studentName: student.name,
                     class: student.class,
@@ -1247,7 +1263,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 });
             }
         });
-        return fullResults;
+
+        return Array.from(resultsMap.values());
     };
 
     // --- TEACHER VIEW (FOR ASSIGNED SUBJECTS) ---
