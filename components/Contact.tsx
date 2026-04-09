@@ -1,66 +1,68 @@
 import React from 'react';
-import { Mail, Phone, MapPin, MessageSquare } from 'lucide-react';
+import { Mail, Phone, MapPin, Sparkles } from 'lucide-react';
 
 const Contact: React.FC = () => {
     return (
-        <div className="bg-white py-24 sm:py-32">
-            <div className="mx-auto max-w-7xl px-6 lg:px-8">
-                <div className="mx-auto max-w-2xl space-y-16 divide-y divide-gray-100 lg:mx-0 lg:max-w-none">
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-10 lg:grid-cols-3">
-                        <div>
-                            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Get in touch</h2>
-                            <p className="mt-4 leading-7 text-slate-600">
-                                Have questions about Base16? Our team is ready to help you transform your school management experience.
-                            </p>
+        <div className="bg-white min-h-screen pt-32 pb-24 md:pt-48 md:pb-32">
+            <div className="max-w-7xl mx-auto px-6 lg:px-8">
+                <div className="max-w-3xl mb-16 md:mb-24">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 mb-8">
+                      <Sparkles className="w-3.5 h-3.5 text-primary-600" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Contact Us</span>
+                  </div>
+                  <h1 className="text-4xl md:text-6xl font-black text-slate-900 leading-[1.05] tracking-tight mb-8">
+                      We're here to <br className="hidden md:block"/>
+                      <span className="text-primary-600 italic">support your growth.</span>
+                  </h1>
+                  <p className="text-xl text-slate-500 font-medium leading-relaxed">
+                      Have questions about Base16 or need a custom implementation? Our team of education experts is ready to help your school transition to the modern era.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {[
+                      {
+                        title: "Sales & Inquiries",
+                        email: "sixzonesglobal@gmail.com",
+                        phone: "050 256 0760",
+                        icon: Mail
+                      },
+                      {
+                        title: "Technical Support",
+                        email: "sixzonesglobal@gmail.com",
+                        phone: "050 256 0760",
+                        icon: Phone
+                      },
+                      {
+                        title: "Headquarters",
+                        address: "SixZones Tech Hub, Accra, Ghana",
+                        icon: MapPin
+                      },
+                      {
+                        title: "Operational Hours",
+                        note: "Mon - Fri: 8am - 5pm GMT",
+                        icon: Sparkles
+                      }
+                    ].map((item, i) => (
+                      <div key={i} className="p-8 rounded-[2rem] border border-slate-100 bg-slate-50/50 flex flex-col items-start transition-all hover:bg-slate-50 group">
+                        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center justify-center mb-8 group-hover:bg-primary-600 group-hover:text-white transition-all">
+                          <item.icon className="w-5 h-5 truncate" />
                         </div>
-                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:col-span-2 lg:gap-8">
-                            <div className="rounded-2xl bg-slate-50 p-10">
-                                <h3 className="text-base font-semibold leading-7 text-slate-900">Sales</h3>
-                                <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
-                                    <div>
-                                        <dt className="sr-only">Email</dt>
-                                        <dd><a className="font-semibold text-blue-600" href="mailto:sixzonesglobal@gmail.com">sixzonesglobal@gmail.com</a></dd>
-                                    </div>
-                                    <div className="mt-1">
-                                        <dt className="sr-only">Phone</dt>
-                                        <dd>050 256 0760</dd>
-                                    </div>
-                                </dl>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 p-10">
-                                <h3 className="text-base font-semibold leading-7 text-slate-900">Support</h3>
-                                <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
-                                    <div>
-                                        <dt className="sr-only">Email</dt>
-                                        <dd><a className="font-semibold text-blue-600" href="mailto:sixzonesglobal@gmail.com">sixzonesglobal@gmail.com</a></dd>
-                                    </div>
-                                    <div className="mt-1">
-                                        <dt className="sr-only">Phone</dt>
-                                        <dd>050 256 0760</dd>
-                                    </div>
-                                </dl>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 p-10">
-                                <h3 className="text-base font-semibold leading-7 text-slate-900">Headquarters</h3>
-                                <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
-                                    <div>
-                                        <dt className="sr-only">Address</dt>
-                                        <dd>SixZones Tech Hub<br />Accra, Ghana</dd>
-                                    </div>
-                                </dl>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 p-10">
-                                <h3 className="text-base font-semibold leading-7 text-slate-900">Socials</h3>
-                                <dl className="mt-3 space-y-1 text-sm leading-6 text-slate-600">
-                                    <div className="flex gap-x-4">
-                                        <a href="#" className="text-slate-400 hover:text-slate-500">Twitter</a>
-                                        <a href="#" className="text-slate-400 hover:text-slate-500">LinkedIn</a>
-                                        <a href="#" className="text-slate-400 hover:text-slate-500">Facebook</a>
-                                    </div>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
+                        <h3 className="font-bold text-slate-900 mb-4 tracking-tight uppercase text-sm">{item.title}</h3>
+                        
+                        {item.email && <p className="text-sm font-bold text-primary-600 mb-1">{item.email}</p>}
+                        {item.phone && <p className="text-sm font-medium text-slate-500">{item.phone}</p>}
+                        {item.address && <p className="text-sm font-medium text-slate-500 leading-relaxed">{item.address}</p>}
+                        {item.note && <p className="text-sm font-medium text-slate-500">{item.note}</p>}
+                      </div>
+                    ))}
+                </div>
+
+                <div className="mt-24 pt-16 border-t border-slate-100 flex flex-wrap gap-8 items-center text-sm font-bold uppercase tracking-widest text-slate-400">
+                    <span className="text-slate-900">Follow us</span>
+                    <a href="#" className="hover:text-primary-600 transition-colors">Twitter</a>
+                    <a href="#" className="hover:text-primary-600 transition-colors">LinkedIn</a>
+                    <a href="#" className="hover:text-primary-600 transition-colors">Facebook</a>
                 </div>
             </div>
         </div>

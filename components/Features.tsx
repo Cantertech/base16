@@ -1,57 +1,56 @@
 import React from 'react';
 import { Users, Banknote, BookOpen, CalendarCheck, MessageSquare, PieChart } from 'lucide-react';
-import { FeatureItem } from '../types';
 
 const Features: React.FC = () => {
-  const featureList: FeatureItem[] = [
+  const featureList = [
     {
-      title: "Student Records",
-      description: "Digitalize all student profiles, parent contacts, and medical info in one secure place.",
+      title: "Student Intelligence",
+      description: "Digitalize student profiles, parent records, and behavioral history in a centralized, secure database.",
       icon: Users
     },
     {
-      title: "School Fees & Bill Payment",
-      description: "Track payments, partial payments, and arrears instantly. Manage school fees collection in Ghana effortlessly.",
+      title: "Automated Fee Collection",
+      description: "Track payments, arrears, and electronic receipts. Manage your school's cash flow with zero manual entry.",
       icon: Banknote
     },
     {
-      title: "Academics & GES Reports",
-      description: "Generate beautiful, GES-compliant terminal report cards including BECE mocks without the Excel headache.",
+      title: "GES Termly Reports",
+      description: "Generate compliant report cards and academic transcripts instantly. No more complicated Excel formulas.",
       icon: BookOpen
     },
     {
-      title: "Attendance Tracking",
-      description: "Mark daily attendance for students and staff. Spot absenteeism trends early.",
+      title: "Professional Attendance",
+      description: "Daily digital logging for students and staff with automated monthly reporting for school heads.",
       icon: CalendarCheck
     },
     {
-      title: "SMS Messaging",
-      description: "Send fee reminders, meeting notices, and holiday wishes directly to parents' phones via SMS.",
+      title: "Bulk SMS Engine",
+      description: "Send professional fee reminders and school notices directly to parent phones with 99.9% delivery rate.",
       icon: MessageSquare
     },
     {
-      title: "Expense Tracking",
-      description: "Record daily school expenses. See exactly where your money is going every month.",
+      title: "Financial Analytics",
+      description: "Real-time visibility into school expenses and income. Visualize your school's growth with clean charts.",
       icon: PieChart
     }
   ];
 
   return (
-    <section id="features" className="py-20 bg-slate-50 scroll-mt-24">
+    <section id="features" className="py-24 bg-white scroll-mt-24 border-t border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Complete School Management System Features</h2>
-          <p className="text-lg text-gray-600">The "Big 6" modules designed to simplify school administration in Ghana.</p>
+        <div className="max-w-3xl mb-20">
+          <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-6 tracking-tight"> Built for the modern <br/> educational institution.</h2>
+          <p className="text-lg text-slate-600 leading-relaxed font-medium">The core modules you need to automate your administration and focus on what matters most: teaching.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 lg:gap-16">
           {featureList.map((feature, index) => (
-            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col items-start hover:border-primary-600 transition-colors cursor-default group">
-              <div className="p-3 bg-blue-50 text-primary-800 rounded-lg mb-4 group-hover:bg-primary-900 group-hover:text-white transition-colors">
-                <feature.icon className="h-6 w-6" />
+            <div key={index} className="flex flex-col items-start group">
+              <div className="w-12 h-12 flex items-center justify-center bg-slate-50 text-slate-900 rounded-xl mb-6 group-hover:bg-primary-600 group-hover:text-white transition-all duration-300 ring-1 ring-slate-200">
+                <feature.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">{feature.title}</h3>
-              <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
+              <h3 className="text-lg font-bold text-slate-900 mb-3 tracking-tight">{feature.title}</h3>
+              <p className="text-slate-500 text-sm leading-relaxed font-medium">{feature.description}</p>
             </div>
           ))}
         </div>
@@ -60,4 +59,4 @@ const Features: React.FC = () => {
   );
 };
 
-export default Features;
+export default Features;

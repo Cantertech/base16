@@ -5,37 +5,37 @@ const WhyUs: React.FC = () => {
   const reasons = [
     {
       icon: WifiOff,
-      title: "Works Offline / Slow Net",
-      description: "Bad network? No problem. Base16 is optimized for Ghanaian internet conditions. Keep working and the system syncs automatically when the connection returns."
+      title: "Optimized for Ghana",
+      description: "Low bandwidth? No problem. Base16 is built to work seamlessly on local internet connections. Your data syncs automatically the moment you're back online."
     },
     {
       icon: Send,
-      title: "Automated Fee Chase",
-      description: "Stop calling parents one by one. Send professional bulk SMS reminders to all debtors in Ghana with a single click. Improving collection rates by up to 40%."
+      title: "Bulk Collection Tools",
+      description: "Stop manual follow-ups. Dispatch professional SMS fee reminders to every guardian with one tap. Schools see a 40% improvement in fee collection rates."
     },
     {
       icon: UserCheck,
-      title: "Simple for Everyone",
-      description: "Designed specifically for busy headmasters, not computer wizards. Large buttons, clear text, and no confusing menus. If you can use WhatsApp, you can use Base16."
+      title: "No Training Required",
+      description: "Designed for busy school owners, not engineers. If you can use WhatsApp, you can master Base16 in under 10 minutes. Zero steep learning curves."
     }
   ];
 
   return (
-    <section id="why-us" className="py-20 bg-white scroll-mt-24">
+    <section id="why-us" className="py-24 bg-white scroll-mt-24 border-t border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why Headmasters Choose Base16</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">We understand the unique challenges of running a modern school.</p>
+        <div className="max-w-3xl mb-16">
+          <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 tracking-tight">The tool of choice for <br/> 50+ Ghanaian Schools.</h2>
+          <p className="text-lg text-slate-500 font-medium leading-relaxed">Built by education experts who understand the daily operational challenges of running a school in our region.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+        <div className="grid md:grid-cols-3 gap-8">
           {reasons.map((item, index) => (
-            <div key={index} className="bg-slate-50 p-8 rounded-2xl border border-slate-100 hover:shadow-lg transition-shadow duration-300">
-              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-primary-800 mb-6">
-                <item.icon className="h-8 w-8" />
+            <div key={index} className="p-10 rounded-[2rem] border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors duration-300">
+              <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-white text-slate-900 mb-8 shadow-sm ring-1 ring-slate-200">
+                <item.icon className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
-              <p className="text-gray-600 leading-relaxed">{item.description}</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-4 tracking-tight">{item.title}</h3>
+              <p className="text-slate-500 text-sm leading-relaxed font-medium">{item.description}</p>
             </div>
           ))}
         </div>
@@ -44,4 +44,4 @@ const WhyUs: React.FC = () => {
   );
 };
 
-export default WhyUs;
+export default WhyUs;

@@ -1,102 +1,80 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, CheckCircle, ArrowRight, MapPin } from 'lucide-react';
+import { CheckCircle2, ArrowRight, MapPin } from 'lucide-react';
 
 const KumasiOffer: React.FC = () => {
     const navigate = useNavigate();
 
     return (
-        <section className="relative py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-50 via-white to-primary-50 overflow-hidden">
-            {/* Decorative background elements */}
-            <div className="absolute top-0 left-0 w-64 h-64 bg-primary-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+        <section className="py-24 bg-slate-50 border-y border-slate-100 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden relative group">
+                    {/* Subtle accent corner */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary-50 rounded-bl-[4rem] group-hover:scale-110 transition-transform duration-700"></div>
+                    
+                    <div className="flex flex-col md:flex-row relative z-10">
 
-            <div className="max-w-4xl mx-auto relative">
-                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-primary-100 transform transition-all hover:scale-[1.01] duration-300">
-                    <div className="flex flex-col md:flex-row">
-
-                        {/* Left side: The Offer */}
-                        <div className="md:w-3/5 p-8 md:p-12 flex flex-col justify-center">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-100 text-primary-800 text-sm font-bold w-fit mb-6">
-                                <MapPin className="w-4 h-4" />
-                                <span>Kumasi Expansion Special</span>
+                        {/* Text Content */}
+                        <div className="md:w-3/5 p-6 sm:p-8 md:p-16">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-[10px] font-black uppercase tracking-widest mb-6 lg:mb-8">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Ashanti Expansion</span>
                             </div>
 
-                            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 leading-tight">
-                                Get <span className="text-primary-600">GH¢ 500 Free</span> Wallet Credit
+                            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4 lg:mb-6 leading-[1.2] lg:leading-[1.1] tracking-tight">
+                                Get <span className="underline decoration-primary-200 decoration-8 underline-offset-[-2px]">GH¢ 500</span> <br className="lg:hidden"/> Free Wallet Credit.
                             </h2>
 
-                            <div className="flex items-baseline gap-4 mb-6">
-                                <div className="flex flex-col">
-                                    <span className="text-4xl sm:text-5xl font-black text-primary-900">
-                                        Zero Setup Fees
-                                    </span>
-                                    <span className="text-sm text-primary-700 font-medium mt-2">
-                                        For the first year + Free training and migration
-                                    </span>
-                                </div>
-                            </div>
+                            <p className="text-base sm:text-lg md:text-xl text-slate-500 mb-8 lg:mb-10 font-medium leading-relaxed">
+                                We are opening specifically for schools in the Kumasi metropolis. Get zero setup fees for the first year plus free training.
+                            </p>
 
-                            <ul className="space-y-3 mb-8">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-8 mb-10 lg:mb-12">
                                 {[
-                                    "Full access to all premium features",
-                                    "Free onboarding & training session",
-                                    "Dedicated support manager",
-                                    "Data migration assistance"
+                                    "12-Month Setup Waiver",
+                                    "On-Site Training",
+                                    "Data Migration",
+                                    "Support Manager"
                                 ].map((item, index) => (
-                                    <li key={index} className="flex items-center gap-3 text-slate-700">
-                                        <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                    <div key={index} className="flex items-center gap-3 text-slate-600 font-bold text-[13px] lg:text-sm">
+                                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                                         <span>{item}</span>
-                                    </li>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
 
                             <button
                                 onClick={() => navigate('/demo')}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl group"
+                                className="group w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 text-white px-10 py-4 rounded-xl font-bold transition-all shadow-md hover:bg-slate-800 active:scale-95"
                             >
-                                Book Your Slot Now
-                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                Secure Your Slot
+                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </button>
-
-                            <p className="mt-4 text-center sm:text-left text-sm text-slate-500 flex items-center gap-2">
-                                <Calendar className="w-4 h-4" />
-                                Offer ends March 31st, 2026
-                            </p>
                         </div>
 
-                        {/* Right side: The Urgency/Visual */}
-                        <div className="md:w-2/5 bg-primary-900 p-8 md:p-12 text-white flex flex-col justify-between relative overflow-hidden">
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                            <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary-500 rounded-full mix-blend-overlay filter blur-xl opacity-50"></div>
-
-                            <div className="relative z-10">
-                                <h3 className="text-xl font-bold mb-2 text-primary-200">Limited Availability</h3>
-                                <p className="text-primary-100 opacity-90 mb-8">
-                                    We are opening up specifically for schools in the Kumasi metropolis with <span className="font-bold text-white">500+ students</span>.
-                                </p>
-
-                                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                                    <div className="text-center">
-                                        <span className="block text-5xl font-black mb-1 text-white">10</span>
-                                        <span className="text-sm uppercase tracking-wider font-bold text-primary-200">Slots Only</span>
+                        {/* Visual Side */}
+                        <div className="md:w-2/5 bg-slate-900 p-8 sm:p-12 text-white flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-800">
+                            <div className="space-y-6 lg:space-y-8">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 block mb-3 lg:mb-4 text-center md:text-left">Availability Status</span>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-2xl lg:text-3xl font-black">10 <span className="text-[10px] lg:text-sm font-medium text-slate-500 uppercase tracking-tighter">Slots Total</span></span>
+                                        <span className="bg-green-500/10 text-green-400 px-3 py-1 rounded-full text-[9px] lg:text-[10px] font-black uppercase tracking-widest border border-green-500/20">Active</span>
                                     </div>
-                                    <div className="w-full bg-primary-950/50 h-3 rounded-full mt-4 overflow-hidden">
-                                        <div className="bg-gradient-to-r from-green-400 to-emerald-500 w-[20%] h-full rounded-full animate-pulse"></div>
+                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-primary-500 w-[20%] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
                                     </div>
-                                    <p className="text-xs text-center mt-2 text-primary-300">2 slots already booked</p>
+                                    <p className="text-[9px] text-slate-600 mt-3 lg:mt-4 font-bold uppercase tracking-widest text-center md:text-left">2 SLOTS SECURED THIS WEEK</p>
                                 </div>
-                            </div>
 
-                            <div className="relative z-10 mt-8">
-                                <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg backdrop-blur-sm border border-white/10">
-                                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center font-bold text-white text-xs">
-                                        BS
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold">Best Sh... Academy</p>
-                                        <p className="text-[10px] text-green-300">Just secured a slot</p>
-                                    </div>
+                                <div className="pt-6 lg:pt-8 border-t border-slate-800">
+                                   <div className="flex items-center gap-3 lg:gap-4 bg-white/5 p-3 lg:p-4 rounded-xl border border-white/5">
+                                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-primary-600 flex items-center justify-center font-black text-xs lg:text-sm">B</div>
+                                      <div>
+                                         <p className="text-[11px] lg:text-xs font-black tracking-tight">Best Shepherd Academy</p>
+                                         <p className="text-[9px] lg:text-[10px] text-slate-600 font-medium italic">Confirmed 1 hour ago</p>
+                                      </div>
+                                   </div>
                                 </div>
                             </div>
                         </div>

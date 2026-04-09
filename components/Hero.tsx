@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, PlayCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface HeroProps {
   onStartWizard: () => void;
@@ -7,90 +7,79 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
   return (
-    <section className="relative pt-32 pb-20 md:pt-40 md:pb-28 bg-slate-50 overflow-hidden">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] opacity-20 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-400 to-blue-600 rounded-full blur-[100px] mix-blend-multiply"></div>
-      </div>
-
+    <section className="relative pt-24 pb-12 md:pt-48 md:pb-32 bg-white overflow-hidden">
+      {/* Subtle background detail */}
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="flex flex-col lg:flex-row items-center gap-16 lg:gap-20">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
           {/* Text Content */}
           <div className="lg:w-1/2 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm mb-6">
-              <Sparkles className="w-4 h-4 text-primary-600" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">The New Standard for Education</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 mb-6 lg:mb-8">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary-600"></span>
+              <span className="text-[10px] lg:text-[11px] font-black uppercase tracking-[0.15em] text-slate-500">The Modern Standard</span>
             </div>
 
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
-              Modern Schooling, <br className="hidden md:block" />
-              <span className="inline-block animate-[bounce_3s_infinite] text-primary-600">Effortlessly Simple.</span>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1] lg:leading-[1.05] tracking-tight mb-6 px-2 lg:px-0">
+              Run Your School <br className="hidden md:block" />
+              <span className="text-primary-600 font-black italic">The Simple Way.</span>
             </h1>
-            <p className="text-lg md:text-xl text-slate-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">
-              Base16 is the intuitive school engine designed for <span className="text-slate-900 font-bold underline decoration-primary-300 decoration-4">school owners, not IT experts</span>. Automate your admissions, fees, and exams with zero stress.
+            
+            <p className="text-lg sm:text-xl text-slate-500 mb-8 lg:mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium px-4 lg:px-0">
+              Base16 is the intuitive management engine designed for school owners. Admissions, fees, and results — <span className="text-slate-900 font-bold underline decoration-primary-200 decoration-2 underline-offset-4 tracking-tight">automated in minutes.</span>
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <div className="flex flex-col sm:flex-row gap-3 lg:gap-4 justify-center lg:justify-start items-center px-4 lg:px-0">
               <button
                 onClick={onStartWizard}
-                className="group flex flex-1 sm:flex-none items-center justify-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-800 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
+                className="group w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 text-white px-10 py-4 rounded-xl font-bold text-base hover:bg-slate-800 transition-all shadow-lg active:scale-95"
               >
-                Start for Free
-                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                Create Account
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </button>
-
+              
               <button
-                onClick={() => window.location.href = '/login'}
-                className="md:hidden block flex-1 bg-white text-slate-900 border border-slate-200 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all shadow-sm"
+                onClick={() => window.location.href = '/demo'}
+                className="w-full sm:w-auto text-slate-600 font-bold px-8 py-4 hover:text-slate-900 transition-colors text-sm lg:text-base"
               >
-                Login
+                Book a Walkthrough
               </button>
             </div>
 
-            <div className="mt-10 flex items-center justify-center lg:justify-start gap-4 text-sm text-slate-500 font-medium">
-              <div className="flex -space-x-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className={`w-8 h-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center overflow-hidden`}>
-                  </div>
-                ))}
-              </div>
-              <p>Trusted by <span className="text-slate-900 font-bold">50+</span> schools in Ghana</p>
+            <div className="mt-10 lg:mt-12 flex flex-wrap items-center justify-center lg:justify-start gap-y-3 gap-x-6 lg:gap-x-8 px-2">
+                <div className="flex items-center gap-2 text-slate-400 font-bold text-[11px] lg:text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span>Free Core CRM</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-400 font-bold text-[11px] lg:text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span>GES Compliant</span>
+                </div>
             </div>
           </div>
 
-          {/* Image Content */}
-          <div className="lg:w-1/2 w-full relative">
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary-200 to-blue-400 rounded-3xl transform rotate-3 scale-105 opacity-20 blur-2xl"></div>
-
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/50 bg-white/50 backdrop-blur-sm p-2">
-              <div className="rounded-xl overflow-hidden border border-slate-100/50 bg-slate-900">
-                {/* Mac OS Window Header */}
-                <div className="bg-slate-800/80 backdrop-blur-md px-4 py-3 flex items-center gap-2 border-b border-white/5">
-                  <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                </div>
-
+          {/* Mockup Content */}
+          <div className="lg:w-1/2 w-full mt-4 lg:mt-0 relative group px-2 sm:px-6 lg:px-0">
+            <div className="relative bg-white p-2 rounded-2xl shadow-xl lg:shadow-2xl border border-slate-100 ring-1 ring-slate-900/5 transform lg:rotate-1 hover:rotate-0 transition-all duration-700">
+              <div className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
                 <img
                   src="/orbit_dashboard.png"
-                  alt="Base16 School Management System Dashboard"
-                  className="w-full h-auto object-cover transform hover:scale-[1.02] transition-transform duration-700"
+                  alt="Base16 School Dashboard"
+                  className="w-full h-auto object-cover opacity-95 group-hover:opacity-100 transition-opacity"
                 />
               </div>
             </div>
 
-            {/* Floating Element */}
-            <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 animate-bounce" style={{ animationDuration: '3s' }}>
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-xl">
-                  <div className="text-green-600 font-black text-xl">GH¢0</div>
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-slate-800">Core CRM</div>
-                  <div className="text-xs text-slate-500">Forever Free</div>
-                </div>
-              </div>
+            {/* Float badge - Optimized for mobile */}
+            <div className="absolute -bottom-4 left-4 lg:-left-8 bg-white py-2.5 px-4 lg:py-3 lg:px-5 rounded-xl shadow-xl border border-slate-100 flex items-center gap-3 lg:gap-4 transition-transform">
+               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-primary-50 flex items-center justify-center">
+                  <span className="text-primary-600 font-black text-[10px] lg:text-xs leading-none">FREE</span>
+               </div>
+               <div>
+                  <p className="text-[10px] lg:text-xs font-black text-slate-900 leading-none mb-1 uppercase tracking-wider">Start Trial</p>
+                  <p className="text-[8px] lg:text-[10px] text-slate-400 font-bold uppercase">No Card Required</p>
+               </div>
             </div>
           </div>
 
@@ -101,3 +90,4 @@ const Hero: React.FC<HeroProps> = ({ onStartWizard }) => {
 };
 
 export default Hero;
+;
