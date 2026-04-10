@@ -91,7 +91,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const [extraBillItems, setExtraBillItems] = useState<{ label: string; value: number }[]>(savedReportData?.extra_bill_items || []);
     const [extraReportSections, setExtraReportSections] = useState<{ title: string; content: string }[]>(savedReportData?.extra_report_sections || []);
     const [attendancePresentDays, setAttendancePresentDays] = useState<number>(savedReportData?.attendance_present ? Number(savedReportData.attendance_present) : (student.attendance || 0));
-    const [attendanceTotalDays, setAttendanceTotalDays] = useState<number>(savedReportData?.attendance_total ? Number(savedReportData.attendance_total) : ((schoolConfig as any)?.term_total_days || 0));
+    const [attendanceTotalDays, setAttendanceTotalDays] = useState<number>(() => {
+        const configVal = (schoolConfig as any)?.term_total_days;
+        if (configVal) return Number(configVal);
+        return savedReportData?.attendance_total ? Number(savedReportData.attendance_total) : 0;
+    });
     const [pupilBill, setPupilBill] = useState<number>(savedReportData?.pupil_bill ? Number(savedReportData.pupil_bill) : 0);
     const [otherFees, setOtherFees] = useState<number>(savedReportData?.other_fees ? Number(savedReportData.other_fees) : 0);
     const [nextClass, setNextClass] = useState(savedReportData?.next_class || getNextClass(student.class));
@@ -147,9 +151,22 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 const sysTotal = Number(data.total);
                 const configTotal = (schoolConfig as any)?.term_total_days;
                 
-                if (sysTotal > 0) setAttendanceTotalDays(sysTotal);
-                else if (configTotal) setAttendanceTotalDays(configTotal);
-                else setAttendanceTotalDays(Number(student.attendance || 0));
+                console.log("%c ATTENDANCE DEBUG ", "background: #ff0000; color: #fff; font-weight: bold;");
+                console.log(`Student: ${student.name}`);
+                console.log(`Admin Config Total (LIVE): ${configTotal}`);
+                console.log(`System/Biometric Total: ${sysTotal}`);
+                console.log(`Saved Report Total: ${savedReportData?.attendance_total}`);
+
+                if (configTotal) {
+                    console.log(`DECISION: Forcing Admin Config Total (${configTotal})`);
+                    setAttendanceTotalDays(configTotal);
+                } else if (sysTotal > 0) {
+                    console.log("DECISION: Using System/Biometric Total");
+                    setAttendanceTotalDays(sysTotal);
+                } else if (!attendanceTotalDays) {
+                    console.log("DECISION: Using Student Record Fallback");
+                    setAttendanceTotalDays(Number(student.attendance || 0));
+                }
             }
         };
         fetchAtt();

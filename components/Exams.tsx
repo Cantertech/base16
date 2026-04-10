@@ -511,9 +511,22 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     });
 
     const { data: reportResultsRaw = [] } = useQuery({
-        queryKey: ['reportResults', schoolId, reportStudent?.id, currentTerm, currentYear],
-        queryFn: () => fetchResultsByStudent(schoolId!, reportStudent!.id, currentTerm, currentYear),
+        queryKey: ['reportResults', schoolId, reportStudent?.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
+        queryFn: () => fetchResultsByStudent(schoolId!, reportStudent!.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase()),
         enabled: !!schoolId && !!reportStudent && !!currentTerm && !!currentYear
+    });
+
+    // Dedicated query for Class-wide results (used for bulk printing/class reports)
+    const { data: classResultsRaw = [] } = useQuery({
+        queryKey: ['classResults', schoolId, viewingClassList, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
+        queryFn: () => fetchResults(
+            schoolId!, 
+            currentTerm?.toUpperCase(), 
+            currentYear?.toUpperCase(), 
+            viewingClassList, 
+            undefined
+        ),
+        enabled: !!schoolId && !!viewingClassList && !!currentTerm && !!currentYear
     });
 
     const { data: submissionOverview = [] } = useQuery({
@@ -2149,7 +2162,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         results={getPrefilledResults(reportStudent, reportResultsRaw)}
                         schoolConfig={{
                             ...schoolInfo,
-                            ...examConfig,
+                            ...localConfig,
+                            term_total_days: localConfig?.term_total_days // Force override to be sure
                         }}
                         onClose={() => setReportStudent(null)}
                         position={studentRank}
@@ -2842,6 +2856,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             {
                 viewingClassList && (
                     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        {console.log(`DEBUG: Viewing Reports for ${viewingClassList}, localConfig Attendance: ${localConfig?.term_total_days}`)}
                         <div className="bg-white w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl flex flex-col">
                             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                                 <div><h3 className="font-bold text-lg text-slate-800">Students in {viewingClassList}</h3></div>
@@ -2880,7 +2895,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         results={getPrefilledResults(reportStudent, reportResultsRaw)}
                         schoolConfig={{
                             ...schoolInfo,
-                            ...examConfig,
+                            ...localConfig,
+                            term_total_days: localConfig?.term_total_days
                         }}
                         onClose={() => setReportStudent(null)}
                         position={studentRank}
@@ -2896,14 +2912,16 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     <div style={{ display: 'none' }}>
                         <div ref={bulkPrintRef} className="print:block">
                             {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => {
+                                console.log("Term total days:", localConfig?.term_total_days);
                                 return (
                                     <ReportCard
                                         key={student.id}
                                         student={student}
-                                        results={getPrefilledResults(student, reportResultsRaw)}
+                                        results={getPrefilledResults(student, classResultsRaw)}
                                         schoolConfig={{
                                             ...schoolInfo,
-                                            ...examConfig,
+                                            ...localConfig,
+                                            term_total_days: localConfig?.term_total_days
                                         }}
                                         onClose={() => { }}
                                         position={null}
