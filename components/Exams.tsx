@@ -498,15 +498,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     }, [schoolId, currentTerm, currentYear, examConfig]);
 
     const { data: results = [] } = useQuery({
-        queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), selectedClass?.toUpperCase(), selectedSubject?.toUpperCase()],
+        queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), selectedClass?.toUpperCase()],
         queryFn: () => fetchResults(
             schoolId!, 
             currentTerm?.toUpperCase(), 
             currentYear?.toUpperCase(),
-            (currentUser?.role === 'teacher' ? selectedClass : undefined), 
-            (currentUser?.role === 'teacher' ? selectedSubject : undefined)
+            selectedClass, 
+            undefined // Fetch all subjects for the class to support summaries/reports
         ),
-        enabled: !!schoolId && !!examConfig,
+        enabled: !!schoolId && !!examConfig && !!selectedClass,
         staleTime: 5 * 60 * 1000
     });
 
@@ -1636,10 +1636,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-50/50">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                     {classStudents.map(student => {
-                                        const totalScore = results
-                                            .filter(r => r.studentId === student.id)
-                                            .reduce((sum, r) => sum + r.total, 0);
-                                        const subjCount = results.filter(r => r.studentId === student.id).length;
+                                        const studentResults = results.filter(r => r.studentId === student.id);
+                                        const totalScore = studentResults.reduce((sum, r) => sum + r.total, 0);
+                                        // Only count subjects that have actual marks (non-zero total)
+                                        const subjCount = studentResults.filter(r => (r.total || 0) > 0).length;
 
                                         return (
                                             <div
