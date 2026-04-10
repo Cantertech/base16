@@ -163,14 +163,22 @@ const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) =
     })) as Student[] : [];
 };
 
-const fetchResults = async (schoolId: string, term: string, year: string) => {
-    console.log(`DEBUG: fetchResults called for School: ${schoolId}, Term: "${term}", Year: "${year}"`);
-    const { data, error } = await supabase
+const fetchResults = async (schoolId: string, term: string, year: string, className?: string, subjectName?: string) => {
+    let query = supabase
         .from('exam_results')
         .select('*, students(name)')
         .eq('school_id', schoolId)
         .eq('term', (term || '').trim().toUpperCase())
         .eq('academic_year', (year || '').trim().toUpperCase());
+
+    if (className) {
+        query = query.eq('class', className.trim().toUpperCase());
+    }
+    if (subjectName) {
+        query = query.eq('subject', subjectName.trim().toUpperCase());
+    }
+
+    const { data, error } = await query.limit(10000);
 
     if (error) {
         console.error('DEBUG: fetchResults Error:', error);
@@ -355,17 +363,17 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             assignmentsData?.forEach((a: any) => {
                 const className = (classMap.get(a.class_id) || a.class_name || '').trim();
                 const subjectName = (subjectMap.get(a.subject_id) || a.subject_name || '').trim();
-                
+
                 if (className) {
                     const key = `${className}-${subjectName || 'null'}`;
                     const existing = combined.get(key);
-                    
+
                     combined.set(key, {
                         className,
                         subjectName: subjectName || null,
                         isClassTeacher: a.is_class_teacher || existing?.isClassTeacher || false
                     });
-                    
+
                     // If this assignment marks them as a class teacher, 
                     // ensure a "base" class record exists too
                     if (a.is_class_teacher) {
@@ -400,14 +408,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         queryKey: ['students', schoolId, myAssignments.map(a => a.className).join('|')],
         queryFn: async () => {
             const assignedClassList = [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] as string[];
-            
+
             // Critical Robustness Check: If a teacher is logged in but assignments haven't loaded yet,
             // return empty array instead of accidentally fetching "all school students"
             if (currentUser?.role === 'teacher' && assignedClassList.length === 0) {
                 // Wait briefly for assignments if they are still loading in background
                 return [];
             }
-            
+
             const allStudents = await fetchStudents(schoolId!, []);
 
             // Performance and Robustness: Filter locally for teachers using normalized names
@@ -438,11 +446,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     }, [schoolId, currentTerm, currentYear, examConfig]);
 
     const { data: results = [] } = useQuery({
-        queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
-        queryFn: () => {
-            console.log(`DEBUG: QueryFn [examResults] executing for ${currentTerm?.toUpperCase()} ${currentYear?.toUpperCase()}`);
-            return fetchResults(schoolId!, currentTerm?.toUpperCase(), currentYear?.toUpperCase());
-        },
+        queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), selectedClass?.toUpperCase(), selectedSubject?.toUpperCase()],
+        queryFn: () => fetchResults(
+            schoolId!, 
+            currentTerm?.toUpperCase(), 
+            currentYear?.toUpperCase(),
+            (currentUser?.role === 'teacher' ? selectedClass : undefined), 
+            (currentUser?.role === 'teacher' ? selectedSubject : undefined)
+        ),
         enabled: !!schoolId && !!examConfig,
         staleTime: 5 * 60 * 1000
     });
@@ -457,13 +468,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         queryKey: ['allAssignments', schoolId],
         queryFn: async () => {
             if (!schoolId) return [];
-            
+
             // 1. Fetch from teacher_assignments (Specific assignments)
             const { data: q1 } = await supabase
                 .from('teacher_assignments')
                 .select('class_name, classes(name), subject_name, subjects(name), teachers(name), teacher(name)')
                 .eq('school_id', schoolId);
-            
+
             // 2. Fetch from subject_assignments (Standard school config)
             const { data: q2 } = await supabase
                 .from('subject_assignments')
@@ -541,14 +552,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     useEffect(() => {
         if (examConfig) setLocalConfig(examConfig);
     }, [examConfig]);
-    const availableClasses: string[] = Array.isArray(localConfig?.target_classes) 
-        ? localConfig.target_classes 
+    const availableClasses: string[] = Array.isArray(localConfig?.target_classes)
+        ? localConfig.target_classes
         : (localConfig?.target_classes || '').split(',').map((c: string) => c.trim()).filter(Boolean);
 
     // Calculate if user has Class Teacher privileges for the current class
-    const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
-                           (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
-                           myAssignments.some((a: any) => a.isClassTeacher && (a.className?.trim().toLowerCase() === selectedClass?.trim().toLowerCase()));
+    const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
+        (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) ||
+        myAssignments.some((a: any) => a.isClassTeacher && (a.className?.trim().toLowerCase() === selectedClass?.trim().toLowerCase()));
 
     // Auto-switch away from protected tabs if access is lost (e.g. switched to a class where only a subject teacher)
     useEffect(() => {
@@ -564,9 +575,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             // Teacher: filter subjects
             if (selectedClass) {
                 const classAssignment = myAssignments.filter((a: any) => a.className === selectedClass);
-                const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') || 
-                                       (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) || 
-                                       classAssignment.some((a: any) => a.isClassTeacher);
+                const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
+                    (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) ||
+                    classAssignment.some((a: any) => a.isClassTeacher);
 
                 if (isClassTeacher) {
                     // Class teacher: see ALL subjects assigned to this class specifically
@@ -594,7 +605,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
                     .map((sa: any) => sa.subjects?.name)
                     .filter(Boolean);
-                
+
                 if (classAssigned.length > 0) {
                     setAvailableSubjects(classAssigned);
                 } else if (examConfig?.target_subjects && examConfig.target_subjects.length > 0) {
@@ -711,11 +722,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             const { error: upsertError } = await supabase
                 .from('exam_results')
                 .upsert(resetDatas, { onConflict: 'student_id,class,subject,term,academic_year' });
-            
+
             console.log("ZERO-OVERWRITE RESULT:", { error: upsertError });
 
             // 2. SURGICAL DELETE (Try to remove them entirely)
-            const recordsToDelete = results.filter((r: Result) => 
+            const recordsToDelete = results.filter((r: Result) =>
                 r.class?.trim().toUpperCase() === className.trim().toUpperCase() &&
                 r.subject?.trim().toUpperCase() === cleanSubj
             );
@@ -732,13 +743,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             // 3. CLEAR STATUS
             const statusTargets = ['exam_submissions', 'submission_status', 'submission_overview', 'exam_submission_overview'];
             for (const table of statusTargets) {
-                 await supabase.from(table).delete().eq('school_id', schoolId).ilike('subject_name', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
-                 if (studentIds.length > 0) {
+                await supabase.from(table).delete().eq('school_id', schoolId).ilike('subject_name', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
+                if (studentIds.length > 0) {
                     await supabase.from(table).delete().eq('school_id', schoolId).in('student_id', studentIds).ilike('subject', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
-                 }
+                }
             }
-            
-            try { await supabase.rpc('unsubmit_exam_marks', { p_school_id: schoolId, p_class: className, p_subject: cleanSubj, p_term: cleanTerm }); } catch(e){}
+
+            try { await supabase.rpc('unsubmit_exam_marks', { p_school_id: schoolId, p_class: className, p_subject: cleanSubj, p_term: cleanTerm }); } catch (e) { }
         },
         onSuccess: async () => {
             queryClient.setQueryData(['examResults', schoolId, currentTerm, currentYear], () => []);
@@ -838,32 +849,27 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const saveMarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
-            console.log('DEBUG: Saving marks to Supabase...', updates);
             const formattedUpdates = updates.map(u => ({
                 ...u,
                 class: u.class?.trim().toUpperCase(),
-                subject: u.subject?.trim().toUpperCase()
+                subject: u.subject?.trim().toUpperCase(),
+                term: u.term?.trim().toUpperCase(),
+                academic_year: u.academic_year?.trim().toUpperCase()
             }));
+
             const { data, error: resultError } = await supabase
                 .from('exam_results')
                 .upsert(formattedUpdates, { onConflict: 'student_id,class,subject,term,academic_year' })
                 .select();
-            
-            if (resultError) {
-                console.error('DEBUG: Supabase save error:', resultError);
-                throw resultError;
-            }
-            console.log('DEBUG: Supabase save success:', data);
+
+            if (resultError) throw resultError;
             return data;
         },
-        onSuccess: (data: any) => {
-            console.log('DEBUG: Save Success hook triggered. Data:', data);
-            console.log('DEBUG: Invalidating [examResults] for school:', schoolId);
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['examResults', schoolId] });
             setPendingChanges({});
         },
         onError: (error: any) => {
-            console.error('DEBUG: Mutation error hook:', error);
             alert(`Failed to save marks: ${error.message}`);
         }
     });
@@ -919,15 +925,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const getLayoutForClass = (className: string) => {
         if (!className || !reportConfig) return reportConfig?.layout || 'modern';
         const layouts = reportConfig.class_layouts || {};
-        
+
         // 1. Direct match (Fastest)
         if (layouts[className]) return layouts[className];
-        
+
         const searchTerm = className.trim().toLowerCase();
         // 2. Case-insensitive exact trim match
         const exactKey = Object.keys(layouts).find(k => k.trim().toLowerCase() === searchTerm);
         if (exactKey) return layouts[exactKey];
-        
+
         // 3. Fuzzy match (Robust: handle "Class 6" matching "Class 6 Green")
         const fuzzyKey = Object.keys(layouts).find(k => {
             const kLow = k.trim().toLowerCase();
@@ -1054,8 +1060,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const getPendingKey = (studentId: string, className = selectedClass, subjectName = selectedSubject) => `${studentId}|${className}|${subjectName}`;
 
     const handleScoreChange = (studentId: string, field: 'classScore' | 'examScore' | 'competencyStatus', value: string) => {
+        if (!studentId) {
+            console.error(`DEBUG Error: handleScoreChange called with missing studentId! Field: ${field}, Value: ${value}`);
+            return;
+        }
         const key = getPendingKey(studentId);
+
         if (field === 'competencyStatus') {
+            console.log(`DEBUG Input: Captured competency change for Student ${studentId.substring(0, 8)}: ${value}`);
             setPendingChanges(prev => {
                 const current = prev[key] || {
                     classScore: getExistingScore(studentId, 'classScore'),
@@ -1102,7 +1114,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             (r.class || '').trim().toLowerCase() === cleanClass &&
             (r.subject || '').trim().toLowerCase() === cleanSubj
         );
-        
+
         if (matches.length === 0) return '';
         const best = matches.find(m => (m as any).competency_status) || matches[0];
         return (best as any).competency_status || '';
@@ -1114,40 +1126,24 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         const cleanStudentId = (studentId || '').trim().toLowerCase();
 
         // Handle duplicates by choosing the record that actually has marks (higher total)
-        const matches = results.filter((r: Result) => 
+        const matches = results.filter((r: Result) =>
             (r.studentId || '').trim().toLowerCase() === cleanStudentId &&
             (r.class || '').trim().toLowerCase() === cleanClass &&
             (r.subject || '').trim().toLowerCase() === cleanSubj
         );
-        
-        if (matches.length === 0) {
-            if (studentId === '5d873dda-498b-4b28-a439-4084ab24bc9a') {
-                console.log(`DEBUG Check [${studentId}]: Not found in matches. Total results in array: ${results.length}`);
-                const anyForStudent = results.filter(r => (r.studentId || '').trim().toLowerCase() === cleanStudentId);
-                console.log(`DEBUG Check: Student records found (any class/subj):`, anyForStudent.length);
-                if (anyForStudent.length > 0) {
-                    console.log(`DEBUG Check: First record found for student:`, JSON.stringify(anyForStudent[0]));
-                    console.log(`DEBUG Check: Search class: "${cleanClass}", Search subj: "${cleanSubj}"`);
-                }
-            }
-            return 0;
-        }
-        
+
+        if (matches.length === 0) return 0;
+
         // Sort: Prioritize records with a higher total score to bypass "ghost" empty records
         const bestMatch = matches.sort((a, b) => (b.total || 0) - (a.total || 0))[0];
-        
-        if (studentId === '5d873dda-498b-4b28-a439-4084ab24bc9a') {
-            console.log(`DEBUG Check [${studentId}]: Match Found! Casing: ${bestMatch.class} | ${bestMatch.subject}. Value: ${bestMatch[field]}`);
-        }
-
         const val = bestMatch[field];
 
         // Ensure we handle non-numeric strings correctly during transitions
         const numVal = Number(val);
         const isActuallyNumber = !isNaN(numVal) && (val as any) !== '' && (val as any) !== null;
-        
-        const isCompetencyMode = examConfig?.grading_type?.trim().toLowerCase().includes('competency') || 
-                                 examConfig?.grading_type?.trim().toLowerCase().includes('numeracy');
+
+        const isCompetencyMode = examConfig?.grading_type?.trim().toLowerCase().includes('competency') ||
+            examConfig?.grading_type?.trim().toLowerCase().includes('numeracy');
 
         if (!isActuallyNumber && !isCompetencyMode) {
             return 0; // Return zero for text-based grades like "MASTERED" when in numeric mode
@@ -1157,10 +1153,6 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const saveMarks = async () => {
-        console.log('DEBUG: saveMarks triggered.');
-        console.log('DEBUG: Context - School:', schoolId, 'Term:', currentTerm, 'Year:', currentYear);
-        console.log('DEBUG: pendingChanges:', JSON.stringify(pendingChanges, null, 2));
-        
         const updates = Object.entries(pendingChanges).map(([key, val]: [string, any]) => {
             const [studentId, className, subjectName] = key.split('|');
             return {
@@ -1176,12 +1168,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             };
         });
 
-        console.log('DEBUG: Formatted updates for Supabase:', JSON.stringify(updates, null, 2));
-
         if (updates.length > 0) {
             saveMarksMutation.mutate(updates);
         } else {
-            console.warn('DEBUG: No updates found to save.');
             queryClient.invalidateQueries({ queryKey: ['examResults', schoolId] });
         }
     };
@@ -1254,13 +1243,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     }
 
     // --- Render Filtered Lists ---
-    const classStudents = students.filter(s => 
+    const classStudents = students.filter(s =>
         s.class?.trim().toLowerCase() === (selectedClass || '').trim().toLowerCase()
     );
 
     const getPrefilledResults = (student: any) => {
         if (!student) return [];
-        
+
         // 1. Get existing results for this student
         const studentResults = results.filter((r: Result) => r.studentId === student.id);
 
@@ -1358,13 +1347,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
                                 <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
                                     <option value="">-- Select Class --</option>
-                                    {((currentUser?.role || '').toLowerCase() === 'teacher' 
+                                    {((currentUser?.role || '').toLowerCase() === 'teacher'
                                         ? [...new Set(myAssignments
                                             .filter((a: any) => (teacherTab === 'marks') || a.isClassTeacher)
-                                            .map((a: any) => a.className).filter(Boolean))] 
+                                            .map((a: any) => a.className).filter(Boolean))]
                                         : availableClasses).map((className: any, i: number) => (
-                                        <option key={i} value={className}>{className}</option>
-                                    ))}
+                                            <option key={i} value={className}>{className}</option>
+                                        ))}
                                 </select>
                             </div>
                             {teacherTab === 'marks' && (
@@ -1376,9 +1365,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
                                         </select>
                                     </div>
-                                    
+
                                     {isNurseryLayout && (
-                                        <button 
+                                        <button
                                             onClick={() => setIsLevelArchiveOpen(true)}
                                             className="p-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200 h-[42px]"
                                         >
@@ -1506,7 +1495,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 <div className="w-full bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[44px] flex items-center justify-between group-hover:bg-primary-50/30 transition-colors mt-2">
                                                     {activeTool === 'attendance_present' ? (
                                                         <div className="flex items-center gap-2 w-full">
-                                                            <input 
+                                                            <input
                                                                 type="number"
                                                                 value={currentVal || ''}
                                                                 max={termTotal}
@@ -1517,14 +1506,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                             <span className="text-xs font-black text-slate-400">/ {termTotal || '--'}</span>
                                                         </div>
                                                     ) : activeTool === 'teacher_remark' ? (
-                                                        <textarea 
+                                                        <textarea
                                                             value={currentVal || ''}
                                                             onChange={(e) => handleRemarkChange(student.id, 'teacher_remark', e.target.value)}
                                                             className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-800 outline-none focus:border-primary-500 min-h-[44px] resize-none"
                                                             placeholder="Enter remark..."
                                                         />
                                                     ) : (
-                                                        <input 
+                                                        <input
                                                             type="text"
                                                             value={currentVal || ''}
                                                             onChange={(e) => handleRemarkChange(student.id, activeTool, e.target.value)}
@@ -1578,10 +1567,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             .filter(r => r.studentId === student.id)
                                             .reduce((sum, r) => sum + r.total, 0);
                                         const subjCount = results.filter(r => r.studentId === student.id).length;
-                                        
+
                                         return (
-                                            <div 
-                                                key={student.id} 
+                                            <div
+                                                key={student.id}
                                                 className="group bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary-500/10 hover:border-primary-200 transition-all duration-300 flex flex-col justify-between"
                                             >
                                                 <div className="flex items-center gap-4 mb-5">
@@ -1703,11 +1692,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                             )}
                                                         </div>
                                                     </button>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    <div className="hidden md:block overflow-x-auto">
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="hidden md:block overflow-x-auto">
                                             {isAdmin && (
                                                 <div className="bg-amber-50 p-4 border-b border-amber-100 flex items-center justify-center gap-2">
                                                     <ShieldAlert className="w-4 h-4 text-amber-600" />
@@ -1727,6 +1716,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
+                                                    {(() => {
+                                                        const ids = classStudents.map(s => s.id);
+                                                        const duplicates = ids.filter((item, index) => ids.indexOf(item) !== index);
+                                                        if (duplicates.length > 0) {
+                                                            console.warn("DEBUG Warning: Duplicate Student IDs found in this class:", duplicates);
+                                                        }
+                                                        return null;
+                                                    })()}
                                                     {classStudents.map(student => {
                                                         const savedClass = getExistingScore(student.id, 'classScore');
                                                         const savedExam = getExistingScore(student.id, 'examScore');
@@ -1788,7 +1785,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             )}
                                         </div>
                                     )}
-                                    
+
                                     {/* Bulk Paintbrush Info Panel for Marks tab */}
                                     {isNurseryLayout && paintBrush && (
                                         <div className="p-4 bg-primary-50 border-t border-primary-100 flex items-center justify-between sticky bottom-0 z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
@@ -1802,13 +1799,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button 
+                                                <button
                                                     onClick={() => setPaintBrush('')}
                                                     className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
                                                 >
                                                     Cancel
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         classStudents.forEach(s => {
                                                             handleScoreChange(s.id, 'competencyStatus', paintBrush);
@@ -1833,7 +1830,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         const savedClass = getExistingScore(student.id, 'classScore');
                                         const savedExam = getExistingScore(student.id, 'examScore');
                                         const currentCompetency = getExistingCompetency(student.id);
-                                        
+
                                         const dispClass = pending?.classScore ?? savedClass;
                                         const dispExam = pending?.examScore ?? savedExam;
                                         const dispCompetency = pending?.competencyStatus ?? currentCompetency;
@@ -1841,8 +1838,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         const grade = getGrade(total);
 
                                         return (
-                                            <div 
-                                                key={student.id} 
+                                            <div
+                                                key={student.id}
                                                 className={`p-5 bg-white rounded-2xl border-2 transition-all ${paintBrush ? 'border-primary-200 ring-4 ring-primary-50 ring-offset-0 shadow-lg scale-[1.02] cursor-cell' : 'border-slate-200 shadow-sm'}`}
                                                 onClick={() => {
                                                     if (paintBrush && isNurseryLayout) {
@@ -1872,10 +1869,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                 <div className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-between min-h-[100px] group ${dispCompetency === paintBrush ? 'bg-primary-50 border-primary-500' : 'bg-slate-50 border-slate-100 active:border-primary-400'}`}>
                                                                     <div className="flex items-center gap-3 py-2">
                                                                         <span className={`text-lg font-black ${dispCompetency === paintBrush ? 'text-primary-900' : 'text-slate-800'}`}>
-                                                                            {dispCompetency === '90' ? 'Mastered' : 
-                                                                             dispCompetency === '70' ? 'Developing' : 
-                                                                             dispCompetency === '40' ? 'Emerging' : 
-                                                                             (dispCompetency || 'None')}
+                                                                            {dispCompetency === '90' ? 'Mastered' :
+                                                                                dispCompetency === '70' ? 'Developing' :
+                                                                                    dispCompetency === '40' ? 'Emerging' :
+                                                                                        (dispCompetency || 'None')}
                                                                         </span>
                                                                         {dispCompetency !== paintBrush && (
                                                                             <div className="w-8 h-8 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center animate-bounce-slow">
@@ -1918,7 +1915,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                         <option value="0">Not Assessed</option>
                                                                     </select>
                                                                     {(!['90', '70', '40', 'Mastered', 'Developing', 'Emerging', '0', ''].includes(dispCompetency) || dispCompetency === 'Improving...') && (
-                                                                        <input 
+                                                                        <input
                                                                             type="text"
                                                                             placeholder="Enter custom status..."
                                                                             value={dispCompetency}
@@ -1965,7 +1962,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     })}
                                     {classStudents.length === 0 && (
                                         <div className="text-center text-slate-400 py-16 px-6 font-bold bg-white rounded-[2rem] border-4 border-dashed border-slate-50">
-                                             {!selectedClass ? (
+                                            {!selectedClass ? (
                                                 <p>Please select a class</p>
                                             ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
                                                 <div className="space-y-2">
@@ -2047,9 +2044,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
                                     <div className="space-y-3 pb-4">
                                         <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest pl-1 mb-3">Available Presets</h4>
-                                        {(activeTool === 'performance_status' ? 
-                                            (reportConfig?.class_settings?.[selectedClass]?.qualitative_levels?.length > 0 ? 
-                                                reportConfig.class_settings[selectedClass].qualitative_levels : 
+                                        {(activeTool === 'performance_status' ?
+                                            (reportConfig?.class_settings?.[selectedClass]?.qualitative_levels?.length > 0 ?
+                                                reportConfig.class_settings[selectedClass].qualitative_levels :
                                                 ['Mastered', 'Developing', 'Emerging']
                                             ) :
                                             (activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets)
@@ -2260,11 +2257,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
                                 {localConfig.grading?.map((g: any, idx: number) => (
                                     <div key={idx} className="bg-white md:bg-transparent p-4 md:p-0 rounded-2xl border md:border-0 border-slate-200 shadow-sm md:shadow-none relative space-y-4 md:space-y-0 md:grid md:grid-cols-12 md:gap-2 md:text-xs md:items-center">
-                                        
+
                                         {/* Grade Label (Mobile only) */}
                                         <div className="md:hidden flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
-                                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Level {idx + 1}</span>
-                                           <button
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Level {idx + 1}</span>
+                                            <button
                                                 onClick={() => {
                                                     const newGrading = localConfig.grading.filter((_: any, i: number) => i !== idx);
                                                     setLocalConfig({ ...localConfig, grading: newGrading });
@@ -2357,21 +2354,21 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Total Attendance Days</label>
-                                    <input 
-                                        type="number" 
-                                        value={localConfig.term_total_days || ''} 
-                                        onChange={e => setLocalConfig({ ...localConfig, term_total_days: Number(e.target.value) })} 
-                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold" 
+                                    <input
+                                        type="number"
+                                        value={localConfig.term_total_days || ''}
+                                        onChange={e => setLocalConfig({ ...localConfig, term_total_days: Number(e.target.value) })}
+                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold"
                                         placeholder="e.g. 75"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Next Term Reopens</label>
-                                    <input 
-                                        type="text" 
-                                        value={localConfig.next_term_reopens || ''} 
-                                        onChange={e => setLocalConfig({ ...localConfig, next_term_reopens: e.target.value })} 
-                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold" 
+                                    <input
+                                        type="text"
+                                        value={localConfig.next_term_reopens || ''}
+                                        onChange={e => setLocalConfig({ ...localConfig, next_term_reopens: e.target.value })}
+                                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold"
                                         placeholder="e.g. 15th Jan, 2024"
                                     />
                                 </div>
@@ -2393,7 +2390,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             </span>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {[...availableClasses].sort().map(className => {
                                             const currentLayout = localConfig?.report_card_config?.class_layouts?.[className] || 'modern';
@@ -2401,15 +2398,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                 <div key={className} className="bg-white border-2 border-slate-100 rounded-2xl p-4 shadow-sm hover:border-primary-100 transition-all group">
                                                     <div className="flex justify-between items-center mb-3">
                                                         <span className="text-[10px] font-black uppercase text-slate-700 truncate tracking-widest">{className}</span>
-                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                            currentLayout === 'nursery' ? 'bg-blue-100 text-blue-700' :
-                                                            currentLayout === 'classic_tabular' ? 'bg-indigo-100 text-indigo-700' :
-                                                            'bg-primary-100 text-primary-700'
-                                                        }`}>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${currentLayout === 'nursery' ? 'bg-blue-100 text-blue-700' :
+                                                                currentLayout === 'classic_tabular' ? 'bg-indigo-100 text-indigo-700' :
+                                                                    'bg-primary-100 text-primary-700'
+                                                            }`}>
                                                             {currentLayout === 'modern' ? 'Standard' : currentLayout === 'classic_tabular' ? 'Classic' : 'Nursery'}
                                                         </span>
                                                     </div>
-                                                    
+
                                                     <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-xl">
                                                         {[
                                                             { id: 'modern', icon: 'M', color: 'primary' },
@@ -2432,11 +2428,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                                         }
                                                                     });
                                                                 }}
-                                                                className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 ${
-                                                                    currentLayout === layout.id
-                                                                    ? `bg-${layout.color}-600 text-white shadow-md shadow-${layout.color}-100`
-                                                                    : 'text-slate-400 hover:bg-white hover:text-slate-600'
-                                                                }`}
+                                                                className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex flex-col items-center justify-center gap-0.5 ${currentLayout === layout.id
+                                                                        ? `bg-${layout.color}-600 text-white shadow-md shadow-${layout.color}-100`
+                                                                        : 'text-slate-400 hover:bg-white hover:text-slate-600'
+                                                                    }`}
                                                             >
                                                                 <span className="text-[10px]">{layout.icon}</span>
                                                                 <span className="text-[7px] leading-none">
@@ -2482,7 +2477,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">Global Report Card Sections</label>
                                             <p className="text-[10px] text-slate-400 font-medium">Add sections that will appear on ALL students' report cards (e.g. Items to Buy, Physical Notes, etc.)</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 const sections = [...(localConfig.global_report_sections || []), { title: '', content: '' }];
                                                 setLocalConfig({ ...localConfig, global_report_sections: sections });
@@ -2496,7 +2491,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {(localConfig.global_report_sections || []).map((section: any, idx: number) => (
                                             <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group">
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         const sections = localConfig.global_report_sections.filter((_: any, i: number) => i !== idx);
                                                         setLocalConfig({ ...localConfig, global_report_sections: sections });
@@ -2506,9 +2501,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                     <X className="w-3 h-3" />
                                                 </button>
                                                 <div className="space-y-3">
-                                                    <input 
-                                                        type="text" 
-                                                        value={section.title} 
+                                                    <input
+                                                        type="text"
+                                                        value={section.title}
                                                         onChange={e => {
                                                             const sections = [...localConfig.global_report_sections];
                                                             sections[idx].title = e.target.value;
@@ -2517,8 +2512,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                         placeholder="Section Title (e.g. Items to Buy)"
                                                         className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-[10px] font-black uppercase text-primary-600 outline-none focus:bg-white focus:border-primary-300"
                                                     />
-                                                    <textarea 
-                                                        value={section.content} 
+                                                    <textarea
+                                                        value={section.content}
                                                         onChange={e => {
                                                             const sections = [...localConfig.global_report_sections];
                                                             sections[idx].content = e.target.value;
@@ -2565,12 +2560,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 const cls = Array.isArray(sa.classes) ? sa.classes[0] : sa.classes;
                                 return cls?.name?.trim().toLowerCase() === className.trim().toLowerCase();
                             });
-                            
+
                             const classSubs = classConf.map(sa => {
                                 const subj = Array.isArray(sa.subjects) ? sa.subjects[0] : sa.subjects;
                                 const subjName = subj?.name;
                                 // Find all teachers assigned to this specific pair (Class Teacher + Subject Teachers)
-                                const teachers = (allAssignments || []).filter((a: any) => 
+                                const teachers = (allAssignments || []).filter((a: any) =>
                                     a.class_name?.trim().toLowerCase() === className.trim().toLowerCase() &&
                                     (
                                         a.subject_name?.trim().toLowerCase() === subjName?.trim().toLowerCase() ||
@@ -2581,8 +2576,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 const teacherLabel = teachers.length > 0 ? [...new Set(teachers)].join(', ') : 'Unassigned';
 
                                 // Find current submission status
-                                const statusEntry = (submissionOverview || []).find((s: any) => 
-                                    s.class_name?.trim().toLowerCase() === className.trim().toLowerCase() && 
+                                const statusEntry = (submissionOverview || []).find((s: any) =>
+                                    s.class_name?.trim().toLowerCase() === className.trim().toLowerCase() &&
                                     s.subject_name?.trim().toLowerCase() === subjName?.trim().toLowerCase()
                                 );
 
@@ -2657,18 +2652,18 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                             {isSelected && (
                                                                 <div className="lg:col-span-full bg-white rounded-2xl border border-primary-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 mt-2">
                                                                     <div className="bg-primary-50 p-3 border-b border-primary-100 flex items-center justify-between">
-                                                                         <span className="text-[10px] font-black text-primary-700 uppercase tracking-widest flex items-center gap-2">
+                                                                        <span className="text-[10px] font-black text-primary-700 uppercase tracking-widest flex items-center gap-2">
                                                                             <ShieldAlert className="w-3.5 h-3.5" /> Read-Only Mark Sheet - {sub.subject_name}
-                                                                         </span>
-                                                                         <div className="flex items-center gap-2">
-                                                                            <button 
+                                                                        </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <button
                                                                                 onClick={() => handleResetSubjectMarks(className, sub.subject_name)}
                                                                                 className="text-[9px] font-black uppercase px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
                                                                             >
                                                                                 <Trash2 className="w-3 h-3" /> Reset Marks
                                                                             </button>
                                                                             <button onClick={() => setSelectedSubject('')} className="p-1 hover:bg-primary-100 rounded text-primary-500"><X className="w-4 h-4" /></button>
-                                                                         </div>
+                                                                        </div>
                                                                     </div>
                                                                     <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                                                                         <table className="w-full text-left border-collapse">
@@ -2850,34 +2845,66 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         </div>
                     </div>
                 )}
-                {isLevelArchiveOpen && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Status Archive</h3>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{selectedClass} Custom Levels</p>
-                                </div>
-                                <button onClick={() => setIsLevelArchiveOpen(false)} className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-slate-200">
-                                    <X className="w-6 h-6 text-slate-400" />
-                                </button>
+            {isLevelArchiveOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Status Archive</h3>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{selectedClass} Custom Levels</p>
                             </div>
+                            <button onClick={() => setIsLevelArchiveOpen(false)} className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-slate-200">
+                                <X className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
 
-                            <div className="p-8 space-y-6">
-                                <div className="space-y-4">
-                                    <div className="flex gap-2">
-                                        <input 
-                                            type="text"
-                                            value={newLevelName}
-                                            onChange={e => setNewLevelName(e.target.value)}
-                                            placeholder="Add new level (e.g. Excellent)"
-                                            className="flex-1 p-3 border border-slate-200 rounded-xl font-bold bg-slate-50 outline-none focus:border-primary-400"
-                                        />
-                                        <button 
-                                            onClick={() => {
-                                                if(newLevelName) {
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-4">
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newLevelName}
+                                        onChange={e => setNewLevelName(e.target.value)}
+                                        placeholder="Add new level (e.g. Excellent)"
+                                        className="flex-1 p-3 border border-slate-200 rounded-xl font-bold bg-slate-50 outline-none focus:border-primary-400"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (newLevelName) {
+                                                const currentLevels = localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || [];
+                                                const updatedLevels = [...currentLevels, newLevelName];
+                                                const newConf = {
+                                                    ...localConfig,
+                                                    report_card_config: {
+                                                        ...localConfig.report_card_config,
+                                                        class_settings: {
+                                                            ...(localConfig.report_card_config?.class_settings || {}),
+                                                            [selectedClass]: {
+                                                                ...(localConfig.report_card_config?.class_settings?.[selectedClass] || {}),
+                                                                qualitative_levels: updatedLevels
+                                                            }
+                                                        }
+                                                    }
+                                                };
+                                                setLocalConfig(newConf);
+                                                saveConfigMutation.mutate(newConf);
+                                                setNewLevelName('');
+                                            }
+                                        }}
+                                        className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
+                                    >
+                                        <PlusCircle className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                                    {(localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || []).map((lvl: string, idx: number) => (
+                                        <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
+                                            <span className="text-sm font-bold text-slate-700">{lvl}</span>
+                                            <button
+                                                onClick={() => {
                                                     const currentLevels = localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || [];
-                                                    const updatedLevels = [...currentLevels, newLevelName];
+                                                    const updatedLevels = currentLevels.filter((_: any, i: number) => i !== idx);
                                                     const newConf = {
                                                         ...localConfig,
                                                         report_card_config: {
@@ -2893,66 +2920,34 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                                     };
                                                     setLocalConfig(newConf);
                                                     saveConfigMutation.mutate(newConf);
-                                                    setNewLevelName('');
-                                                }
-                                            }}
-                                            className="p-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
-                                        >
-                                            <PlusCircle className="w-5 h-5" />
-                                        </button>
-                                    </div>
+                                                }}
+                                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
 
-                                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                                        {(localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || []).map((lvl: string, idx: number) => (
-                                            <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
-                                                <span className="text-sm font-bold text-slate-700">{lvl}</span>
-                                                <button 
-                                                    onClick={() => {
-                                                        const currentLevels = localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || [];
-                                                        const updatedLevels = currentLevels.filter((_: any, i: number) => i !== idx);
-                                                        const newConf = {
-                                                            ...localConfig,
-                                                            report_card_config: {
-                                                                ...localConfig.report_card_config,
-                                                                class_settings: {
-                                                                    ...(localConfig.report_card_config?.class_settings || {}),
-                                                                    [selectedClass]: {
-                                                                        ...(localConfig.report_card_config?.class_settings?.[selectedClass] || {}),
-                                                                        qualitative_levels: updatedLevels
-                                                                    }
-                                                                }
-                                                            }
-                                                        };
-                                                        setLocalConfig(newConf);
-                                                        saveConfigMutation.mutate(newConf);
-                                                    }}
-                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {(!localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || localConfig.report_card_config.class_settings[selectedClass].qualitative_levels.length === 0) && (
-                                            <div className="text-center py-10">
-                                                <Archive className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No custom levels yet.</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    {(!localConfig?.report_card_config?.class_settings?.[selectedClass]?.qualitative_levels || localConfig.report_card_config.class_settings[selectedClass].qualitative_levels.length === 0) && (
+                                        <div className="text-center py-10">
+                                            <Archive className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No custom levels yet.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            
-                            <div className="p-8 bg-slate-50 border-t border-slate-100 text-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">
-                                    These levels will appear in your dropdown for <span className="text-slate-900">{selectedClass}</span>.
-                                </p>
-                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50 border-t border-slate-100 text-center">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">
+                                These levels will appear in your dropdown for <span className="text-slate-900">{selectedClass}</span>.
+                            </p>
                         </div>
                     </div>
-                )}
-            </div>
-        );
+                </div>
+            )}
+        </div>
+    );
 };
 
 const ReleaseConfigModal = ({ data, onClose, onConfirm, isProcessing }: any) => {
