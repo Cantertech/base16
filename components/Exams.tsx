@@ -168,15 +168,11 @@ const fetchResults = async (schoolId: string, term: string, year: string, classN
         .from('exam_results')
         .select('*, students(name)')
         .eq('school_id', schoolId)
-        .eq('term', (term || '').trim().toUpperCase())
-        .eq('academic_year', (year || '').trim().toUpperCase());
+        .ilike('term', term?.trim())
+        .ilike('academic_year', year?.trim());
 
-    if (className) {
-        query = query.eq('class', className.trim().toUpperCase());
-    }
-    if (subjectName) {
-        query = query.eq('subject', subjectName.trim().toUpperCase());
-    }
+    if (className) query = query.ilike('class', className.trim());
+    if (subjectName) query = query.ilike('subject', subjectName.trim());
 
     const { data, error } = await query.limit(10000);
 
@@ -205,8 +201,8 @@ const fetchResultsByStudent = async (schoolId: string, studentId: string, term: 
         .select('*, students(name)')
         .eq('school_id', schoolId)
         .eq('student_id', studentId)
-        .eq('term', (term || '').trim().toUpperCase())
-        .eq('academic_year', (year || '').trim().toUpperCase());
+        .ilike('term', term)
+        .ilike('academic_year', year);
 
     if (error) {
         console.error('DEBUG: fetchResultsByStudent Error:', error);
@@ -450,7 +446,11 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 });
             }
 
-            return Array.from(combined.values());
+            return Array.from(combined.values()).map(a => ({
+                ...a,
+                className: a.className.trim().toUpperCase(),
+                subjectName: a.subjectName ? a.subjectName.trim().toUpperCase() : null
+            }));
         },
         enabled: !!currentUser?.id && !!schoolId,
         staleTime: 60 * 1000
@@ -509,6 +509,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId && !!examConfig && !!selectedClass,
         staleTime: 5 * 60 * 1000
     });
+
+    if (results.length > 0 && selectedClass && selectedSubject) {
+        console.log(`DEBUG Results: Found ${results.length} records for ${selectedClass}. Checking for ${selectedSubject}...`);
+    }
 
     const { data: reportResultsRaw = [] } = useQuery({
         queryKey: ['reportResults', schoolId, reportStudent?.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
@@ -656,9 +660,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         if (currentUser?.role === 'teacher') {
             // Teacher: filter subjects
             if (selectedClass) {
-                const classAssignment = myAssignments.filter((a: any) => a.className === selectedClass);
+                const classAssignment = myAssignments.filter((a: any) => a.className?.trim().toUpperCase() === selectedClass.trim().toUpperCase());
                 const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
-                    (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) ||
+                    (currentUser?.assignedClass?.trim().toUpperCase() === selectedClass.trim().toUpperCase()) ||
                     classAssignment.some((a: any) => a.isClassTeacher);
 
                 if (isClassTeacher) {
@@ -1186,20 +1190,24 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const getExistingCompetency = (studentId: string) => {
-        const cleanClass = (selectedClass || '').trim().toLowerCase();
-        const cleanSubj = (selectedSubject || '').trim().toLowerCase();
-        const cleanStudentId = (studentId || '').trim().toLowerCase();
+        const cleanClass = (selectedClass || '').trim().toUpperCase();
+        const cleanSubj = (selectedSubject || '').trim().toUpperCase();
+        const cleanStudentId = (studentId || '').trim();
 
-        // Robust match: filter all and pick the best one (prefer non-empty)
-        const matches = results.filter((r: Result) =>
-            (r.studentId || '').trim().toLowerCase() === cleanStudentId &&
-            (r.class || '').trim().toLowerCase() === cleanClass &&
-            (r.subject || '').trim().toLowerCase() === cleanSubj
-        );
+        const match = results.find(r => {
+            const rStudentId = (r.studentId || '').trim();
+            const rSubj = (r.subject || '').trim().toUpperCase();
+            const rClass = (r.class || '').trim().toUpperCase();
+            
+            return rStudentId === cleanStudentId && rSubj === cleanSubj && rClass === cleanClass;
+        });
 
-        if (matches.length === 0) return '';
-        const best = matches.find(m => (m as any).competency_status) || matches[0];
-        return (best as any).competency_status || '';
+        if (match) {
+            const status = (match as any).competency_status || '';
+            console.log(`DEBUG [CompetencyCheck]: MATCH FOUND for ${studentId} -> ${status}`);
+            return status;
+        }
+        return '';
     };
 
     const getExistingScore = (studentId: string, field: 'classScore' | 'examScore') => {
@@ -1651,8 +1659,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                     {classStudents.map(student => {
                                         const studentResults = results.filter(r => r.studentId === student.id);
                                         const totalScore = studentResults.reduce((sum, r) => sum + r.total, 0);
-                                        // Only count subjects that have actual marks (non-zero total)
-                                        const subjCount = studentResults.filter(r => (r.total || 0) > 0).length;
+                                        // Count subjects that have actual marks OR a competency status
+                                        const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
 
                                         return (
                                             <div
