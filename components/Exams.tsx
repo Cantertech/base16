@@ -169,8 +169,8 @@ const fetchResults = async (schoolId: string, term: string, year: string) => {
         .from('exam_results')
         .select('*, students(name)')
         .eq('school_id', schoolId)
-        .ilike('term', (term || '').trim())
-        .ilike('academic_year', (year || '').trim());
+        .eq('term', (term || '').trim().toUpperCase())
+        .eq('academic_year', (year || '').trim().toUpperCase());
 
     if (error) {
         console.error('DEBUG: fetchResults Error:', error);
@@ -438,10 +438,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     }, [schoolId, currentTerm, currentYear, examConfig]);
 
     const { data: results = [] } = useQuery({
-        queryKey: ['examResults', schoolId, currentTerm, currentYear],
+        queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
         queryFn: () => {
-            console.log(`DEBUG: QueryFn [examResults] executing for ${currentTerm} ${currentYear}`);
-            return fetchResults(schoolId!, currentTerm, currentYear);
+            console.log(`DEBUG: QueryFn [examResults] executing for ${currentTerm?.toUpperCase()} ${currentYear?.toUpperCase()}`);
+            return fetchResults(schoolId!, currentTerm?.toUpperCase(), currentYear?.toUpperCase());
         },
         enabled: !!schoolId && !!examConfig,
         staleTime: 5 * 60 * 1000
@@ -571,7 +571,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 if (isClassTeacher) {
                     // Class teacher: see ALL subjects assigned to this class specifically
                     const classSubjs = [...new Set(subjectAssignments
-                        .filter((sa: any) => sa.classes?.name === selectedClass)
+                        .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
                         .map((sa: any) => sa.subjects?.name)
                         .filter(Boolean))];
 
@@ -591,7 +591,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             // Admin: Filter by class if selected, otherwise show all subjs in config or school
             if (selectedClass) {
                 const classAssigned = subjectAssignments
-                    .filter((sa: any) => sa.classes?.name === selectedClass)
+                    .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
                     .map((sa: any) => sa.subjects?.name)
                     .filter(Boolean);
                 
@@ -839,9 +839,14 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const saveMarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
             console.log('DEBUG: Saving marks to Supabase...', updates);
+            const formattedUpdates = updates.map(u => ({
+                ...u,
+                class: u.class?.trim().toUpperCase(),
+                subject: u.subject?.trim().toUpperCase()
+            }));
             const { data, error: resultError } = await supabase
                 .from('exam_results')
-                .upsert(updates, { onConflict: 'student_id,class,subject,term,academic_year' })
+                .upsert(formattedUpdates, { onConflict: 'student_id,class,subject,term,academic_year' })
                 .select();
             
             if (resultError) {
@@ -849,6 +854,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 throw resultError;
             }
             console.log('DEBUG: Supabase save success:', data);
+            return data;
         },
         onSuccess: (data: any) => {
             console.log('DEBUG: Save Success hook triggered. Data:', data);
@@ -1086,23 +1092,55 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     };
 
     const getExistingCompetency = (studentId: string) => {
-        const res = results.find((r: Result) =>
-            r.studentId === studentId &&
-            r.class === selectedClass &&
-            r.subject === selectedSubject
+        const cleanClass = (selectedClass || '').trim().toLowerCase();
+        const cleanSubj = (selectedSubject || '').trim().toLowerCase();
+        const cleanStudentId = (studentId || '').trim().toLowerCase();
+
+        // Robust match: filter all and pick the best one (prefer non-empty)
+        const matches = results.filter((r: Result) =>
+            (r.studentId || '').trim().toLowerCase() === cleanStudentId &&
+            (r.class || '').trim().toLowerCase() === cleanClass &&
+            (r.subject || '').trim().toLowerCase() === cleanSubj
         );
-        return res ? (res as any).competency_status || '' : '';
+        
+        if (matches.length === 0) return '';
+        const best = matches.find(m => (m as any).competency_status) || matches[0];
+        return (best as any).competency_status || '';
     };
 
     const getExistingScore = (studentId: string, field: 'classScore' | 'examScore') => {
-        const res = results.find((r: Result) => 
-            r.studentId === studentId &&
-            r.class === selectedClass &&
-            r.subject === selectedSubject
+        const cleanClass = (selectedClass || '').trim().toLowerCase();
+        const cleanSubj = (selectedSubject || '').trim().toLowerCase();
+        const cleanStudentId = (studentId || '').trim().toLowerCase();
+
+        // Handle duplicates by choosing the record that actually has marks (higher total)
+        const matches = results.filter((r: Result) => 
+            (r.studentId || '').trim().toLowerCase() === cleanStudentId &&
+            (r.class || '').trim().toLowerCase() === cleanClass &&
+            (r.subject || '').trim().toLowerCase() === cleanSubj
         );
         
-        if (!res) return 0;
-        const val = res[field];
+        if (matches.length === 0) {
+            if (studentId === '5d873dda-498b-4b28-a439-4084ab24bc9a') {
+                console.log(`DEBUG Check [${studentId}]: Not found in matches. Total results in array: ${results.length}`);
+                const anyForStudent = results.filter(r => (r.studentId || '').trim().toLowerCase() === cleanStudentId);
+                console.log(`DEBUG Check: Student records found (any class/subj):`, anyForStudent.length);
+                if (anyForStudent.length > 0) {
+                    console.log(`DEBUG Check: First record found for student:`, JSON.stringify(anyForStudent[0]));
+                    console.log(`DEBUG Check: Search class: "${cleanClass}", Search subj: "${cleanSubj}"`);
+                }
+            }
+            return 0;
+        }
+        
+        // Sort: Prioritize records with a higher total score to bypass "ghost" empty records
+        const bestMatch = matches.sort((a, b) => (b.total || 0) - (a.total || 0))[0];
+        
+        if (studentId === '5d873dda-498b-4b28-a439-4084ab24bc9a') {
+            console.log(`DEBUG Check [${studentId}]: Match Found! Casing: ${bestMatch.class} | ${bestMatch.subject}. Value: ${bestMatch[field]}`);
+        }
+
+        const val = bestMatch[field];
 
         // Ensure we handle non-numeric strings correctly during transitions
         const numVal = Number(val);
@@ -1128,10 +1166,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             return {
                 school_id: schoolId,
                 student_id: studentId,
-                class: (className || '').trim(),
-                subject: (subjectName || '').trim(),
-                term: (currentTerm || '').trim(),
-                academic_year: (currentYear || '').trim(),
+                class: (className || '').trim().toUpperCase(),
+                subject: (subjectName || '').trim().toUpperCase(),
+                term: (currentTerm || '').trim().toUpperCase(),
+                academic_year: (currentYear || '').trim().toUpperCase(),
                 class_score: val.classScore,
                 exam_score: val.examScore,
                 competency_status: val.competencyStatus
@@ -1157,10 +1195,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 return {
                     school_id: schoolId,
                     student_id: studentId,
-                    class: (className || '').trim(),
-                    subject: (subjectName || '').trim(),
-                    term: (currentTerm || '').trim(),
-                    academic_year: (currentYear || '').trim(),
+                    class: (className || '').trim().toUpperCase(),
+                    subject: (subjectName || '').trim().toUpperCase(),
+                    term: (currentTerm || '').trim().toUpperCase(),
+                    academic_year: (currentYear || '').trim().toUpperCase(),
                     class_score: val.classScore,
                     exam_score: val.examScore,
                     competency_status: val.competencyStatus
@@ -1227,8 +1265,9 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         const studentResults = results.filter((r: Result) => r.studentId === student.id);
 
         // 2. Identify all expected subjects for this student's class
+        const studentClass = (student.class || selectedClass || '').trim().toLowerCase();
         const classSubjects = subjectAssignments
-            .filter((sa: any) => sa.classes?.name === (student.class || selectedClass))
+            .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === studentClass)
             .map((sa: any) => sa.subjects?.name)
             .filter(Boolean);
 
@@ -1238,12 +1277,15 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         const resultsMap = new Map<string, any>();
 
         // First, add existing results IF they are part of the current class subjects
+        const classSubjSet = new Set(classSubjects.map(s => s.trim().toLowerCase()));
+
         studentResults.forEach(r => {
             // Only include in report if subject is still assigned to this class
-            if (classSubjects.includes(r.subject)) {
-                const existing = resultsMap.get(r.subject);
+            if (r.subject && classSubjSet.has(r.subject.trim().toLowerCase())) {
+                const subjKey = r.subject.trim().toLowerCase();
+                const existing = resultsMap.get(subjKey);
                 if (!existing || (r.total || 0) > (existing.total || 0)) {
-                    resultsMap.set(r.subject, r);
+                    resultsMap.set(subjKey, r);
                 }
             }
         });
