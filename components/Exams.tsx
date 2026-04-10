@@ -199,6 +199,36 @@ const fetchResults = async (schoolId: string, term: string, year: string, classN
     })) as Result[] : [];
 };
 
+const fetchResultsByStudent = async (schoolId: string, studentId: string, term: string, year: string) => {
+    const { data, error } = await supabase
+        .from('exam_results')
+        .select('*, students(name)')
+        .eq('school_id', schoolId)
+        .eq('student_id', studentId)
+        .eq('term', (term || '').trim().toUpperCase())
+        .eq('academic_year', (year || '').trim().toUpperCase());
+
+    if (error) {
+        console.error('DEBUG: fetchResultsByStudent Error:', error);
+        return [];
+    }
+
+    return data ? data.map((r: any) => ({
+        id: r.id,
+        studentId: r.student_id,
+        studentName: r.students?.name,
+        class: r.class,
+        subject: r.subject,
+        term: r.term,
+        academic_year: r.academic_year,
+        classScore: r.class_score,
+        exam_score: r.exam_score,
+        examScore: r.exam_score,
+        total: r.total,
+        competency_status: r.competency_status
+    })) as Result[] : [];
+};
+
 const fetchSubmissionOverview = async (schoolId: string, term: string, year: string) => {
     const { data, error } = await supabase.rpc('get_exam_submission_overview_v3', {
         p_school_id: schoolId,
@@ -234,14 +264,36 @@ const fetchTeacherAssignments = async (teacherId: string) => {
 };
 
 const fetchStudentRank = async (schoolId: string, studentId: string, term: string, year: string, className: string) => {
-    const { data } = await supabase.rpc('get_student_class_rank', {
-        p_school_id: schoolId,
-        p_class: className,
-        p_term: term,
-        p_year: year,
-        p_student_id: studentId
-    });
-    return data ? { position: data.position, total: data.total_students } : null;
+    try {
+        console.log(`DEBUG Rank Request: studentId=${studentId}, class=${className}, term=${term}, year=${year}`);
+        const { data, error } = await supabase.rpc('get_student_class_rank', {
+            p_school_id: schoolId,
+            p_class: (className || '').trim().toUpperCase(),
+            p_term: (term || '').trim().toUpperCase(),
+            p_year: (year || '').trim().toUpperCase(),
+            p_student_id: studentId
+        });
+        
+        if (error) {
+            console.error('DEBUG Rank Error (Supabase):', error);
+            return null;
+        }
+
+        console.log('DEBUG Rank Raw Data:', data);
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+            const result = data[0];
+            return { 
+                position: result.student_position, 
+                total: result.total_students 
+            };
+        }
+        
+        return null;
+    } catch (e) {
+        console.error('DEBUG Rank Error (Catch):', e);
+        return null;
+    }
 };
 
 
@@ -458,6 +510,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         staleTime: 5 * 60 * 1000
     });
 
+    const { data: reportResultsRaw = [] } = useQuery({
+        queryKey: ['reportResults', schoolId, reportStudent?.id, currentTerm, currentYear],
+        queryFn: () => fetchResultsByStudent(schoolId!, reportStudent!.id, currentTerm, currentYear),
+        enabled: !!schoolId && !!reportStudent && !!currentTerm && !!currentYear
+    });
+
     const { data: submissionOverview = [] } = useQuery({
         queryKey: ['submissionOverview', schoolId, currentTerm, currentYear],
         queryFn: () => fetchSubmissionOverview(schoolId!, currentTerm, currentYear),
@@ -541,9 +599,20 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     });
 
     const { data: studentRank } = useQuery({
-        queryKey: ['studentRank', schoolId, reportStudent?.id, currentTerm, currentYear],
-        queryFn: () => fetchStudentRank(schoolId!, reportStudent!.id, currentTerm, currentYear, reportStudent!.class),
-        enabled: !!schoolId && !!reportStudent && !!examConfig
+        queryKey: ['studentRank', schoolId, reportStudent?.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), reportStudent?.class?.toUpperCase()],
+        queryFn: async () => {
+            const res = await fetchStudentRank(
+                schoolId!, 
+                reportStudent!.id, 
+                currentTerm?.toUpperCase(), 
+                currentYear?.toUpperCase(), 
+                reportStudent!.class?.toUpperCase() || ''
+            );
+            console.log("DEBUG: Student Rank Response:", res);
+            return res;
+        },
+        enabled: !!schoolId && !!reportStudent && !!currentTerm && !!currentYear,
+        staleTime: 5 * 60 * 1000
     });
 
     // --- Derived State (Teachers) ---
@@ -1247,11 +1316,12 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         s.class?.trim().toLowerCase() === (selectedClass || '').trim().toLowerCase()
     );
 
-    const getPrefilledResults = (student: any) => {
+    const getPrefilledResults = (student: any, sourceResults?: Result[]) => {
         if (!student) return [];
 
-        // 1. Get existing results for this student
-        const studentResults = results.filter((r: Result) => r.studentId === student.id);
+        // 1. Get existing results for this student from the provided source or global results
+        const baseResults = sourceResults || results;
+        const studentResults = baseResults.filter((r: Result) => r.studentId === student.id);
 
         // 3. Combine and De-duplicate by subject name
         // We use a Map to ensure only one entry per subject.
@@ -2076,7 +2146,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 {reportStudent && (
                     <ReportCard
                         student={students.find(s => s.id === reportStudent.id)!}
-                        results={getPrefilledResults(reportStudent)}
+                        results={getPrefilledResults(reportStudent, reportResultsRaw)}
                         schoolConfig={{
                             ...schoolInfo,
                             ...examConfig,
@@ -2807,7 +2877,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 reportStudent && (
                     <ReportCard
                         student={students.find(s => s.id === reportStudent.id)!}
-                        results={getPrefilledResults(reportStudent)}
+                        results={getPrefilledResults(reportStudent, reportResultsRaw)}
                         schoolConfig={{
                             ...schoolInfo,
                             ...examConfig,
@@ -2826,22 +2896,21 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     <div style={{ display: 'none' }}>
                         <div ref={bulkPrintRef} className="print:block">
                             {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => {
-                                // Optionally recalculate rank inline if we could, but right now we pass null or fetch it
-                                // For bulk print, rank isn't strictly requested per single report, or it may default to '-'
-                                // If needed, we'd pre-calculate an array of ranks.
                                 return (
                                     <ReportCard
                                         key={student.id}
                                         student={student}
-                                        results={getPrefilledResults(student)}
+                                        results={getPrefilledResults(student, reportResultsRaw)}
                                         schoolConfig={{
                                             ...schoolInfo,
                                             ...examConfig,
                                         }}
                                         onClose={() => { }}
+                                        position={null}
                                         schoolId={schoolId}
+                                        activeModules={activeModules}
                                         printMode={true}
-                                        savedReportData={allReportCards.find((r: any) => r.student_id === student.id)}
+                                        savedReportData={allReportCards.find((rc: any) => rc.student_id === student.id)}
                                     />
                                 );
                             })}
