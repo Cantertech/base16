@@ -82,7 +82,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     // Editable State
     const [teacherRemark, setTeacherRemark] = useState(savedReportData?.teacher_remark || "A disciplined and hardworking student. Keep it up!");
-    const [principalRemark, setPrincipalRemark] = useState(savedReportData?.principal_remark || "Promoted to the next class.");
+    const [principalRemark, setPrincipalRemark] = useState(savedReportData?.principal_remark || (schoolConfig as any)?.report_card_config?.headmaster_decision || (schoolConfig as any)?.headmaster_decision || "Promoted to the next class.");
     const [promotionStatus, setPromotionStatus] = useState(savedReportData?.promotion_status || `Promoted to ${getNextClass(student.class)}`);
     const [conduct, setConduct] = useState(savedReportData?.conduct || "Satisfactory");
     const [interest, setInterest] = useState(savedReportData?.interest || '');
@@ -506,29 +506,6 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </tr>
                             )}
                         </tbody>
-                        <tfoot className="border-t border-slate-950">
-                            <tr className="bg-slate-50 print:bg-white text-[8px]">
-                                <td colSpan={2} className="px-5 py-2">
-                                    <div className="flex justify-between items-center opacity-80">
-                                        <span className="font-black uppercase text-slate-400 tracking-widest border-r border-slate-300 pr-4 mr-4">Performance Key</span>
-                                        <div className="flex flex-1 justify-start gap-10">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
-                                                <span className="font-black uppercase text-slate-600 tracking-wider">Mastered (M)</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                                                <span className="font-black uppercase text-slate-600 tracking-wider">Developing (D)</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 bg-orange-600 rounded-full"></div>
-                                                <span className="font-black uppercase text-slate-600 tracking-wider">Emerging (E)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -598,7 +575,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </div>
 
                         {/* Classic Signatures */}
-                        <div className="grid grid-cols-2 gap-8 mt-auto px-4">
+                        <div className="grid grid-cols-2 gap-8 mt-12 px-4 relative">
                             <div className="text-center pt-6 relative group">
                                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
                                     <PenTool className="w-full h-full text-slate-900" />
@@ -608,12 +585,19 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <span className="text-[8px] font-black uppercase text-slate-900 tracking-[0.2em]">Lead Preceptor</span>
                             </div>
                             <div className="text-center pt-6 relative group">
+                                {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain mx-auto absolute -top-11 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                )}
                                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
                                     <PenTool className="w-full h-full text-slate-900" />
                                 </div>
-                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
-                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5"></div>
-                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-[0.2em]">Head of Institution</span>
+                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5 relative z-20"></div>
+                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5 relative z-20"></div>
+                                <span className="text-[8px] font-black uppercase text-slate-900 tracking-[0.2em] relative z-20">Head of Institution</span>
+                                
+                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-24 w-24 object-contain absolute -top-16 -right-6 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
+                                )}
                             </div>
                         </div>
                     </div>
@@ -888,14 +872,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     onChange={(e) => setPrincipalRemark(e.target.value)}
                                     className="w-full bg-white border border-slate-200 rounded-lg outline-none text-[11px] font-black text-slate-900 leading-relaxed min-h-12 print:min-h-10 p-2 italic resize-none"
                                 />
-                                <div className="flex justify-between items-end mt-2">
+                                <div className="flex justify-between items-end mt-12">
                                     <div className="text-left">
                                         <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none">{new Date().toLocaleDateString('en-GB')}</p>
                                         <p className="text-[6px] font-black text-slate-300 uppercase leading-none mt-0.5">Issued On</p>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="h-px w-32 bg-slate-950 mb-0.5"></div>
-                                        <p className="text-[7px] font-black text-slate-900 uppercase tracking-widest leading-none">Principal (Stamp)</p>
+                                    <div className="text-right relative min-w-[150px]">
+                                        {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                            <img src={(schoolConfig as any).report_card_config.signature_url} className="h-12 object-contain mx-auto absolute -top-14 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                        )}
+                                        <div className="h-px w-32 bg-slate-950 mb-0.5 relative z-20 mx-auto md:mr-0 print:mr-0"></div>
+                                        <p className="text-[7px] font-black text-slate-900 uppercase tracking-widest leading-none relative z-20">Principal (Stamp)</p>
+                                        
+                                        {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                            <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-20 w-20 object-contain absolute -top-12 -right-2 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1310,7 +1301,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             </div>
                         </div>
 
-                        <div className="relative z-10 pt-6 border-t border-white/20 flex justify-between items-end print:border-slate-900">
+                        <div className="relative z-10 pt-16 mt-4 border-t border-white/20 flex justify-between items-end print:border-slate-900">
                             <div>
                                 <p className="text-[10px] font-black uppercase opacity-70 mb-1 tracking-widest">Grand Total Payable</p>
                                 <p className="text-3xl font-black tracking-tighter">
@@ -1318,11 +1309,18 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     {totalBill.toFixed(2)}
                                 </p>
                             </div>
-                            <div className="text-right">
-                                <div className="h-12 w-12 bg-white/20 rounded-full mx-auto mb-2 flex items-center justify-center print:bg-slate-100">
+                            <div className="text-right relative min-w-[120px]">
+                                {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-12 object-contain mx-auto absolute -top-14 left-1/2 -translate-x-1/2 z-10 brightness-110" alt="Signature" />
+                                )}
+                                <div className="h-12 w-12 bg-white/20 rounded-full mx-auto mb-2 flex items-center justify-center print:bg-slate-100 relative z-20">
                                     <Building2 className="w-6 h-6 opacity-60 print:opacity-100 print:text-slate-400" />
                                 </div>
-                                <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">Digital Stamp Verified</p>
+                                <p className="text-[8px] font-black uppercase opacity-60 tracking-widest relative z-20">Digital Stamp Verified</p>
+                                
+                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-24 w-24 object-contain absolute -top-16 -right-6 opacity-60 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                )}
                             </div>
                         </div>
                     </div>

@@ -4,7 +4,7 @@ import {
     BarChart2, Filter, ChevronDown, User, ArrowRight,
     ClipboardCheck, AlertCircle, Clock, BookOpen, Settings,
     Lock, Unlock, PlayCircle, StopCircle, Eye, Send, Users, X, Loader2,
-    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool, Archive, Trash2, ShieldAlert
+    MessageSquare, Plus, Check, Calendar, PlusCircle, PenTool, Archive, Trash2, ShieldAlert, Upload
 } from 'lucide-react';
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
@@ -726,7 +726,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     // --- Mutations ---
     const saveConfigMutation = useMutation({
         mutationFn: async (newConfig: any) => {
-            console.log("MUTATING EXAM CONFIG:", newConfig);
+            console.log("MUTATING EXAM CONFIG - FINAL PAYLOAD:", JSON.stringify(newConfig, null, 2));
             const { error } = await supabase.rpc('save_exam_config', {
                 p_school_id: schoolId,
                 p_config: newConfig
@@ -1081,6 +1081,72 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
 
     // --- Handlers ---
+    const [isUploadingImage, setIsUploadingImage] = useState<string | null>(null);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'signature_url' | 'stamp_url') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setIsUploadingImage(fieldName);
+            
+            // 1. Process Image (Resize & Minify)
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 350; 
+                        const scale = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/png', 0.8));
+                    };
+                    img.src = event.target?.result as string;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // 2. Convert Base64 back to Blob for storage upload
+            const response = await fetch(base64);
+            const blob = await response.blob();
+
+            // 3. Upload to Supabase Storage
+            const fileExt = 'png';
+            const fileName = `${schoolId}/${fieldName}_${Date.now()}.${fileExt}`;
+            
+            const { data, error } = await supabase.storage
+                .from('student-photos') // Reusing available bucket from schema
+                .upload(fileName, blob, { upsert: true, contentType: 'image/png' });
+
+            if (error) throw error;
+
+            // 4. Get Public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('student-photos')
+                .getPublicUrl(fileName);
+
+            // 5. Update Config
+            setLocalConfig((prev: any) => ({
+                ...prev,
+                report_card_config: {
+                    ...(prev?.report_card_config || {}),
+                    [fieldName]: publicUrl
+                }
+            }));
+
+            alert(`${fieldName === 'signature_url' ? 'Signature' : 'Stamp'} uploaded successfully!`);
+        } catch (err: any) {
+            console.error("Upload error:", err);
+            alert("Failed to upload: " + err.message);
+        } finally {
+            setIsUploadingImage(null);
+        }
+    };
+
     const handleSaveConfig = (newConfig?: any) => {
         const configToSave = newConfig || examConfig;
 
@@ -2466,6 +2532,84 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                         className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold"
                                         placeholder="e.g. 15th Jan, 2024"
                                     />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Final Decision & Headmaster (Default Remark)</label>
+                                    <textarea
+                                        value={localConfig.report_card_config?.headmaster_decision || localConfig.headmaster_decision || ''}
+                                        onChange={e => setLocalConfig({ 
+                                            ...localConfig, 
+                                            report_card_config: { 
+                                                ...(localConfig.report_card_config || {}), 
+                                                headmaster_decision: e.target.value 
+                                            } 
+                                        })}
+                                        className="w-full p-4 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-4 focus:ring-primary-100 outline-none transition-all font-bold h-20 resize-none"
+                                        placeholder="e.g. Promoted to Next Class..."
+                                    />
+                                </div>
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Signature Section */}
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">Headmaster Signature</label>
+                                            {localConfig.report_card_config?.signature_url && (
+                                                <button 
+                                                    onClick={() => setLocalConfig({...localConfig, report_card_config: {...localConfig.report_card_config, signature_url: null}})}
+                                                    className="text-[10px] font-black text-red-500 uppercase hover:underline"
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
+                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-primary-300 transition-all group overflow-hidden relative">
+                                            {isUploadingImage === 'signature_url' ? (
+                                                <div className="flex flex-col items-center">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-primary-500 mb-2" />
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Uploading...</span>
+                                                </div>
+                                            ) : localConfig.report_card_config?.signature_url ? (
+                                                <img src={localConfig.report_card_config.signature_url} alt="Signature" className="h-full w-full object-contain p-4 contrast-125" />
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <Upload className="w-6 h-6 text-slate-300 group-hover:text-primary-500 mb-2" />
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase group-hover:text-primary-600">Upload Signature</p>
+                                                </div>
+                                            )}
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'signature_url')} />
+                                        </label>
+                                    </div>
+
+                                    {/* Stamp Section */}
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">School Seal / Stamp</label>
+                                            {localConfig.report_card_config?.stamp_url && (
+                                                <button 
+                                                    onClick={() => setLocalConfig({...localConfig, report_card_config: {...localConfig.report_card_config, stamp_url: null}})}
+                                                    className="text-[10px] font-black text-red-500 uppercase hover:underline"
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
+                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-primary-300 transition-all group overflow-hidden relative">
+                                            {isUploadingImage === 'stamp_url' ? (
+                                                <div className="flex flex-col items-center">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-primary-500 mb-2" />
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Uploading...</span>
+                                                </div>
+                                            ) : localConfig.report_card_config?.stamp_url ? (
+                                                <img src={localConfig.report_card_config.stamp_url} alt="School Stamp" className="h-full w-full object-contain p-4 grayscale contrast-150 invert-0" />
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <CheckCircle className="w-6 h-6 text-slate-300 group-hover:text-indigo-500 mb-2" />
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase group-hover:text-indigo-600">Upload School Stamp</p>
+                                                </div>
+                                            )}
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'stamp_url')} />
+                                        </label>
+                                    </div>
                                 </div>
                                 <div className="md:col-span-2 pt-6 border-t border-slate-100">
                                     <div className="flex justify-between items-end mb-6">
