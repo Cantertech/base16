@@ -1253,41 +1253,44 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         // 1. Get existing results for this student
         const studentResults = results.filter((r: Result) => r.studentId === student.id);
 
-        // 2. Identify all expected subjects for this student's class
+        // 3. Combine and De-duplicate by subject name
+        // We use a Map to ensure only one entry per subject.
+        const resultsMap = new Map<string, any>();
+
+        // Helper to normalize subject keys aggressively (removes hidden chars/extra spaces)
+        const normalizeSubjKey = (s: string) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+        // Identify all expected subjects for this student's class
         const studentClass = (student.class || selectedClass || '').trim().toLowerCase();
-        const classSubjects = subjectAssignments
-            .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === studentClass)
+        const classSubjectsList = subjectAssignments
+            .filter((sa: any) => (sa.classes?.name || '').trim().toLowerCase() === studentClass)
             .map((sa: any) => sa.subjects?.name)
             .filter(Boolean);
 
-        // 3. Combine and De-duplicate by subject name
-        // We use a Map to ensure only one entry per subject.
-        // If duplicates exist, we prioritize the one that already has a score.
-        const resultsMap = new Map<string, any>();
+        const classSubjSet = new Set(classSubjectsList.map(s => normalizeSubjKey(s)));
 
         // First, add existing results IF they are part of the current class subjects
-        const classSubjSet = new Set(classSubjects.map(s => s.trim().toLowerCase()));
-
         studentResults.forEach(r => {
-            // Only include in report if subject is still assigned to this class
-            if (r.subject && classSubjSet.has(r.subject.trim().toLowerCase())) {
-                const subjKey = r.subject.trim().toLowerCase();
-                const existing = resultsMap.get(subjKey);
+            const normalized = normalizeSubjKey(r.subject);
+            if (r.subject && classSubjSet.has(normalized)) {
+                const existing = resultsMap.get(normalized);
+                // Keep the record with actual marks (higher total)
                 if (!existing || (r.total || 0) > (existing.total || 0)) {
-                    resultsMap.set(subjKey, r);
+                    resultsMap.set(normalized, r);
                 }
             }
         });
 
         // Then, ensure all class subjects are represented (prefill with 0 if missing)
-        classSubjects.forEach(subjName => {
-            if (!resultsMap.has(subjName)) {
-                resultsMap.set(subjName, {
-                    id: `temp-${subjName}-${student.id}`,
+        classSubjectsList.forEach(originalSubjName => {
+            const normalized = normalizeSubjKey(originalSubjName);
+            if (!resultsMap.has(normalized)) {
+                resultsMap.set(normalized, {
+                    id: `temp-${normalized}-${student.id}`,
                     studentId: student.id,
                     studentName: student.name,
                     class: student.class,
-                    subject: subjName,
+                    subject: originalSubjName,
                     classScore: 0,
                     examScore: 0,
                     total: 0
