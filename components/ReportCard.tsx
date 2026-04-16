@@ -88,8 +88,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const [interest, setInterest] = useState(savedReportData?.interest || '');
     const [itemsToBring, setItemsToBring] = useState(savedReportData?.items_to_bring || (schoolConfig as any)?.items_to_bring_default || '');
     const [nextTermReopens, setNextTermReopens] = useState(savedReportData?.next_term_reopens || (schoolConfig as any)?.next_term_reopens || '');
-    const [extraBillItems, setExtraBillItems] = useState<{ label: string; value: number }[]>(savedReportData?.extra_bill_items || []);
-    const [extraReportSections, setExtraReportSections] = useState<{ title: string; content: string }[]>(savedReportData?.extra_report_sections || []);
+    const [extraBillItems, setExtraBillItems] = useState<{ label: string; value: number }[]>(Array.isArray(savedReportData?.extra_bill_items) ? savedReportData.extra_bill_items : []);
+    const [extraReportSections, setExtraReportSections] = useState<{ title: string; content: string }[]>(Array.isArray(savedReportData?.extra_report_sections) ? savedReportData.extra_report_sections : []);
     const [attendancePresentDays, setAttendancePresentDays] = useState<number>(savedReportData?.attendance_present ? Number(savedReportData.attendance_present) : (student.attendance || 0));
     const [attendanceTotalDays, setAttendanceTotalDays] = useState<number>(() => {
         const configVal = (schoolConfig as any)?.term_total_days;
@@ -130,7 +130,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         setExtraReportSections(extraReportSections.filter((_, i) => i !== index));
     };
 
-    const totalBill = Number((student as any).balance || 0) + pupilBill + otherFees + extraBillItems.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+    const totalBill = Number((student as any).balance || 0) + pupilBill + otherFees + (Array.isArray(extraBillItems) ? extraBillItems : []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
     const [attendanceStats, setAttendanceStats] = useState<{ present: number, total: number } | null>(null);
 
     // Fetch Detailed Attendance
@@ -246,7 +246,9 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     if (data.next_class) setNextClass(data.next_class);
                     if (data.items_to_bring) setItemsToBring(data.items_to_bring);
                     if (data.next_term_reopens) setNextTermReopens(data.next_term_reopens);
-                    if (data.extra_bill_items) setExtraBillItems(data.extra_bill_items);
+                    if (data.extra_bill_items) {
+                        setExtraBillItems(Array.isArray(data.extra_bill_items) ? data.extra_bill_items : []);
+                    }
                     
                     const savedSections = (data.extra_report_sections && Array.isArray(data.extra_report_sections)) ? data.extra_report_sections : [];
                     const globalSections = (schoolConfig as any)?.global_report_sections || [];
@@ -404,7 +406,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="flex justify-center items-center gap-10 mb-2 print:mb-1">
                         {schoolConfig?.logo_url && (
-                            <div className="h-16 w-16 print:h-14 print:w-14 flex items-center justify-center p-1.5 bg-white border border-slate-200 shadow-sm">
+                            <div className="h-20 w-20 print:h-18 print:w-18 flex items-center justify-center p-1.5 bg-white border border-slate-200 shadow-sm">
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         )}
@@ -678,7 +680,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 <div className="flex flex-col md:flex-row print:flex-row justify-between items-center gap-6 print:gap-3 print:p-3 print:py-1 print:px-2">
                     <div className="flex items-center gap-6 print:gap-3 print:p-3 print:py-1 print:px-2">
                         {schoolConfig?.logo_url && (
-                            <div className="h-24 w-24 print:h-16 print:w-16 p-1 bg-white border border-slate-200 rounded shadow-sm flex items-center justify-center shrink-0">
+                            <div className="h-28 w-28 print:h-24 print:w-24 p-1 bg-white border border-slate-200 rounded shadow-sm flex items-center justify-center shrink-0">
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         )}
@@ -1002,7 +1004,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             {/* Modern Premium Header */}
             <div className="flex flex-col md:flex-row print:flex-row justify-between items-center md:items-start print:items-start border-b-4 border-slate-900 pb-8 mb-8 print:mb-3 text-center md:text-left print:text-left">
                 <div className="flex flex-col md:flex-row print:flex-row items-center gap-8 print:gap-4 print:p-4 print:p-2 mb-4 md:mb-0 print:mb-0">
-                    <div className="h-24 w-24 print:h-16 print:w-16 bg-white rounded-2xl border-2 border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="h-28 w-28 print:h-24 print:w-24 bg-white rounded-2xl border-2 border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
                         {schoolConfig?.logo_url ? (
                             <img src={schoolConfig.logo_url} alt="School Logo" className="h-full w-full object-contain p-2" />
                         ) : (

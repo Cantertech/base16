@@ -248,13 +248,13 @@ const fetchReleasedClasses = async (schoolId: string, term: string) => {
 const fetchTeacherAssignments = async (teacherId: string) => {
     const { data } = await supabase
         .from('teacher_assignments')
-        .select('is_class_teacher, class_name, subject_name, class_id, classes(name), subject_id, subjects(name)')
+        .select('is_class_teacher, class_id, classes(name), subject_id, subjects(name)')
         .eq('teacher_id', teacherId);
 
     if (!data) return [];
     return data.map((a: any) => ({
-        className: a.classes?.name || a.class_name,
-        subjectName: a.subjects?.name || a.subject_name,
+        className: a.classes?.name,
+        subjectName: a.subjects?.name,
         isClassTeacher: a.is_class_teacher
     }));
 };
@@ -547,13 +547,13 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             // 1. Fetch from teacher_assignments (Specific assignments)
             const { data: q1 } = await supabase
                 .from('teacher_assignments')
-                .select('class_name, classes(name), subject_name, subjects(name), teachers(name), teacher(name)')
+                .select('classes(name), subjects(name), teachers(name)')
                 .eq('school_id', schoolId);
 
             // 2. Fetch from subject_assignments (Standard school config)
             const { data: q2 } = await supabase
                 .from('subject_assignments')
-                .select('classes(name), subjects(name), teachers(name), teacher(name)')
+                .select('classes(name), subjects(name)')
                 .eq('school_id', schoolId);
 
             // 3. Fetch from teachers table (Primary class teacher assignments)
@@ -571,10 +571,10 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             q1?.forEach((d: any) => {
                 const cls = getVal(d.classes);
                 const subj = getVal(d.subjects);
-                const tObj = getVal(d.teachers) || getVal(d.teacher);
+                const tObj = getVal(d.teachers);
                 combined.push({
-                    class_name: cls?.name || d.class_name,
-                    subject_name: subj?.name || d.subject_name,
+                    class_name: cls?.name,
+                    subject_name: subj?.name,
                     teacher_name: tObj?.name
                 });
             });
@@ -583,14 +583,8 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             q2?.forEach((d: any) => {
                 const cls = getVal(d.classes);
                 const subj = getVal(d.subjects);
-                const tObj = getVal(d.teachers) || getVal(d.teacher);
-                if (tObj) {
-                    combined.push({
-                        class_name: cls?.name,
-                        subject_name: subj?.name,
-                        teacher_name: tObj.name
-                    });
-                }
+                // q2 in this schema doesn't have a teacher, so we skip teacher_name assignment here
+                // or it will be filtered out as intended if we only want mapped teachers.
             });
 
             // Add Primary Class Teachers Mapping
@@ -614,6 +608,37 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         queryFn: () => fetchReleasedClasses(schoolId!, currentTerm),
         enabled: !!schoolId && !!examConfig && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')
     });
+
+    // Calculate class-wide ranks for bulk printing
+    const classRanks = React.useMemo(() => {
+        if (!classResultsRaw || classResultsRaw.length === 0) return {};
+        
+        // Group by studentId and calculate totals
+        const totals: Record<string, number> = {};
+        classResultsRaw.forEach((r: any) => {
+            if (!r.studentId) return;
+            if (!totals[r.studentId]) totals[r.studentId] = 0;
+            totals[r.studentId] += Number(r.total || 0);
+        });
+
+        // Sort by total score descending
+        const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        const ranks: Record<string, { position: number, total: number }> = {};
+        const totalStudents = sorted.length;
+
+        let lastScore = -1;
+        let lastRank = 0;
+
+        sorted.forEach(([studentId, score], index) => {
+            if (score !== lastScore) {
+                lastRank = index + 1; // Standard competition ranking (1, 2, 2, 4...)
+                lastScore = score;
+            }
+            ranks[studentId] = { position: lastRank, total: totalStudents };
+        });
+
+        return ranks;
+    }, [classResultsRaw]);
 
     const { data: studentRank } = useQuery({
         queryKey: ['studentRank', schoolId, reportStudent?.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), reportStudent?.class?.toUpperCase()],
@@ -3076,7 +3101,7 @@ const Exams: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                             term_total_days: localConfig?.term_total_days
                                         }}
                                         onClose={() => { }}
-                                        position={null}
+                                        position={classRanks[student.id] || null}
                                         schoolId={schoolId}
                                         activeModules={activeModules}
                                         printMode={true}
