@@ -169,11 +169,16 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       if (!schoolId) return [];
       const { data } = await supabase
         .from('school_subscriptions')
-        .select('module_id')
+        .select('module_id, expires_at')
         .eq('school_id', schoolId)
         .eq('status', 'active');
 
-      return data ? data.map(sub => sub.module_id) : [];
+      const now = new Date();
+      return data
+        ? data
+            .filter(sub => !sub.expires_at || new Date(sub.expires_at) >= now)
+            .map(sub => sub.module_id)
+        : [];
     },
     enabled: !!schoolId
   });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2, Smartphone, TrendingUp, DollarSign, Package, ShieldCheck } from 'lucide-react';
+import { CheckCircle, XCircle, LogOut, Calendar, RefreshCw, AlertTriangle, Lock, Trash2, Smartphone, TrendingUp, DollarSign, Package, ShieldCheck, PlusCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
 interface School {
@@ -35,9 +35,10 @@ interface SchoolDetailModalProps {
     onResetPassword: (id: string) => void;
     onDelete: (id: string) => void;
     onUpdate: (data: any) => void;
+    onActivateCustomSubscriptions: (schoolId: string, moduleIds: string[], durationMonths: number) => Promise<any>;
 }
 
-const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete, onUpdate }) => {
+const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete, onUpdate, onActivateCustomSubscriptions }) => {
     // --- State for Editing ---
     const [editData, setEditData] = useState({
         id: school.id,
@@ -47,6 +48,12 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
         admin_name: school.profiles?.full_name || '',
         admin_email: school.profiles?.email || ''
     });
+
+    const [selectedModules, setSelectedModules] = useState<string[]>([]);
+    const [durationVal, setDurationVal] = useState<number>(1);
+    const [durationUnit, setDurationUnit] = useState<'months' | 'years'>('months');
+    const [isSubmittingSub, setIsSubmittingSub] = useState(false);
+
 
     // --- Queries ---
     const { data: stats = { students: 0, teachers: 0 } } = useQuery({
@@ -171,8 +178,8 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 </span>
                             </div>
                             <div>
-                                <p className="text-xs text-slate-500 mb-1 uppercase font-bold tracking-widest">Next Payment Due</p>
-                                <p className="font-black text-slate-900">{school.next_payment_due ? new Date(school.next_payment_due).toLocaleDateString() : 'N/A'}</p>
+                                <p className="text-xs text-slate-500 mb-1 uppercase font-bold tracking-widest">Wallet Balance</p>
+                                <p className="font-black text-slate-900">GH¢ {Number(school.wallet_balance || 0).toFixed(2)}</p>
                             </div>
                         </div>
 
@@ -204,7 +211,108 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                                 <Lock className="h-4 w-4" /> Reset Pass
                             </button>
                         </div>
-                        <div className="pt-2">
+
+                        {/* CUSTOM SUBSCRIPTIONS OVERRIDES */}
+                        <div className="border-t border-slate-200 pt-6 mt-6 space-y-6">
+                            <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase text-sm tracking-widest">
+                                <PlusCircle className="h-5 w-5 text-slate-500" /> Custom Subscriptions Overrides
+                            </h3>
+                            
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Select Modules to Activate</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {[
+                                        { id: 'core_system', name: 'Core System (Free)' },
+                                        { id: 'revenue_guard', name: 'Revenue Guard' },
+                                        { id: 'academic_engine', name: 'Academic & Parent App' },
+                                        { id: 'daily_tracker', name: 'Feeding & Daily Tracker' },
+                                        { id: 'prestige_pack', name: 'Prestige Pack' },
+                                        { id: 'complete_bundle', name: 'The Complete Bundle (Unlock All)' },
+                                    ].map((mod) => (
+                                        <label key={mod.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedModules.includes(mod.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedModules([...selectedModules, mod.id]);
+                                                    } else {
+                                                        setSelectedModules(selectedModules.filter(id => id !== mod.id));
+                                                    }
+                                                }}
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-xs font-bold text-slate-700">{mod.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={() => setSelectedModules(['core_system', 'revenue_guard', 'academic_engine', 'daily_tracker', 'prestige_pack', 'complete_bundle'])}
+                                        className="text-[10px] font-black uppercase text-blue-600 hover:underline"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="text-slate-300">|</span>
+                                    <button
+                                        onClick={() => setSelectedModules([])}
+                                        className="text-[10px] font-black uppercase text-slate-500 hover:underline"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Duration Value</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={durationVal}
+                                        onChange={e => setDurationVal(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unit</label>
+                                    <select
+                                        value={durationUnit}
+                                        onChange={e => setDurationUnit(e.target.value as any)}
+                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="months">Months</option>
+                                        <option value="years">Years</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    if (selectedModules.length === 0) {
+                                        alert("Please select at least one module.");
+                                        return;
+                                    }
+                                    const months = durationUnit === 'years' ? durationVal * 12 : durationVal;
+                                    setIsSubmittingSub(true);
+                                    try {
+                                        await onActivateCustomSubscriptions(school.id, selectedModules, months);
+                                        setSelectedModules([]);
+                                    } catch (e) {
+                                        // Error handled in callback/mutation
+                                    } finally {
+                                        setIsSubmittingSub(false);
+                                    }
+                                }}
+                                disabled={isSubmittingSub}
+                                className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+                            >
+                                <Calendar className="h-4 w-4" />
+                                {isSubmittingSub ? 'Activating...' : 'Apply Custom Subscriptions override'}
+                            </button>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200 mt-6">
                             <button
                                 onClick={() => onDelete(school.id)}
                                 className="w-full bg-red-50 text-red-700 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-100 transition-all flex items-center justify-center gap-2 border border-red-200"
@@ -440,6 +548,22 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
         onError: (err: any) => alert(`Error: ${err.message}`)
     });
 
+    const activateCustomSubscriptionsMutation = useMutation({
+        mutationFn: async ({ schoolId, moduleIds, durationMonths }: { schoolId: string, moduleIds: string[], durationMonths: number }) => {
+            const { data, error } = await supabase.rpc('super_admin_activate_subscriptions', {
+                p_school_id: schoolId,
+                p_module_ids: moduleIds,
+                p_duration_months: durationMonths
+            });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
+        },
+        onError: (err: any) => alert('Failed to activate subscriptions: ' + err.message)
+    });
+
     const updateTicketStatusMutation = useMutation({
         mutationFn: async ({ id, status }: { id: string, status: string }) => {
             const { error } = await supabase.from('support_tickets').update({ status }).eq('id', id);
@@ -467,6 +591,10 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
 
     const resetSchoolPassword = (schoolId: string) => {
         resetPasswordMutation.mutate(schoolId);
+    };
+
+    const activateCustomSubscriptions = async (schoolId: string, moduleIds: string[], durationMonths: number) => {
+        return activateCustomSubscriptionsMutation.mutateAsync({ schoolId, moduleIds, durationMonths });
     };
 
     const deleteSchool = async (schoolId: string) => {
@@ -724,12 +852,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                                         <th className="px-8 py-6">Primary Contact</th>
                                         <th className="px-8 py-6">Registration</th>
                                         {activeTab === 'active' && <th className="px-8 py-6">Usage & Finance</th>}
-                                        {activeTab === 'active' && (
-                                            <>
-                                                <th className="px-8 py-6">Access Status</th>
-                                                <th className="px-8 py-6">Maturity Date</th>
-                                            </>
-                                        )}
+                                        {activeTab === 'active' && <th className="px-8 py-6">Access Status</th>}
                                         <th className="px-8 py-6 text-center">Action Code</th>
                                     </tr>
                                 </thead>
@@ -771,17 +894,12 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                                                         </td>
                                                     )}
                                                     {activeTab === 'active' && (
-                                                        <>
-                                                            <td className="px-8 py-6">
-                                                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${subStatus.bg} ${subStatus.color}`}>
-                                                                    <StatusIcon className="h-3 w-3" />
-                                                                    {subStatus.status}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-8 py-6 text-slate-900 text-xs font-black">
-                                                                {school.next_payment_due ? new Date(school.next_payment_due).toLocaleDateString() : 'N/A'}
-                                                            </td>
-                                                        </>
+                                                        <td className="px-8 py-6">
+                                                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${school.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                                                {school.status === 'active' ? <CheckCircle className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                                                                {school.status}
+                                                            </span>
+                                                        </td>
                                                     )}
                                                     <td className="px-8 py-6 text-center">
                                                         {activeTab === 'pending' ? (
@@ -792,12 +910,25 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                                                                 <CheckCircle className="h-4 w-4" /> Grant Access
                                                             </button>
                                                         ) : (
-                                                            <button
-                                                                onClick={() => setSelectedSchool(school)}
-                                                                className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black shadow-lg shadow-slate-200 transition-all"
-                                                            >
-                                                                Control
-                                                            </button>
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button
+                                                                    onClick={() => setSelectedSchool(school)}
+                                                                    className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black shadow-lg shadow-slate-200 transition-all"
+                                                                >
+                                                                    Control
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (confirm(`Reset admin password for ${school.name} to 'password123'?`)) {
+                                                                            resetSchoolPassword(school.id);
+                                                                        }
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 bg-orange-100 text-orange-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-200 transition-all"
+                                                                    title="Reset Admin Password to 'password123'"
+                                                                >
+                                                                    <Lock className="h-3.5 w-3.5" /> Reset Pass
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -859,6 +990,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                     onResetPassword={(id) => resetSchoolPassword(id)}
                     onDelete={(id) => deleteSchool(id)}
                     onUpdate={(data) => updateSchoolMutation.mutate(data)}
+                    onActivateCustomSubscriptions={(schoolId, moduleIds, durationMonths) => activateCustomSubscriptions(schoolId, moduleIds, durationMonths)}
                 />
             )}
         </div>

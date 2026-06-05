@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
           
           <div className="col-span-2">
             <div className="flex items-center gap-3 mb-6 group cursor-default">
-              <img src="/orbit_logo.jpg" alt="Base16 Logo" className="h-10 w-auto rounded-lg shadow-sm group-hover:scale-105 transition-transform" />
+              <img src="/orbit_logo_new.png" alt="Base16 Logo" className="h-10 w-auto rounded-lg shadow-sm group-hover:scale-105 transition-transform" />
               <div className="flex flex-col">
                 <span className="font-black text-xl text-slate-900 tracking-tight leading-none uppercase">Base16</span>
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Automated Schooling</span>

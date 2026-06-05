@@ -542,21 +542,21 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             </div>
 
                             <div className="flex items-center gap-4 mt-6">
-                                <div className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors shrink-0">
+                                <label htmlFor="logo-upload-input" className="h-24 w-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-primary-400 transition-colors shrink-0">
                                     {config.logo ? (
                                         <img src={config.logo} alt="Logo" className="h-full w-full object-cover" />
                                     ) : (
                                         <Upload className="h-8 w-8 text-slate-400" />
                                     )}
-                                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                    <input id="logo-upload-input" type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                         <p className="text-white text-xs font-bold">Change</p>
                                     </div>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">School Logo</h3>
+                                </label>
+                                <label htmlFor="logo-upload-input" className="cursor-pointer">
+                                    <h3 className="font-bold text-slate-800 hover:text-primary-600 transition-colors">School Logo</h3>
                                     <p className="text-slate-500 text-xs">Click to upload a new logo <br className="sm:hidden" />(PNG, JPG)</p>
-                                </div>
+                                </label>
                             </div>
 
                             <div className="grid grid-cols-1 gap-4">
@@ -842,7 +842,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {modules.map((module: any) => {
                                             const sub = subscriptions.find((s: any) => s.module_id === module.id);
-                                            const isActive = sub?.status === 'active';
+                                            const isActive = sub?.status === 'active' && (!sub.expires_at || new Date(sub.expires_at) >= new Date());
 
                                             const isFree = module.price_ghs === 0;
                                             const isActivating = activateModuleMutation.isPending && activateModuleMutation.variables === module.id;

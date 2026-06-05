@@ -28,7 +28,7 @@ const Loading: React.FC<LoadingProps> = ({ fullScreen = true, message = "Loading
                 <div className="relative">
                     <div className="absolute inset-0 bg-primary-200 rounded-full animate-ping opacity-75"></div>
                     <div className="relative bg-white p-3 rounded-full shadow-lg border border-primary-100">
-                        <img src="/orbit_logo.jpg" alt="Loading" className="w-10 h-10 object-contain animate-pulse" />
+                        <img src="/orbit_logo_new.png" alt="Loading" className="w-10 h-10 object-contain animate-pulse" />
                     </div>
                 </div>
                 {/* Spinner Ring */}

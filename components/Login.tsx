@@ -103,9 +103,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           }
         }
 
-        // 4. Check School Status (for Admins)
-        if (profileData.role === 'admin' && profileData.schools?.status !== 'active') {
-          throw new Error("Your school account is pending approval. Please complete payment.");
+        // 4. Check School Status (for Admins and Teachers)
+        if (profileData.role === 'admin' || profileData.role === 'teacher') {
+          if (profileData.schools?.status === 'suspended') {
+            throw new Error("Your school account has been suspended. Please contact administration.");
+          } else if (profileData.schools?.status === 'pending') {
+            throw new Error("Your school account is pending approval. Please complete payment.");
+          }
         }
 
         // Removed first login check to fix 400 Bad Request error
@@ -146,7 +150,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
             <ArrowLeft className="h-6 w-6" />
           </button>
           <div className="bg-white/10 w-20 h-20 rounded-xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/20 p-2">
-            <img src="/orbit_logo.jpg" alt="Base16 Logo" className="w-full h-full object-contain" />
+            <img src="/orbit_transparent_white_logo.png" alt="Base16 Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-2xl font-bold text-white">Welcome Back</h2>
           <p className="text-blue-200 text-sm mt-1">Sign in to access your dashboard</p>

@@ -247,11 +247,11 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
 
             const { data: assignments } = await supabase
                 .from('teacher_assignments')
-                .select('is_class_teacher, class_name')
+                .select('is_class_teacher, classes(name)')
                 .eq('teacher_id', currentUser.id)
                 .eq('is_class_teacher', true); // Only Class Teachers
 
-            const assigned = assignments?.map((a: any) => a.class_name).filter(Boolean) || [];
+            const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
             
             // If they have a primary class set in their profile, that usually counts too (unless we want to be strict)
             // But let's assume if it's in their profile, they have marking power for that class.

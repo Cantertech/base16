@@ -222,6 +222,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     teachers_can_collect_feeding: school.teachers_can_collect_feeding || false,
                     feeding_fee_amount: school.feeding_fee_amount || 5,
                     report_card_config: school.report_card_config,
+                    status: school.status || 'active',
                 };
                 // Cache the config to prevent flashing on reload
                 localStorage.setItem(`base16_school_config_${currentUser.school_id}`, JSON.stringify(config));
@@ -356,11 +357,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             if (!currentUser.school_id) return [];
             const { data } = await supabase
                 .from('school_subscriptions')
-                .select('module_id')
+                .select('module_id, expires_at')
                 .eq('school_id', currentUser.school_id)
                 .eq('status', 'active');
 
-            return data ? data.map(sub => sub.module_id) : [];
+            const now = new Date();
+            return data 
+                ? data
+                    .filter(sub => !sub.expires_at || new Date(sub.expires_at) >= now)
+                    .map(sub => sub.module_id) 
+                : [];
         },
         enabled: !!currentUser.school_id,
         staleTime: 60 * 60 * 1000 // Invalidate only manually or on reload
@@ -375,7 +381,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             // 1. Fetch from teacher_assignments (multiple subjects)
             const { data: assignmentsData } = await supabase
                 .from('teacher_assignments')
-                .select('is_class_teacher, class_name, subject_name, class_id, classes (name), subject_id, subjects (name)')
+                .select('is_class_teacher, class_id, classes (name), subject_id, subjects (name)')
                 .eq('teacher_id', currentUser.id)
                 .eq('school_id', currentUser.school_id);
 
@@ -644,21 +650,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     }, [currentUser]);
 
     useEffect(() => {
-        if (schoolConfig?.next_payment_due) {
-            const today = new Date();
-            const due = new Date(schoolConfig.next_payment_due);
-            // Reset time part for accurate day comparison
-            today.setHours(0, 0, 0, 0);
-            due.setHours(0, 0, 0, 0);
-
-            const diffTime = today.getTime() - due.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays > 7) {
+        if (schoolConfig) {
+            // Suspensions are now purely based on the school's status column (set by super admin)
+            if ((schoolConfig as any).status === 'suspended') {
                 setSubscriptionStatus('suspended');
-            } else if (diffDays > 0) {
-                setSubscriptionStatus('warning');
-                setDaysOverdue(diffDays);
             } else {
                 setSubscriptionStatus('active');
             }
