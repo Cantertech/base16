@@ -434,8 +434,28 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         if (e.target.files && e.target.files[0]) {
             try {
                 const url = await uploadToCloudinary(e.target.files[0]);
+                
+                // Directly update the DB immediately so it doesn't move back on reload!
+                const { error } = await supabase
+                    .from('schools')
+                    .update({ logo_url: url })
+                    .eq('id', schoolId);
+                if (error) throw error;
+                
                 setConfig({ ...config, logo: url });
+                
+                // Invalidate query keys to sync UI immediately
+                queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+                queryClient.invalidateQueries({ queryKey: ['schoolConfig', schoolId] });
+                
+                // Trigger callback so Navbar/Dashboard/etc. re-fetch/update immediately
+                if (onConfigUpdate) {
+                    onConfigUpdate();
+                }
+                
+                alert("Logo updated successfully!");
             } catch (error) {
+                console.error("Error uploading logo:", error);
                 alert("Error uploading image");
             }
         }
