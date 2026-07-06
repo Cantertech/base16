@@ -670,9 +670,11 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     useEffect(() => {
         if (examConfig) setLocalConfig(examConfig);
     }, [examConfig]);
-    const availableClasses: string[] = Array.isArray(localConfig?.target_classes)
-        ? localConfig.target_classes
-        : (localConfig?.target_classes || '').split(',').map((c: string) => c.trim()).filter(Boolean);
+    const availableClasses: string[] = allClassesData && allClassesData.length > 0
+        ? allClassesData
+        : (Array.isArray(localConfig?.target_classes)
+            ? localConfig.target_classes
+            : (localConfig?.target_classes || '').split(',').map((c: string) => c.trim()).filter(Boolean));
 
     // Calculate if user has Class Teacher privileges for the current class
     const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
