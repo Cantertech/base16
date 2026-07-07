@@ -39,6 +39,9 @@ interface SchoolConfig {
         show_class_teacher_remark?: boolean;
         show_head_teacher_remark?: boolean;
         show_student_photo?: boolean;
+        show_aggregate?: boolean;
+        show_signature?: boolean;
+        show_global_sections?: boolean;
         nursery_classes?: string[];
         global_report_sections?: { title: string; content: string }[];
     };
@@ -846,11 +849,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </tr>
                             );
                         })}
+                        {schoolConfig?.report_card_config?.show_aggregate !== false && (
                         <tr className="bg-slate-50 font-black border-t-2 border-slate-950 print:bg-slate-50">
                             <td className="p-1.5 print:py-0.5 print:px-1.5 text-right uppercase tracking-[0.2em]" colSpan={3}>Aggregate Summary / Average</td>
                             <td className="p-1.5 print:py-0.5 print:px-1.5 text-center text-base underline decoration-double">{overallAverage}</td>
                             <td colSpan={2} className="p-1.5 print:py-0.5 print:px-1.5"></td>
                         </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -916,6 +921,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest leading-none">{new Date().toLocaleDateString('en-GB')}</p>
                                         <p className="text-[12.5px] font-black text-slate-300 uppercase leading-none mt-0.5">Issued On</p>
                                     </div>
+                                    {schoolConfig?.report_card_config?.show_signature !== false && (
                                     <div className="text-right relative min-w-[150px]">
                                         {(schoolConfig as any)?.report_card_config?.signature_url && (
                                             <img src={(schoolConfig as any).report_card_config.signature_url} className="h-12 object-contain mx-auto absolute -top-14 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
@@ -927,6 +933,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                             <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-20 w-20 object-contain absolute -top-12 -right-2 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
                                         )}
                                     </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -934,7 +941,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 </div>
 
                 {/* Supplemental Information Grid */}
-                {!showFees && extraReportSections.length > 0 && (
+                {!showFees && schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
                     <div className="pt-8 mt-4 border-t-2 border-slate-100">
                          <div className="flex justify-between items-center mb-6">
                             <h4 className="text-[12px] font-black uppercase tracking-[0.3em] text-blue-600">Important Supplemental Information</h4>
@@ -1174,11 +1181,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         })}
                     </tbody>
                     <tfoot>
+                        {schoolConfig?.report_card_config?.show_aggregate !== false && (
                         <tr className="bg-slate-900 text-white font-black print:bg-slate-100 print:text-slate-900">
                             <td className="p-2.5 print:p-1.5 text-right uppercase text-[12.5px] tracking-[0.2em] rounded-bl-xl" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Performance Summary</td>
                             <td className="p-2.5 print:p-1.5 text-center text-lg underline decoration-blue-400 decoration-2">{overallAverage}</td>
                             <td className="p-4 print:p-2 rounded-br-2xl" colSpan={2}></td>
                         </tr>
+                        )}
                     </tfoot>
                 </table>
             </div>

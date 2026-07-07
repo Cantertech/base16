@@ -15,7 +15,19 @@ import {
     Layers,
     Image as ImageIcon,
     FileText,
-    Search
+    Search,
+    LayoutTemplate,
+    Lock,
+    User,
+    Table2,
+    Camera,
+    Hash,
+    CalendarCheck,
+    MessageSquare,
+    GraduationCap,
+    BarChart3,
+    PenLine,
+    NotebookText
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
 
@@ -84,7 +96,7 @@ export const ExamSetupPanel: React.FC = () => {
         { id: 'design', label: 'Exams Report Design', icon: FileText },
         { id: 'layouts', label: 'Class Layouts', icon: Layers },
         { id: 'branding', label: 'Signature & Stamp', icon: ImageIcon },
-        { id: 'global', label: 'Global Sections', icon: FileText }
+        { id: 'global', label: 'Report Config', icon: LayoutTemplate }
     ] as const;
 
     const renderPanelHeader = (title: string, description: string, extraActions?: React.ReactNode) => (
@@ -678,70 +690,281 @@ export const ExamSetupPanel: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Global Sections Sub-Tab */}
-                    {activeSubTab === 'global' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            {renderPanelHeader('Global Report Card Sections', 'Add content areas appended to all student report cards (e.g. prospectus, notices).', (
-                                <button
-                                    onClick={() => {
-                                        const sections = [...(localConfig.global_report_sections || []), { title: '', content: '' }];
-                                        setLocalConfig({ ...localConfig, global_report_sections: sections });
-                                    }}
-                                    className="flex items-center gap-1.5 bg-primary-50 hover:bg-primary-100 text-primary-700 px-3.5 py-1.5 rounded-xl transition-all font-semibold text-xs uppercase tracking-wider mr-2"
-                                >
-                                    <Plus className="w-4 h-4" /> Add Section
-                                </button>
-                            ))}
+                    {/* Report Configuration Sub-Tab */}
+                    {activeSubTab === 'global' && (() => {
+                        const rcConfig = localConfig?.report_card_config || {};
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                {(localConfig.global_report_sections || []).map((section: any, idx: number) => (
-                                    <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3 relative group">
+                        const setRcFlag = (key: string, value: boolean) => {
+                            setLocalConfig({
+                                ...localConfig,
+                                report_card_config: {
+                                    ...rcConfig,
+                                    [key]: value
+                                }
+                            });
+                        };
+
+                        const isOn = (key: string) => rcConfig[key] !== false;
+
+                        // iOS-style toggle button component
+                        const Toggle = ({ flagKey, locked }: { flagKey: string; locked?: boolean }) => {
+                            const on = isOn(flagKey);
+                            return (
+                                <button
+                                    type="button"
+                                    disabled={locked}
+                                    onClick={() => !locked && setRcFlag(flagKey, !on)}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-all duration-300 focus:outline-none ${
+                                        locked
+                                            ? 'cursor-not-allowed bg-primary-500 opacity-60'
+                                            : on
+                                                ? 'bg-primary-600 shadow-inner shadow-primary-800/30 cursor-pointer'
+                                                : 'bg-slate-200 cursor-pointer hover:bg-slate-300'
+                                    }`}
+                                    aria-checked={on}
+                                    role="switch"
+                                >
+                                    <span
+                                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                                            on ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                    />
+                                </button>
+                            );
+                        };
+
+                        type SectionRow = {
+                            icon: React.ElementType;
+                            iconBg: string;
+                            label: string;
+                            description: string;
+                            flagKey: string;
+                            locked?: boolean;
+                        };
+
+                        const lockedSections: SectionRow[] = [
+                            {
+                                icon: User,
+                                iconBg: 'bg-blue-100 text-blue-600',
+                                label: 'Student Identity',
+                                description: 'Student name, class, enrollment number and academic period.',
+                                flagKey: 'student_identity',
+                                locked: true
+                            },
+                            {
+                                icon: Table2,
+                                iconBg: 'bg-indigo-100 text-indigo-600',
+                                label: 'Subject Marks Table',
+                                description: 'Full table of subjects with class scores, exam scores, totals, grades and remarks.',
+                                flagKey: 'marks_table',
+                                locked: true
+                            },
+                        ];
+
+                        const optionalSections: SectionRow[] = [
+                            {
+                                icon: Camera,
+                                iconBg: 'bg-violet-100 text-violet-600',
+                                label: 'Student Photo',
+                                description: 'Show the student\'s passport photo on the report card header.',
+                                flagKey: 'show_student_photo'
+                            },
+                            {
+                                icon: Hash,
+                                iconBg: 'bg-amber-100 text-amber-600',
+                                label: 'Class Position & Rank',
+                                description: 'Display the student\'s overall rank within their class (e.g. 3rd out of 48).',
+                                flagKey: 'show_position'
+                            },
+                            {
+                                icon: CalendarCheck,
+                                iconBg: 'bg-green-100 text-green-600',
+                                label: 'Attendance Record',
+                                description: 'Show number of days present out of total school days in the term.',
+                                flagKey: 'show_attendance'
+                            },
+                            {
+                                icon: BarChart3,
+                                iconBg: 'bg-cyan-100 text-cyan-600',
+                                label: 'Overall Average & GPA',
+                                description: 'Show the aggregate score, overall average percentage and Grade Point Average.',
+                                flagKey: 'show_aggregate'
+                            },
+                            {
+                                icon: MessageSquare,
+                                iconBg: 'bg-orange-100 text-orange-600',
+                                label: 'Class Teacher Remark',
+                                description: 'Include a freeform comment from the subject or class teacher.',
+                                flagKey: 'show_class_teacher_remark'
+                            },
+                            {
+                                icon: GraduationCap,
+                                iconBg: 'bg-red-100 text-red-600',
+                                label: 'Head Teacher / Principal Remark',
+                                description: 'Include the headmaster\'s final decision and endorsement field.',
+                                flagKey: 'show_head_teacher_remark'
+                            },
+                            {
+                                icon: PenLine,
+                                iconBg: 'bg-slate-100 text-slate-600',
+                                label: 'Signature & Official Stamp',
+                                description: 'Show the principal\'s uploaded signature image and school stamp on the report.',
+                                flagKey: 'show_signature'
+                            },
+                            {
+                                icon: NotebookText,
+                                iconBg: 'bg-teal-100 text-teal-600',
+                                label: 'Custom Notices & Sections',
+                                description: 'Append school-defined sections like term notices, items to buy, or prospectus.',
+                                flagKey: 'show_global_sections'
+                            },
+                        ];
+
+                        const SectionCard = ({ s }: { s: SectionRow }) => (
+                            <div
+                                key={s.flagKey}
+                                onClick={() => !s.locked && setRcFlag(s.flagKey, !isOn(s.flagKey))}
+                                className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 ${
+                                    s.locked
+                                        ? 'border-slate-100 bg-slate-50/50 cursor-not-allowed'
+                                        : isOn(s.flagKey)
+                                            ? 'border-primary-100 bg-primary-50/40 hover:bg-primary-50/70 cursor-pointer shadow-sm shadow-primary-100'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 cursor-pointer'
+                                }`}
+                            >
+                                {/* Icon pill */}
+                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
+                                    <s.icon className="w-5 h-5" />
+                                </div>
+
+                                {/* Label & description */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className={`text-sm font-bold truncate ${
+                                            s.locked ? 'text-slate-500' : isOn(s.flagKey) ? 'text-slate-900' : 'text-slate-600'
+                                        }`}>{s.label}</p>
+                                        {s.locked && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-200 text-slate-500 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
+                                                <Lock className="w-2.5 h-2.5" /> Required
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-0.5 leading-snug">{s.description}</p>
+                                </div>
+
+                                {/* Toggle */}
+                                <div onClick={e => e.stopPropagation()}>
+                                    <Toggle flagKey={s.flagKey} locked={s.locked} />
+                                </div>
+                            </div>
+                        );
+
+                        return (
+                            <div className="space-y-8 animate-in fade-in duration-200">
+                                {renderPanelHeader(
+                                    'Report Card Configuration',
+                                    'Control exactly what appears on every student report card. Required sections cannot be removed.',
+                                )}
+
+                                {/* Core / Locked Sections */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Core Sections — Always Included</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {lockedSections.map(s => <SectionCard key={s.flagKey} s={s} />)}
+                                    </div>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="h-px bg-slate-100" />
+
+                                {/* Optional Sections */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <LayoutTemplate className="w-3.5 h-3.5 text-primary-500" />
+                                        <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest">Optional Sections — Toggle On / Off</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {optionalSections.map(s => <SectionCard key={s.flagKey} s={s} />)}
+                                    </div>
+                                </div>
+
+                                {/* Custom Sections Editor — only shown when show_global_sections is ON */}
+                                {isOn('show_global_sections') && (
+                                    <div className="space-y-4 pt-2 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Custom Section #{idx + 1}</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">Custom Notices & Sections</p>
+                                                <p className="text-xs text-slate-500">Content areas appended to all report cards (e.g. term notices, items to buy).</p>
+                                            </div>
                                             <button
+                                                type="button"
                                                 onClick={() => {
-                                                    const sections = localConfig.global_report_sections.filter((_: any, i: number) => i !== idx);
+                                                    const sections = [...(localConfig.global_report_sections || []), { title: '', content: '' }];
                                                     setLocalConfig({ ...localConfig, global_report_sections: sections });
                                                 }}
-                                                className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+                                                className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 px-3.5 py-1.5 rounded-xl transition-all font-semibold text-xs uppercase tracking-wider"
                                             >
-                                                <X className="w-3.5 h-3.5" /> Remove
+                                                <Plus className="w-4 h-4" /> Add Section
                                             </button>
                                         </div>
-                                        <div className="space-y-3">
-                                            <input
-                                                type="text"
-                                                value={section.title}
-                                                onChange={e => {
-                                                    const sections = [...localConfig.global_report_sections];
-                                                    sections[idx].title = e.target.value;
-                                                    setLocalConfig({ ...localConfig, global_report_sections: sections });
-                                                }}
-                                                placeholder="Section Title (e.g. Items to Buy)"
-                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none focus:border-primary-500"
-                                            />
-                                            <textarea
-                                                value={section.content}
-                                                onChange={e => {
-                                                    const sections = [...localConfig.global_report_sections];
-                                                    sections[idx].content = e.target.value;
-                                                    setLocalConfig({ ...localConfig, global_report_sections: sections });
-                                                }}
-                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium h-24 resize-none outline-none focus:border-primary-500 text-slate-700"
-                                                placeholder="Default instruction or content..."
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
 
-                                {(!localConfig.global_report_sections || localConfig.global_report_sections.length === 0) && (
-                                    <div className="md:col-span-2 p-12 border-2 border-dashed border-slate-200 rounded-2xl text-center">
-                                        <p className="text-sm font-semibold text-slate-400 italic">No global custom sections defined yet.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {(localConfig.global_report_sections || []).map((section: any, idx: number) => (
+                                                <div key={idx} className="bg-teal-50/50 border border-teal-100 p-4 rounded-2xl space-y-3 relative group">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-teal-600 uppercase tracking-wider">Notice #{idx + 1}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const sections = localConfig.global_report_sections.filter((_: any, i: number) => i !== idx);
+                                                                setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                            }}
+                                                            className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" /> Remove
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <input
+                                                            type="text"
+                                                            value={section.title}
+                                                            onChange={e => {
+                                                                const sections = [...localConfig.global_report_sections];
+                                                                sections[idx].title = e.target.value;
+                                                                setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                            }}
+                                                            placeholder="Section Title (e.g. Items to Buy)"
+                                                            className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-bold text-slate-800 outline-none focus:border-teal-500"
+                                                        />
+                                                        <textarea
+                                                            value={section.content}
+                                                            onChange={e => {
+                                                                const sections = [...localConfig.global_report_sections];
+                                                                sections[idx].content = e.target.value;
+                                                                setLocalConfig({ ...localConfig, global_report_sections: sections });
+                                                            }}
+                                                            className="w-full bg-white border border-teal-200 rounded-lg p-2 text-xs font-medium h-24 resize-none outline-none focus:border-teal-500 text-slate-700"
+                                                            placeholder="Default instruction or content..."
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {(!localConfig.global_report_sections || localConfig.global_report_sections.length === 0) && (
+                                                <div className="md:col-span-2 p-10 border-2 border-dashed border-teal-200 rounded-2xl text-center">
+                                                    <NotebookText className="w-8 h-8 text-teal-200 mx-auto mb-2" />
+                                                    <p className="text-sm font-semibold text-slate-400 italic">No custom sections yet. Click &quot;Add Section&quot; to add a notice or prospectus.</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                 </div>
             </div>
