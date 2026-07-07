@@ -122,10 +122,10 @@ export const ExamSetupPanel: React.FC = () => {
     return (
         <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
             {/* Main Setup Card with Tabbed Sidebar Layout */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row min-h-[600px]">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[600px]">
                 
                 {/* Sidebar Sub-Tabs */}
-                <div className="w-full md:w-64 bg-slate-50/75 border-b md:border-b-0 md:border-r border-slate-200 p-4 space-y-1 shrink-0 md:sticky md:top-24 self-start rounded-t-2xl md:rounded-t-none md:rounded-l-2xl">
+                <div className="w-full md:w-64 bg-slate-50/75 border-b md:border-b-0 md:border-r border-slate-200 p-4 space-y-1 shrink-0">
                     <span className="hidden md:block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-3">Settings Navigation</span>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-col gap-1.5 pb-1 md:pb-0">
                         {subTabs.map(tab => {
