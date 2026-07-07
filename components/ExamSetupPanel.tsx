@@ -407,9 +407,15 @@ export const ExamSetupPanel: React.FC = () => {
                     {/* Class Layouts Sub-Tab */}
                     {activeSubTab === 'layouts' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
-                            {renderPanelHeader('Class Report Layout Routing', 'Route specific report template layouts to target classes.', (
-                                <div className="flex items-center gap-2 mr-2">
-                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batch Assign:</span>
+                            {renderPanelHeader('Class Report Layout Routing', 'Route specific report template layouts to target classes.')}
+
+                            {/* Batch Assignment Dashboard Card */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">Batch Configuration</h4>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Apply a specific layout template to all classes simultaneously.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
                                     {['modern', 'classic_tabular', 'nursery', 'adventist', 'compact'].map(layoutId => (
                                         <button
                                             key={layoutId}
@@ -425,13 +431,13 @@ export const ExamSetupPanel: React.FC = () => {
                                                     }
                                                 });
                                             }}
-                                            className="bg-slate-100 hover:bg-primary-50 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:text-primary-700 transition-all"
+                                            className="bg-white hover:bg-primary-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:text-primary-700 hover:border-primary-300 transition-all shadow-sm active:scale-95 whitespace-nowrap"
                                         >
                                             {layoutId === 'modern' ? 'Standard' : (layoutId === 'classic_tabular' ? 'Classic' : (layoutId === 'nursery' ? 'Nursery' : (layoutId === 'adventist' ? 'Chart' : 'Minimalist')))}
                                         </button>
                                     ))}
                                 </div>
-                            ))}
+                            </div>
 
                             {/* Search bar inside Layout routing */}
                             <div className="relative">
@@ -445,10 +451,10 @@ export const ExamSetupPanel: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                                 <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    <div className="col-span-4">Class Room</div>
-                                    <div className="col-span-8">Assigned Template Layout</div>
+                                    <div className="col-span-3">Class Room</div>
+                                    <div className="col-span-9">Assigned Template Layout</div>
                                 </div>
 
                                 <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto bg-white">
@@ -456,17 +462,17 @@ export const ExamSetupPanel: React.FC = () => {
                                         filteredClasses.map(className => {
                                             const currentLayout = localConfig?.report_card_config?.class_layouts?.[className] || 'modern';
                                             return (
-                                                <div key={className} className="grid grid-cols-12 gap-3 px-4 py-2.5 items-center text-sm hover:bg-slate-50/50">
-                                                    <div className="col-span-4 font-bold text-slate-800">
+                                                <div key={className} className="grid grid-cols-12 gap-3 px-4 py-3 items-center text-sm hover:bg-slate-50/50">
+                                                    <div className="col-span-3 font-bold text-slate-800">
                                                         {className}
                                                     </div>
-                                                    <div className="col-span-8 flex gap-2">
+                                                    <div className="col-span-9 flex flex-wrap gap-1.5">
                                                         {[
                                                             { id: 'modern', label: 'Standard' },
                                                             { id: 'classic_tabular', label: 'Classic' },
                                                             { id: 'nursery', label: 'Nursery' },
                                                             { id: 'adventist', label: 'Chart' },
-                                                            { id: 'compact', label: 'Minimal' }
+                                                            { id: 'compact', label: 'Minimalist' }
                                                         ].map(layout => {
                                                             const isSelected = currentLayout === layout.id;
                                                             return (
@@ -486,10 +492,10 @@ export const ExamSetupPanel: React.FC = () => {
                                                                             }
                                                                         });
                                                                     }}
-                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                                                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
                                                                         isSelected 
-                                                                            ? 'bg-primary-50 border-primary-300 text-primary-750 font-bold' 
-                                                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                                                                            ? 'bg-primary-50 border-primary-300 text-primary-750 font-bold shadow-sm' 
+                                                                            : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-100 hover:text-slate-900'
                                                                     }`}
                                                                 >
                                                                     {layout.label}
