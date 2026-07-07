@@ -110,7 +110,7 @@ export const ExamSetupPanel: React.FC = () => {
                 <button 
                     onClick={() => handleSaveConfig(localConfig)} 
                     disabled={saveConfigMutation.isPending} 
-                    className="bg-primary-600 hover:bg-primary-700 text-white px-4.5 py-2.5 rounded-xl font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                    className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 whitespace-nowrap"
                 >
                     {saveConfigMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} 
                     Save Changes
@@ -826,7 +826,7 @@ export const ExamSetupPanel: React.FC = () => {
                                 onClick={() => !s.locked && setRcFlag(s.flagKey, !isOn(s.flagKey))}
                                 className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 ${
                                     s.locked
-                                        ? 'border-slate-100 bg-slate-50/50 cursor-not-allowed'
+                                        ? 'border-slate-100 bg-slate-50/50 cursor-default select-none'
                                         : isOn(s.flagKey)
                                             ? 'border-primary-100 bg-primary-50/40 hover:bg-primary-50/70 cursor-pointer shadow-sm shadow-primary-100'
                                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 cursor-pointer'
@@ -843,18 +843,20 @@ export const ExamSetupPanel: React.FC = () => {
                                         <p className={`text-sm font-bold truncate ${
                                             s.locked ? 'text-slate-500' : isOn(s.flagKey) ? 'text-slate-900' : 'text-slate-600'
                                         }`}>{s.label}</p>
-                                        {s.locked && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-200 text-slate-500 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0">
-                                                <Lock className="w-2.5 h-2.5" /> Required
-                                            </span>
-                                        )}
                                     </div>
                                     <p className="text-xs text-slate-400 mt-0.5 leading-snug">{s.description}</p>
                                 </div>
 
-                                {/* Toggle */}
+                                {/* Toggle or Locked Indicator */}
                                 <div onClick={e => e.stopPropagation()}>
-                                    <Toggle flagKey={s.flagKey} locked={s.locked} />
+                                    {s.locked ? (
+                                        <div className="flex items-center gap-1.5 bg-slate-100 text-slate-500 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shadow-sm">
+                                            <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>Always On</span>
+                                        </div>
+                                    ) : (
+                                        <Toggle flagKey={s.flagKey} />
+                                    )}
                                 </div>
                             </div>
                         );
