@@ -1207,59 +1207,64 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
 
             {/* Bottom Section: Remarks & Bill */}
-            <div className={`grid grid-cols-1 ${showFees ? 'md:grid-cols-2 print:grid-cols-2' : ''} gap-3 print:gap-1.5 mb-3 print:mb-1 mt-auto whitespace-nowrap`}>
-                <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
+            <div className={`grid grid-cols-1 ${showFees ? 'md:grid-cols-2 print:grid-cols-2' : ''} gap-5 mb-4 mt-auto`}>
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
                         {schoolConfig?.report_card_config?.show_attendance !== false && (
-                            <div className="bg-slate-100/50 p-2 print:p-1 rounded-lg border border-slate-100 italic transition-all group">
-                                <p className="text-[12px] font-black text-blue-600 uppercase tracking-widest mb-0.5 leading-none flex items-center gap-1">
-                                    Attendance <span className="text-[12.5px] text-slate-400">(Auto)</span>
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 italic transition-all group">
+                                <p className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-1.5 leading-none">
+                                    Attendance Record
                                 </p>
-                                <div className="flex items-center gap-1 leading-none h-4">
-                                    <div className="flex flex-col">
-                                        <input type="number" value={attendancePresentDays} readOnly={true} className="w-10 bg-transparent border-none outline-none text-center font-black text-[12.5px] text-blue-600 p-0 cursor-not-allowed" />
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-sm font-black text-slate-800">{attendancePresentDays}</span>
+                                        <span className="text-slate-350 font-bold">/</span>
+                                        <span className="text-xs text-slate-400 font-bold">{attendanceTotalDays}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium ml-1">Days</span>
                                     </div>
-                                    <span className="text-slate-300 font-bold">/</span>
-                                    <div className="flex flex-col">
-                                        <input type="number" value={attendanceTotalDays} readOnly={true} className="w-10 bg-transparent border-none outline-none text-center font-black text-[12.5px] text-slate-400 p-0 cursor-not-allowed" />
+                                    <div className="w-20 bg-slate-200 h-2 rounded-full overflow-hidden shrink-0">
+                                        <div 
+                                            className="bg-blue-600 h-full rounded-full transition-all duration-500" 
+                                            style={{ width: `${attendanceTotalDays > 0 ? Math.min(100, (attendancePresentDays / attendanceTotalDays) * 100) : 0}%` }}
+                                        />
                                     </div>
                                 </div>
                             </div>
                         )}
-                        <div className="bg-slate-50 p-2 print:p-1 rounded-xl border border-slate-100 italic">
-                            <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Reopens</p>
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 italic">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Reopens</p>
                             <input 
                                 type="text" 
                                 value={nextTermReopens} 
                                 onChange={e => setNextTermReopens(e.target.value)} 
-                                className="w-full bg-transparent border-b border-slate-200 outline-none font-bold text-[12px] p-0" 
+                                className="w-full bg-transparent border-b border-slate-200 outline-none font-bold text-xs p-0 focus:border-blue-500 transition-colors" 
                                 placeholder="set date"
                             />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-slate-50 p-2 print:p-1 rounded-xl border border-slate-100 italic">
-                            <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Conduct</p>
-                            <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent border-b border-slate-100 outline-none font-bold text-[12px]" placeholder="..." />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 italic">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Conduct</p>
+                            <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent border-b border-slate-200 outline-none font-bold text-xs p-0 focus:border-blue-500 transition-colors" placeholder="..." />
                         </div>
-                        <div className="bg-slate-50 p-2 print:p-1 rounded-xl border border-slate-100 italic">
-                            <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Interest</p>
-                            <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-b border-slate-100 outline-none font-bold text-[12px]" placeholder="..." />
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 italic">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Interest</p>
+                            <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-b border-slate-200 outline-none font-bold text-xs p-0 focus:border-blue-500 transition-colors" placeholder="..." />
                         </div>
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-3">
                         {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
-                            <div>
-                                <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-0.5 italic leading-none">Teacher Remark</p>
-                                <textarea value={teacherRemark} onChange={(e) => setTeacherRemark(e.target.value)} className="w-full bg-slate-50/50 border border-slate-100 rounded p-1 print:py-0.5 print:px-1 text-[12px] italic font-medium resize-none h-10 print:h-7 outline-none" />
+                            <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-3.5 space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Teacher Remark</p>
+                                <textarea value={teacherRemark} onChange={(e) => setTeacherRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-xs italic font-semibold resize-none h-12 outline-none text-slate-800 focus:ring-0 leading-relaxed" placeholder="Type teacher evaluation..." />
                             </div>
                         )}
                         {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
-                            <div>
-                                <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-0.5 italic leading-none">Final Decision</p>
-                                <textarea value={principalRemark} onChange={(e) => setPrincipalRemark(e.target.value)} className="w-full bg-slate-50/50 border border-slate-100 rounded p-1 print:py-0.5 print:px-1 text-[12px] italic font-medium resize-none h-10 print:h-7 outline-none" />
+                            <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-3.5 space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Final Decision</p>
+                                <textarea value={principalRemark} onChange={(e) => setPrincipalRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-xs italic font-semibold resize-none h-12 outline-none text-slate-800 focus:ring-0 leading-relaxed" placeholder="Type principal remarks..." />
                             </div>
                         )}
                     </div>
@@ -1267,31 +1272,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     {/* Extra Info Grid for Modern View */}
                     {extraReportSections.length > 0 && (
                         <div className="pt-4 border-t border-slate-100 mt-2">
-                            <div className="flex justify-between items-center mb-3">
-                                <div>
-                                    <h4 className="text-[12.5px] font-black text-blue-600 uppercase tracking-[0.2em]">Additional Particulars</h4>
-                                </div>
-                            </div>
-                            
-                            <div className={`grid grid-cols-1 ${!showFees ? 'md:grid-cols-2 lg:grid-cols-2 print:grid-cols-2' : ''} gap-4 pb-4`}>
+                            <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-3">Additional Particulars</h4>
+                            <div className="grid grid-cols-1 gap-3 pb-2">
                                 {extraReportSections.map((section, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative group hover:border-blue-200 transition-all print:p-0 print:border-none print:shadow-none">
+                                    <div key={idx} className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm relative group hover:border-blue-200 transition-all print:p-0 print:border-none print:shadow-none">
                                         <div className="flex justify-between items-center mb-1">
                                             <input 
                                                 type="text" 
                                                 value={section.title} 
                                                 onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} 
                                                 placeholder="Section Title"
-                                                className="bg-transparent border-none text-[10.5px] font-black uppercase text-blue-500 outline-none w-full tracking-widest"
+                                                className="bg-transparent border-none text-[10.5px] font-black uppercase text-blue-500 outline-none w-full tracking-widest p-0 focus:ring-0"
                                             />
-                                            <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden">
+                                            <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-55 rounded transition-all print:hidden">
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </div>
                                         <textarea 
                                             value={section.content} 
                                             onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} 
-                                            className="w-full bg-transparent border-none outline-none text-[12px] text-slate-600 min-h-12 resize-none italic font-medium leading-tight" 
+                                            className="w-full bg-transparent border-none outline-none text-[11.5px] text-slate-650 min-h-12 resize-none italic font-medium leading-relaxed p-0 focus:ring-0" 
                                             placeholder="..." 
                                         />
                                     </div>
@@ -1299,40 +1299,59 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             </div>
                         </div>
                     )}
+
+                    {/* Dedicated Signatures Area for Modern View when show_signature is enabled (Only shown if showFees is false, or rendered standalone) */}
+                    {!showFees && schoolConfig?.report_card_config?.show_signature !== false && (
+                        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-100 mt-4">
+                            <div className="text-left">
+                                <div className="h-10"></div>
+                                <div className="h-px bg-slate-300 w-36 mb-1"></div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class Teacher Signature</p>
+                            </div>
+                            <div className="text-right relative min-w-[120px]">
+                                {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain mx-auto md:mr-10 absolute -top-9 right-8 z-10" alt="Signature" />
+                                )}
+                                <div className="h-px bg-slate-900 w-36 mb-1 ml-auto relative z-20"></div>
+                                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest relative z-20">Head Teacher Stamp</p>
+                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-4 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {showFees && (
-                    <div className="bg-blue-600 text-white p-8 print:p-4 print:p-2 rounded-[2rem] shadow-xl flex flex-col justify-between relative overflow-hidden print:bg-white print:border-2 print:border-slate-900 print:text-slate-900 print:shadow-none">
-                        {/* Decorative Pattern */}
+                    <div className="bg-blue-600 text-white p-6 print:p-4 rounded-3xl shadow-xl flex flex-col justify-between relative overflow-hidden print:bg-white print:border-2 print:border-slate-900 print:text-slate-900 print:shadow-none">
                         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] print:hidden"></div>
 
                         <div className="relative z-10">
-                            <div className="flex justify-between items-center mb-8 print:mb-3">
-                                <h4 className="text-sm font-black uppercase tracking-widest border-b border-indigo-400 pb-1 print:border-slate-900">Financial Statement</h4>
-                                <span className="text-[12.5px] font-bold bg-white/20 px-2 py-1 rounded print:bg-slate-100">TERM {schoolConfig?.current_term || 1}</span>
+                            <div className="flex justify-between items-center mb-6 print:mb-3">
+                                <h4 className="text-xs font-black uppercase tracking-widest border-b border-indigo-400 pb-1 print:border-slate-900">Financial Statement</h4>
+                                <span className="text-[11px] font-bold bg-white/20 px-2.5 py-0.5 rounded print:bg-slate-100">TERM {schoolConfig?.current_term || 1}</span>
                             </div>
 
-                            <div className="space-y-4 mb-8 print:mb-3">
+                            <div className="space-y-3.5 mb-6 print:mb-3">
                                 <div className="flex justify-between items-center border-b border-blue-500/50 pb-2 print:border-slate-200">
                                     <span className="text-xs font-bold opacity-80 uppercase tracking-wider">Outstanding Balance</span>
-                                    <span className="font-mono text-lg font-black">GHS {(student as any).balance || '0.00'}</span>
+                                    <span className="font-mono text-base font-black">GHS {(student as any).balance || '0.00'}</span>
                                 </div>
                                 <div className="flex justify-between items-center border-b border-blue-500/50 pb-2 print:border-slate-200">
                                     <span className="text-xs font-bold opacity-80 uppercase tracking-wider">New Bill Amount</span>
                                     <div className="flex items-center gap-2">
-                                        <span className="opacity-60 font-mono">GHS</span>
-                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-24 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-1 px-2 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                        <span className="opacity-60 font-mono text-xs">GHS</span>
+                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0.5 px-1.5 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-xs" />
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold opacity-80 uppercase tracking-wider">Auxiliary Charges</span>
                                     <div className="flex items-center gap-2">
-                                        <span className="opacity-60 font-mono">GHS</span>
-                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-24 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-1 px-2 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                        <span className="opacity-60 font-mono text-xs">GHS</span>
+                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0.5 px-1.5 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-xs" />
                                     </div>
                                 </div>
 
-                                {/* Custom Bill Items */}
                                 {extraBillItems.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center group relative">
                                         <input 
@@ -1340,50 +1359,52 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                             value={item.label} 
                                             onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} 
                                             placeholder="Item Name"
-                                            className="bg-transparent border-b border-white/20 text-xs uppercase tracking-wider font-bold outline-none focus:border-white w-1/2 opacity-70 focus:opacity-100 print:border-none print:opacity-100" 
+                                            className="bg-transparent border-b border-white/20 text-xs uppercase tracking-wider font-bold outline-none focus:border-white w-1/2 opacity-70 focus:opacity-100 print:border-none print:opacity-100 p-0" 
                                         />
                                         <div className="flex items-center gap-2">
-                                            <span className="opacity-60 font-mono">GHS</span>
+                                            <span className="opacity-60 font-mono text-xs">GHS</span>
                                             <input 
                                                 type="number" 
                                                 value={item.value} 
                                                 onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} 
-                                                className="w-24 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-1 px-2 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900" 
+                                                className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0.5 px-1.5 focus:bg-white/20 rounded-t print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-xs p-0" 
                                             />
-                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-6 w-6 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
-                                                <X className="w-3 h-3" />
+                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-5 w-5 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+                                                <X className="w-2.5 h-2.5" />
                                             </button>
                                         </div>
                                     </div>
                                 ))}
 
-                                <button onClick={addExtraBillItem} className="print:hidden w-full py-2 border border-dashed border-white/30 rounded-lg text-[12px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-2">
-                                    <X className="w-3 h-3 rotate-45" /> Add Custom Bill Item
+                                <button onClick={addExtraBillItem} className="print:hidden w-full py-1.5 border border-dashed border-white/30 rounded-xl text-[11px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-1.5">
+                                    <X className="w-2.5 h-2.5 rotate-45" /> Add Bill Item
                                 </button>
                             </div>
                         </div>
 
-                        <div className="relative z-10 pt-16 mt-4 border-t border-white/20 flex justify-between items-end print:border-slate-900">
+                        <div className="relative z-10 pt-12 mt-2 border-t border-white/20 flex justify-between items-end print:border-slate-900">
                             <div>
-                                <p className="text-[12px] font-black uppercase opacity-70 mb-1 tracking-widest">Grand Total Payable</p>
-                                <p className="text-3xl font-black tracking-tighter">
-                                    <span className="text-sm mr-1 opacity-60">GHS</span>
+                                <p className="text-[11px] font-black uppercase opacity-70 mb-0.5 tracking-widest">Grand Total Payable</p>
+                                <p className="text-2xl font-black tracking-tighter">
+                                    <span className="text-xs mr-1 opacity-60">GHS</span>
                                     {totalBill.toFixed(2)}
                                 </p>
                             </div>
-                            <div className="text-right relative min-w-[120px]">
-                                {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-12 object-contain mx-auto absolute -top-14 left-1/2 -translate-x-1/2 z-10 brightness-110" alt="Signature" />
-                                )}
-                                <div className="h-12 w-12 bg-white/20 rounded-full mx-auto mb-2 flex items-center justify-center print:bg-slate-100 relative z-20">
-                                    <Building2 className="w-6 h-6 opacity-60 print:opacity-100 print:text-slate-400" />
+                            
+                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                                <div className="text-right relative min-w-[120px]">
+                                    {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain mx-auto absolute -top-11 left-1/2 -translate-x-1/2 z-10 brightness-110" alt="Signature" />
+                                    )}
+                                    <div className="h-10 w-10 bg-white/20 rounded-full mx-auto mb-1.5 flex items-center justify-center print:bg-slate-100 relative z-20">
+                                        <Building2 className="w-5 h-5 opacity-60 print:opacity-100 print:text-slate-400" />
+                                    </div>
+                                    <p className="text-[9.5px] font-black uppercase opacity-60 tracking-widest relative z-20">Verified Stamp</p>
+                                    {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                        <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-20 w-20 object-contain absolute -top-14 -right-4 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                    )}
                                 </div>
-                                <p className="text-[10.5px] font-black uppercase opacity-60 tracking-widest relative z-20">Digital Stamp Verified</p>
-                                
-                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-24 w-24 object-contain absolute -top-16 -right-6 opacity-60 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
-                                )}
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
