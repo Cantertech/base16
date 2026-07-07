@@ -75,6 +75,20 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     print-color-adjust: exact !important;
                     background-color: white !important;
                 }
+                input, textarea, select {
+                    border: none !important;
+                    background: transparent !important;
+                    padding: 0 !important;
+                    box-shadow: none !important;
+                    outline: none !important;
+                    resize: none !important;
+                    color: #0f172a !important;
+                    font-weight: 700 !important;
+                }
+                textarea {
+                    height: auto !important;
+                    overflow: hidden !important;
+                }
                 .print\\:min-h-0 {
                     min-height: 0 !important;
                 }
@@ -1512,16 +1526,22 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
 
             {/* Subject Total Scores Bar Chart (CSS-based) */}
-            <div className="border border-slate-400 p-2.5 rounded bg-white text-center mb-4 print:mb-2 shadow-sm">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-100 pb-1">Chart On Subject Total Scores</h4>
-                <div className="flex items-end justify-center gap-3 md:gap-5 h-20 pt-4 px-2 border-b border-slate-350 overflow-hidden">
-                    {results.map((r, i) => (
-                        <div key={i} className="flex flex-col items-center flex-1 h-full justify-end">
-                            <div className="text-[7.5px] font-black text-slate-700 mb-0.5 leading-none">{r.total}</div>
-                            <div className="w-4 md:w-5 bg-slate-400 border border-slate-700 rounded-t-sm" style={{ height: Math.max(10, r.total * 0.5) + '%' }}></div>
-                            <div className="text-[6.5px] font-bold text-slate-600 mt-1 truncate max-w-[40px] leading-none" title={r.subject}>{r.subject.substring(0, 7)}</div>
-                        </div>
-                    ))}
+            <div className="border border-slate-400 p-4 rounded bg-white text-center mb-4 print:mb-2 shadow-sm">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-2 border-b border-slate-200 pb-1 flex items-center justify-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                    Performance Chart — Subject Total Scores
+                </h4>
+                <div className="flex items-end justify-center gap-4 md:gap-6 h-28 pt-4 px-4 border-b border-slate-350 overflow-hidden bg-slate-50/50 rounded">
+                    {results.map((r, i) => {
+                        const scoreColor = r.total >= 80 ? 'bg-gradient-to-t from-green-600 to-green-400' : r.total >= 50 ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-red-500 to-red-400';
+                        return (
+                            <div key={i} className="flex flex-col items-center flex-1 h-full justify-end group">
+                                <div className="text-[9px] font-bold text-slate-700 mb-1 leading-none">{r.total}</div>
+                                <div className={`w-6 md:w-8 ${scoreColor} rounded-t-sm border border-slate-700 shadow-sm transition-all duration-300 hover:opacity-90`} style={{ height: Math.max(10, r.total) + '%' }}></div>
+                                <div className="text-[8px] font-bold text-slate-500 mt-1.5 truncate max-w-[50px] leading-none uppercase" title={r.subject}>{r.subject.substring(0, 8)}</div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

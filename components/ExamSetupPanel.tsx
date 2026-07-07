@@ -512,73 +512,221 @@ export const ExamSetupPanel: React.FC = () => {
 
 
                     {/* Exams Report Design Sub-Tab */}
-                    {activeSubTab === 'design' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            {renderPanelHeader('Exams Report Design', 'Choose a default layout template for student terminal report cards.')}
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                {[
-                                    { id: 'modern', name: 'Standard Modern', desc: 'Clean sans-serif fonts, blue/slate brand highlights, rounded status badges.', badge: 'Standard' },
-                                    { id: 'classic_tabular', name: 'Classic Tabular', desc: 'Traditional institutional layout, high-contrast black borders, classic layout grid.', badge: 'Classic' },
-                                    { id: 'nursery', name: 'Nursery Narrative', desc: 'Georgia serif fonts, narrative developmental milestones, decorative corner frames.', badge: 'Nursery' },
-                                    { id: 'adventist', name: 'Chart-Integrated Classic', desc: 'Inspired by J.A. Boateng. Features dynamic horizontal bar charts mapping subject scores.', badge: 'New/Chart' },
-                                    { id: 'compact', name: 'Compact Minimalist', desc: 'High-contrast grid lines, minimalist layout structure optimized to fit single-page print constraints.', badge: 'Minimalist' }
-                                ].map(template => {
-                                    const isSelected = (localConfig?.report_card_config?.layout || 'modern') === template.id;
+                    {activeSubTab === 'design' && (() => {
+                        const DesignMiniature = ({ id }: { id: string }) => {
+                            switch (id) {
+                                case 'modern':
                                     return (
-                                        <button
-                                            key={template.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setLocalConfig({
-                                                    ...localConfig,
-                                                    report_card_config: {
-                                                        ...(localConfig.report_card_config || {}),
-                                                        layout: template.id
-                                                    }
-                                                });
-                                            }}
-                                            className={`p-5 rounded-2xl border-2 text-left transition-all relative flex flex-col justify-between h-44 group ${
-                                                isSelected 
-                                                    ? 'bg-primary-50/30 border-primary-500 shadow-sm' 
-                                                    : 'bg-white border-slate-200 hover:border-slate-350 hover:bg-slate-50/30'
-                                            }`}
-                                        >
-                                            <div className="space-y-2 w-full">
-                                                <div className="flex justify-between items-center">
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                                                        isSelected ? 'bg-primary-100 text-primary-750' : 'bg-slate-100 text-slate-650'
-                                                    }`}>
-                                                        {template.badge}
-                                                    </span>
-                                                    {isSelected && (
-                                                        <span className="w-2.5 h-2.5 bg-primary-600 rounded-full"></span>
-                                                    )}
+                                        <div className="w-full h-24 bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col gap-2 overflow-hidden select-none shadow-inner bg-slate-50/20">
+                                            {/* Header */}
+                                            <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-3.5 h-3.5 rounded-full bg-primary-600 shrink-0" />
+                                                    <div className="w-14 h-1.5 bg-slate-300 rounded-sm" />
                                                 </div>
-                                                <h4 className="font-bold text-slate-800 text-sm group-hover:text-primary-650 transition-colors">{template.name}</h4>
-                                                <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{template.desc}</p>
+                                                <div className="w-3.5 h-3.5 rounded bg-slate-200 shrink-0" />
                                             </div>
-                                            <div className="w-full mt-2 space-y-1.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setPreviewLayout(template.id);
-                                                    }}
-                                                    className="w-full py-1.5 border border-slate-300 hover:border-primary-500 hover:text-primary-600 text-[10px] font-black uppercase rounded-xl text-center transition-all bg-white"
-                                                >
-                                                    Preview Design
-                                                </button>
-                                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 text-center block">
-                                                    {isSelected ? 'Active Default Layout' : 'Click Card to Set Default'}
-                                                </span>
+                                            {/* Student Info */}
+                                            <div className="grid grid-cols-3 gap-1 bg-slate-100/70 p-1 rounded-md">
+                                                <div className="h-1 bg-slate-300 rounded-sm" />
+                                                <div className="h-1 bg-slate-300 rounded-sm" />
+                                                <div className="h-1 bg-slate-350 rounded-sm" />
                                             </div>
-                                        </button>
+                                            {/* Table lines */}
+                                            <div className="space-y-1 mt-0.5">
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-0.5">
+                                                    <div className="w-12 h-1 bg-slate-300 rounded-sm" />
+                                                    <div className="w-5 h-1.5 bg-primary-100 rounded-sm" />
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="w-8 h-1 bg-slate-300 rounded-sm" />
+                                                    <div className="w-5 h-1.5 bg-primary-100 rounded-sm" />
+                                                </div>
+                                            </div>
+                                        </div>
                                     );
-                                })}
+                                case 'classic_tabular':
+                                    return (
+                                        <div className="w-full h-24 bg-white border-2 border-double border-slate-800 rounded-lg p-2.5 flex flex-col gap-2 overflow-hidden select-none shadow-inner">
+                                            {/* Header */}
+                                            <div className="text-center border-b border-slate-900 pb-1">
+                                                <div className="w-20 h-1.5 bg-slate-800 rounded-sm mx-auto mb-0.5" />
+                                                <div className="w-24 h-1 bg-slate-400 rounded-sm mx-auto" />
+                                            </div>
+                                            {/* Student Info Grid */}
+                                            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 border border-slate-300 p-1 bg-slate-50/50">
+                                                <div className="h-0.5 bg-slate-600 rounded-sm" />
+                                                <div className="h-0.5 bg-slate-600 rounded-sm" />
+                                            </div>
+                                            {/* High contrast table */}
+                                            <div className="border border-slate-800 divide-y divide-slate-800 rounded-sm mt-0.5">
+                                                <div className="bg-slate-800 h-1.5 flex justify-between px-1" />
+                                                <div className="h-1.5 flex justify-between px-1" />
+                                            </div>
+                                        </div>
+                                    );
+                                case 'nursery':
+                                    return (
+                                        <div className="w-full h-24 bg-[#FAF8F5] border border-amber-100 rounded-lg p-2.5 flex flex-col gap-2 overflow-hidden select-none shadow-inner relative">
+                                            {/* Corner frames */}
+                                            <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-amber-300/60" />
+                                            <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-amber-300/60" />
+                                            {/* Header */}
+                                            <div className="text-center pb-0.5 border-b border-amber-100/50">
+                                                <div className="w-24 h-1.5 bg-slate-800 rounded-sm mx-auto mb-0.5" />
+                                            </div>
+                                            {/* Narrative columns */}
+                                            <div className="border border-amber-200/50 rounded-lg p-1 space-y-1.5 bg-white">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="w-16 h-1 bg-slate-400 rounded-sm" />
+                                                    <div className="w-8 h-1.5 bg-green-100 rounded-full" />
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <div className="w-12 h-1 bg-slate-400 rounded-sm" />
+                                                    <div className="w-8 h-1.5 bg-blue-100 rounded-full" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                case 'adventist':
+                                    return (
+                                        <div className="w-full h-24 bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col gap-2 overflow-hidden select-none shadow-inner bg-slate-50/10">
+                                            {/* Header */}
+                                            <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                                                <div className="w-3.5 h-3.5 bg-slate-700 rounded-sm shrink-0" />
+                                                <div className="w-20 h-1 bg-slate-700 rounded-sm animate-pulse" />
+                                            </div>
+                                            {/* Mini table */}
+                                            <div className="border border-slate-200 rounded-sm">
+                                                <div className="bg-slate-50 h-1.5 border-b border-slate-250" />
+                                            </div>
+                                            {/* Dynamic Bar Chart */}
+                                            <div className="mt-auto flex items-end justify-center gap-2 h-7 pb-0.5">
+                                                <div className="w-2.5 bg-slate-400 rounded-t-sm" style={{ height: '70%' }} />
+                                                <div className="w-2.5 bg-slate-500 rounded-t-sm" style={{ height: '40%' }} />
+                                                <div className="w-2.5 bg-slate-350 rounded-t-sm" style={{ height: '85%' }} />
+                                                <div className="w-2.5 bg-slate-450 rounded-t-sm" style={{ height: '60%' }} />
+                                            </div>
+                                        </div>
+                                    );
+                                case 'compact':
+                                    return (
+                                        <div className="w-full h-24 bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col gap-1.5 overflow-hidden select-none shadow-inner bg-slate-50/20">
+                                            {/* Compact header */}
+                                            <div className="flex justify-between items-center border-b pb-1">
+                                                <div className="w-20 h-1 bg-slate-800 rounded-sm" />
+                                                <div className="w-8 h-1 bg-slate-400 rounded-sm" />
+                                            </div>
+                                            {/* Compact Particulars */}
+                                            <div className="grid grid-cols-4 gap-1 bg-slate-100 p-0.5 rounded-md">
+                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
+                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
+                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
+                                                <div className="h-0.5 bg-slate-500 rounded-sm" />
+                                            </div>
+                                            {/* Tight table */}
+                                            <div className="border border-slate-200 divide-y divide-slate-100 mt-0.5 rounded-sm">
+                                                <div className="h-1.5 bg-slate-50" />
+                                                <div className="h-1.5 bg-white" />
+                                                <div className="h-1.5 bg-slate-50" />
+                                            </div>
+                                        </div>
+                                    );
+                                default:
+                                    return null;
+                            }
+                        };
+
+                        return (
+                            <div className="space-y-6 animate-in fade-in duration-200">
+                                {renderPanelHeader('Exams Report Design', 'Choose a default layout template for student terminal report cards.')}
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {[
+                                        { id: 'modern', name: 'Standard Modern', desc: 'Clean sans-serif fonts, blue/slate brand highlights, rounded status badges.', badge: 'Standard' },
+                                        { id: 'classic_tabular', name: 'Classic Tabular', desc: 'Traditional institutional layout, high-contrast black borders, classic layout grid.', badge: 'Classic' },
+                                        { id: 'nursery', name: 'Nursery Narrative', desc: 'Georgia serif fonts, narrative developmental milestones, decorative corner frames.', badge: 'Nursery' },
+                                        { id: 'adventist', name: 'Chart-Integrated Classic', desc: 'Inspired by J.A. Boateng. Features dynamic horizontal bar charts mapping subject scores.', badge: 'New/Chart' },
+                                        { id: 'compact', name: 'Compact Minimalist', desc: 'High-contrast grid lines, minimalist layout structure optimized to fit single-page print constraints.', badge: 'Minimalist' }
+                                    ].map(template => {
+                                        const isSelected = (localConfig?.report_card_config?.layout || 'modern') === template.id;
+                                        return (
+                                            <div
+                                                key={template.id}
+                                                className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-4 transition-all relative group ${
+                                                    isSelected 
+                                                        ? 'bg-primary-50/20 border-primary-500 shadow-sm' 
+                                                        : 'bg-white border-slate-200 hover:border-slate-350 hover:bg-slate-50/20'
+                                                }`}
+                                            >
+                                                {/* Visual Preview Miniature */}
+                                                <div 
+                                                    onClick={() => {
+                                                        setLocalConfig({
+                                                            ...localConfig,
+                                                            report_card_config: {
+                                                                ...(localConfig.report_card_config || {}),
+                                                                layout: template.id
+                                                            }
+                                                        });
+                                                    }}
+                                                    className="cursor-pointer transition-transform duration-200 hover:scale-[1.01]"
+                                                >
+                                                    <DesignMiniature id={template.id} />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                                                            isSelected ? 'bg-primary-100 text-primary-750 font-bold' : 'bg-slate-100 text-slate-650'
+                                                        }`}>
+                                                            {template.badge}
+                                                        </span>
+                                                        {isSelected && (
+                                                            <span className="w-2 h-2 bg-primary-600 rounded-full animate-pulse"></span>
+                                                        )}
+                                                    </div>
+                                                    <h4 className="font-bold text-slate-800 text-sm group-hover:text-primary-650 transition-colors">{template.name}</h4>
+                                                    <p className="text-[11px] text-slate-500 leading-snug line-clamp-2 h-8">{template.desc}</p>
+                                                </div>
+
+                                                <div className="space-y-2 pt-2 border-t border-slate-100">
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setLocalConfig({
+                                                                    ...localConfig,
+                                                                    report_card_config: {
+                                                                        ...(localConfig.report_card_config || {}),
+                                                                        layout: template.id
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className={`w-full py-1.5 text-[10px] font-bold uppercase rounded-lg text-center transition-all ${
+                                                                isSelected 
+                                                                    ? 'bg-primary-600 text-white shadow-sm'
+                                                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                                            }`}
+                                                        >
+                                                            {isSelected ? 'Active' : 'Select'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPreviewLayout(template.id)}
+                                                            className="w-full py-1.5 border border-slate-200 hover:border-slate-350 text-[10px] font-bold uppercase rounded-lg text-center transition-all bg-white text-slate-600 hover:bg-slate-50"
+                                                        >
+                                                            Preview
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Branding Sub-Tab */}
                     {activeSubTab === 'branding' && (
