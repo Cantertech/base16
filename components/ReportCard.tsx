@@ -464,6 +464,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         )}
+                        {schoolConfig?.report_card_config?.show_student_photo !== false && (
                         <div className="h-16 w-16 print:h-14 print:w-14 bg-slate-50 border-2 border-slate-900 shadow-lg flex items-center justify-center overflow-hidden shrink-0 print:border-slate-950">
                             {student.photo ? (
                                 <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
@@ -474,6 +475,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
                     
                     <div className="max-w-3xl mx-auto">
@@ -508,10 +510,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Term</p>
                     <p className="text-xs font-black text-slate-900 uppercase leading-tight">{schoolConfig?.current_term || schoolConfig?.term || '-'}</p>
                 </div>
+                {schoolConfig?.report_card_config?.show_attendance !== false && (
                 <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
                     <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance</p>
                     <p className="text-[12.5px] font-bold text-slate-700 uppercase leading-tight">{attendancePresentDays} / {attendanceTotalDays}</p>
                 </div>
+                )}
                 <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
                     <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Re-opening</p>
                     <p className="text-[12.5px] font-bold text-slate-700 uppercase leading-tight">{schoolConfig?.next_term_reopens || 'TBD'}</p>
@@ -569,6 +573,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             {/* Classic Narrative Feedback */}
             <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 mb-2 print:mb-1 pt-4 border-t-2 border-slate-100 relative z-10">
                 <div className="space-y-4">
+                    {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
                     <div className="relative group">
                         <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
                             <div className="w-1 h-3 bg-slate-900"></div>
@@ -583,6 +588,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             />
                         </div>
                     </div>
+                    )}
+                    {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
                     <div className="relative group">
                         <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
                             <div className="w-1 h-3 bg-slate-900 opacity-40"></div>
@@ -597,6 +604,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             />
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* Right Column: Financials OR Extra Details if no fees */}
@@ -631,6 +639,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </div>
 
                         {/* Classic Signatures */}
+                        {schoolConfig?.report_card_config?.show_signature !== false && (
                         <div className="grid grid-cols-2 gap-8 mt-12 px-4 relative">
                             <div className="text-center pt-6 relative group">
                                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -656,6 +665,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -692,6 +702,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             
                         </div>
 
+                        {schoolConfig?.report_card_config?.show_signature !== false && (
                         <div className="grid grid-cols-2 gap-4 mt-4">
                              <div className="text-center pt-6">
                                 <div className="h-px bg-slate-200 w-full mb-1"></div>
@@ -702,6 +713,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <span className="text-[12px] font-black uppercase text-slate-300 tracking-[0.2em]">Principal</span>
                              </div>
                         </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -800,6 +812,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </p>
                     </div>
                 )}
+                {schoolConfig?.report_card_config?.show_attendance !== false && (
                 <div className="space-y-1">
                     <p className="text-[12.5px] font-black text-slate-400 uppercase tracking-widest">Attendance (Auto)</p>
                     <div className="flex items-center gap-1 border-b border-slate-300 pb-1">
@@ -808,6 +821,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <input type="number" value={attendanceTotalDays} readOnly={true} className="w-8 bg-transparent outline-none text-[12.5px] font-bold text-center text-slate-500 cursor-not-allowed" />
                     </div>
                 </div>
+                )}
                 <div className="space-y-1">
                     <p className="text-[12.5px] font-black text-slate-400 uppercase tracking-widest">Re-opening Date</p>
                     <input 
@@ -1270,7 +1284,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
 
                     {/* Extra Info Grid for Modern View */}
-                    {extraReportSections.length > 0 && (
+                    {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
                         <div className="pt-4 border-t border-slate-100 mt-2">
                             <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-3">Additional Particulars</h4>
                             <div className="grid grid-cols-1 gap-3 pb-2">
