@@ -154,7 +154,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const [otherFees, setOtherFees] = useState<number>(savedReportData?.other_fees ? Number(savedReportData.other_fees) : 0);
     const [nextClass, setNextClass] = useState(savedReportData?.next_class || getNextClass(student.class));
     const [isSaving, setIsSaving] = useState(false);
-    const showFees = activeModules?.includes('revenue_guard') || activeModules?.includes('complete_bundle');
+    const showFees = (activeModules?.includes('revenue_guard') || activeModules?.includes('complete_bundle')) && schoolConfig?.report_card_config?.show_fees !== false;
 
     const addExtraBillItem = () => {
         setExtraBillItems([...extraBillItems, { label: '', value: 0 }]);

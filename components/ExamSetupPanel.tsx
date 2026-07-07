@@ -27,7 +27,8 @@ import {
     GraduationCap,
     BarChart3,
     PenLine,
-    NotebookText
+    NotebookText,
+    DollarSign
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
 
@@ -971,6 +972,13 @@ export const ExamSetupPanel: React.FC = () => {
                                 label: 'Custom Notices & Sections',
                                 description: 'Append school-defined sections like term notices, items to buy, or prospectus.',
                                 flagKey: 'show_global_sections'
+                            },
+                            {
+                                icon: DollarSign,
+                                iconBg: 'bg-emerald-100 text-emerald-600',
+                                label: 'Financial Statement & Billing',
+                                description: 'Show the student\'s termly fee statement and outstanding balance on the report card.',
+                                flagKey: 'show_fees'
                             },
                         ];
 
