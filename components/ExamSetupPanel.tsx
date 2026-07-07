@@ -127,7 +127,7 @@ export const ExamSetupPanel: React.FC = () => {
                 {/* Sidebar Sub-Tabs */}
                 <div className="w-full md:w-64 bg-slate-50/75 border-b md:border-b-0 md:border-r border-slate-200 p-4 space-y-1 shrink-0">
                     <span className="hidden md:block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-3">Settings Navigation</span>
-                    <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 scrollbar-none">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-col gap-1.5 pb-1 md:pb-0">
                         {subTabs.map(tab => {
                             const IconComponent = tab.icon;
                             const isActive = activeSubTab === tab.id;
@@ -136,14 +136,14 @@ export const ExamSetupPanel: React.FC = () => {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveSubTab(tab.id)}
-                                    className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-all w-full text-left ${
+                                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all w-full text-left ${
                                         isActive 
                                             ? 'bg-primary-55 text-primary-650 shadow-sm border border-primary-100/50 font-bold' 
                                             : 'text-slate-650 hover:bg-slate-200/50 hover:text-slate-900'
                                     }`}
                                 >
-                                    <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600' : 'text-slate-400'}`} />
-                                    <span>{tab.label}</span>
+                                    <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-primary-600' : 'text-slate-400'}`} />
+                                    <span className="truncate">{tab.label}</span>
                                 </button>
                             );
                         })}
