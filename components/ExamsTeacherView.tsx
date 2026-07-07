@@ -48,6 +48,7 @@ export const ExamsTeacherView: React.FC = () => {
         paintBrush,
         setPaintBrush,
         classStudents,
+        results,
         handleRemarkChange,
         getExistingCompetency,
         getPendingKey,
