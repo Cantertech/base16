@@ -1071,212 +1071,238 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     );
 
     const modernContent = (
-        <div ref={printMode ? undefined : componentRef} id={printMode ? undefined : "report-card-content"} className={`bg-white max-w-4xl mx-auto shadow-sm print:shadow-none flex flex-col ${printMode ? 'p-0 shadow-none border-none' : ''}`} style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
+        <div
+            ref={printMode ? undefined : componentRef}
+            id={printMode ? undefined : "report-card-content"}
+            className={`bg-white max-w-4xl mx-auto flex flex-col shadow-xl print:shadow-none print:border-0 ${printMode ? '' : 'border border-slate-200'}`}
+            style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif", minHeight: printMode ? '297mm' : '1060px' }}
+        >
+            {/* ══ HEADER BANNER ══ */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 text-white relative overflow-hidden flex-shrink-0">
+                {/* Background decorative circles */}
+                <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-blue-500/10 pointer-events-none" />
+                <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
+                <div className="absolute top-1/2 right-1/4 w-2 h-2 rounded-full bg-blue-400/40 pointer-events-none" />
 
-            {/* ── TOP ACCENT BAR ── */}
-            <div className="h-2 w-full bg-gradient-to-r from-slate-900 via-blue-700 to-blue-500 print:h-1.5" />
-
-            {/* ── HEADER ── */}
-            <div className="flex items-stretch border-b border-slate-200 print:border-slate-400">
-                {/* Left: Logo + School info */}
-                <div className="flex items-center gap-3 px-6 py-3 print:px-4 print:py-2 flex-1">
-                    <div className="h-14 w-14 print:h-12 print:w-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                        {schoolConfig?.logo_url ? (
-                            <img src={schoolConfig.logo_url} alt="School Logo" className="h-full w-full object-contain p-1" />
-                        ) : (
-                            <Building2 className="h-7 w-7 text-slate-300" />
-                        )}
+                <div className="relative z-10 flex items-center justify-between px-8 py-6 print:px-6 print:py-4">
+                    {/* School brand */}
+                    <div className="flex items-center gap-5">
+                        <div className="h-20 w-20 print:h-16 print:w-16 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 flex items-center justify-center overflow-hidden shadow-xl shrink-0">
+                            {schoolConfig?.logo_url ? (
+                                <img src={schoolConfig.logo_url} alt="Logo" className="h-full w-full object-contain p-2" />
+                            ) : (
+                                <Building2 className="h-8 w-8 text-white/40" />
+                            )}
+                        </div>
+                        <div>
+                            <h1 className="text-2xl print:text-xl font-black uppercase tracking-tight text-white leading-tight">{schoolConfig?.name || 'School Name'}</h1>
+                            <p className="text-blue-200 text-sm font-medium mt-1 italic">{schoolConfig?.motto || 'Excellence in Education'}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-white/50 font-semibold uppercase tracking-wider">
+                                {schoolConfig?.address && <span>{schoolConfig.address}</span>}
+                                {schoolConfig?.phone && <><span className="w-1 h-1 rounded-full bg-white/30 inline-block" /><span>{schoolConfig.phone}</span></>}
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-base print:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">{schoolConfig?.name || 'School Name'}</h1>
-                        <p className="text-[11px] text-slate-500 font-medium leading-none mt-0.5">{schoolConfig?.motto || ''}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">
-                            {[schoolConfig?.phone ? `| ${schoolConfig.phone}` : null, schoolConfig?.address || null].filter(Boolean).join('  ')}
-                        </p>
+
+                    {/* Right side: session + term + report label */}
+                    <div className="flex flex-col items-end gap-3 print:gap-2">
+                        <div className="text-right">
+                            <div className="text-[9px] text-white/50 font-black uppercase tracking-[0.25em] mb-1">Academic Session</div>
+                            <div className="text-xl print:text-lg font-black text-white">{schoolConfig?.academic_year || '2025'}</div>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="bg-blue-500/30 border border-blue-400/30 rounded-xl px-4 py-1.5 text-center backdrop-blur-sm">
+                                <p className="text-[9px] text-blue-200/70 font-black uppercase tracking-widest leading-none">Term</p>
+                                <p className="text-sm font-black text-white mt-0.5">{schoolConfig?.current_term || schoolConfig?.term || '1'}</p>
+                            </div>
+                            <div className="bg-white/10 border border-white/10 rounded-xl px-4 py-1.5 text-center backdrop-blur-sm">
+                                <p className="text-[9px] text-white/50 font-black uppercase tracking-widest leading-none">Report Type</p>
+                                <p className="text-sm font-black text-white mt-0.5">Terminal</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Right: Session + Term badges */}
-                <div className="flex shrink-0">
-                    <div className="bg-slate-900 text-white px-5 py-2 print:px-3 flex flex-col items-center justify-center text-center">
-                        <p className="text-[9px] opacity-60 font-black uppercase tracking-widest leading-none">Academic Session</p>
-                        <p className="text-sm font-black mt-1 leading-none">{schoolConfig?.academic_year || '2025'}</p>
-                    </div>
-                    <div className="bg-blue-600 text-white px-5 py-2 print:px-3 flex flex-col items-center justify-center text-center">
-                        <p className="text-[9px] opacity-60 font-black uppercase tracking-widest leading-none">Current Term</p>
-                        <p className="text-sm font-black mt-1 leading-none">{schoolConfig?.current_term || schoolConfig?.term || '1'}</p>
-                    </div>
-                </div>
+                {/* Bottom accent stripe on header */}
+                <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-blue-300 to-transparent opacity-60" />
             </div>
 
-            {/* ── STUDENT IDENTITY BAR ── */}
-            <div className="flex items-center gap-4 px-6 py-2 print:px-4 print:py-1.5 bg-slate-50 border-b border-slate-200 print:border-slate-300">
+            {/* ══ STUDENT PARTICULARS CARD ══ */}
+            <div className="bg-gradient-to-r from-slate-50 to-blue-50/40 border-b border-slate-200 px-8 py-4 print:px-6 print:py-3 flex items-center gap-6 flex-shrink-0">
                 {schoolConfig?.report_card_config?.show_student_photo !== false && (
-                    <div className="h-12 w-12 print:h-10 print:w-10 bg-white rounded-lg border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="h-20 w-20 print:h-16 print:w-16 rounded-2xl bg-white border-2 border-white shadow-lg flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-blue-100">
                         {student.photo ? (
                             <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
                         ) : (
-                            <span className="text-xl font-black text-slate-200">{student.name.charAt(0)}</span>
+                            <span className="text-3xl font-black text-slate-200">{student.name.charAt(0)}</span>
                         )}
                     </div>
                 )}
                 <div className="flex-1 min-w-0">
-                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-[0.2em] leading-none mb-0.5">Student Particulars</p>
-                    <h2 className="text-base print:text-sm font-black text-slate-900 leading-tight truncate">{student.name}</h2>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.25em] leading-none mb-1">Student Particulars</p>
+                    <h2 className="text-2xl print:text-xl font-black text-slate-900 leading-tight">{student.name}</h2>
                 </div>
-                <div className="flex items-center gap-5 print:gap-3 shrink-0 text-right">
-                    <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Student ID</p>
-                        <p className="text-[11px] font-bold text-slate-700 font-mono">{student.id.substring(0, 8).toUpperCase()}</p>
-                    </div>
-                    <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class</p>
-                        <p className="text-[11px] font-bold text-slate-700">{student.class}</p>
-                    </div>
-                    {schoolConfig?.report_card_config?.show_position !== false && (
-                        <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Term Rank</p>
-                            <p className="text-[11px] font-black text-blue-600">{position?.position ? `${position.position} / ${position.total}` : '—'}</p>
+                <div className="flex items-stretch gap-3 shrink-0">
+                    {[
+                        { label: 'Student ID', value: student.id.substring(0, 8).toUpperCase(), mono: true },
+                        { label: 'Class', value: student.class },
+                        ...(schoolConfig?.report_card_config?.show_position !== false ? [{ label: 'Term Rank', value: position?.position ? `${position.position} / ${position.total}` : '—', accent: true }] : []),
+                        { label: 'Next Class', value: nextClass || '—' },
+                    ].map((item: any) => (
+                        <div key={item.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-2.5 print:px-3 print:py-2 text-center min-w-[70px]">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{item.label}</p>
+                            <p className={`text-sm font-black leading-tight ${item.accent ? 'text-blue-600' : 'text-slate-800'} ${item.mono ? 'font-mono text-xs' : ''}`}>{item.value}</p>
                         </div>
-                    )}
-                    <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Next Class</p>
-                        <p className="text-[11px] font-bold text-slate-700">{nextClass || '—'}</p>
-                    </div>
+                    ))}
                 </div>
             </div>
 
-            {/* ── ACADEMIC ASSESSMENT TABLE ── */}
-            <div className="px-6 pt-2 pb-1 print:px-4 print:pt-1.5">
-                <div className="flex items-center gap-3 mb-1.5 print:mb-1">
-                    <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.25em] shrink-0">Academic Assessment</p>
-                    <div className="flex-1 h-px bg-slate-100" />
+            {/* ══ ACADEMIC ASSESSMENT TABLE ══ */}
+            <div className="flex-1 px-8 pt-5 pb-4 print:px-6 print:pt-4 print:pb-3">
+                <div className="flex items-center gap-4 mb-3 print:mb-2">
+                    <div className="w-1 h-5 bg-blue-600 rounded-full print:h-4" />
+                    <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-[0.3em]">Academic Assessment</h3>
+                    <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent" />
                 </div>
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr className="bg-slate-900 text-white print:bg-slate-800">
-                            <th className="px-2.5 py-1 print:px-2 print:py-0.5 text-left font-black uppercase tracking-wider text-[9.5px] rounded-tl-lg">Subject</th>
-                            {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                <th className="px-2 py-1 print:py-0.5 text-center font-black uppercase tracking-wider text-[9.5px] w-14">Class ({schoolConfig?.weights?.class || 30}%)</th>
-                            )}
-                            <th className="px-2 py-1 print:py-0.5 text-center font-black uppercase tracking-wider text-[9.5px] w-14">Exam ({schoolConfig?.weights?.exam || 70}%)</th>
-                            <th className="px-2 py-1 print:py-0.5 text-center font-black uppercase tracking-wider text-[9.5px] w-12 bg-blue-600 print:bg-blue-800">Total</th>
-                            <th className="px-2 py-1 print:py-0.5 text-center font-black uppercase tracking-wider text-[9.5px] w-10">Grd</th>
-                            <th className="px-2.5 py-1 print:px-2 print:py-0.5 text-left font-black uppercase tracking-wider text-[9.5px] rounded-tr-lg">Remark</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {results.map((result, index) => {
-                            const grade = calculateGrade(result.total);
-                            const remark = calculateRemark(result.total);
-                            return (
-                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
-                                    <td className="px-2.5 py-0.5 print:px-2 print:py-px font-semibold text-slate-800 text-[11px] leading-tight border-b border-slate-100">{result.subject}</td>
-                                    {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                        <td className="px-2 py-0.5 print:py-px text-center text-slate-500 text-[11px] border-b border-slate-100">{result.classScore}</td>
-                                    )}
-                                    <td className="px-2 py-0.5 print:py-px text-center text-slate-500 text-[11px] border-b border-slate-100">{result.examScore}</td>
-                                    <td className="px-2 py-0.5 print:py-px text-center font-black text-blue-700 bg-blue-50/50 text-[11px] border-b border-blue-100">{result.total}</td>
-                                    <td className="px-2 py-0.5 print:py-px text-center border-b border-slate-100">
-                                        <span className={`inline-block px-1 py-px rounded text-[9px] font-black ${grade === 'A' || grade?.startsWith('EE') ? 'bg-green-100 text-green-700' : grade === 'F' || grade?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{grade}</span>
-                                    </td>
-                                    <td className="px-2.5 py-0.5 print:px-2 print:py-px text-slate-500 italic text-[10.5px] border-b border-slate-100 leading-tight">{remark}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                    {schoolConfig?.report_card_config?.show_aggregate !== false && (
-                        <tfoot>
+
+                <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm print:rounded-none print:border-slate-300">
+                    <table className="w-full border-collapse">
+                        <thead>
                             <tr className="bg-slate-900 text-white print:bg-slate-800">
-                                <td className="px-2.5 py-1 print:px-2 print:py-0.5 text-right font-black uppercase text-[9.5px] tracking-[0.2em] rounded-bl-lg" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Performance Summary</td>
-                                <td className="px-2 py-1 print:py-0.5 text-center font-black text-base underline decoration-blue-400 decoration-2">{overallAverage}</td>
-                                <td className="px-2 py-1 print:py-0.5 rounded-br-lg" colSpan={2}></td>
+                                <th className="px-4 py-2.5 print:px-3 print:py-1.5 text-left text-[10px] font-black uppercase tracking-wider">Subject</th>
+                                {schoolConfig?.grading_type !== 'COMPETENCY' && (
+                                    <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-20">Class ({schoolConfig?.weights?.class || 30}%)</th>
+                                )}
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-20">Exam ({schoolConfig?.weights?.exam || 70}%)</th>
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-16 bg-blue-600 print:bg-blue-800">Total</th>
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-14">Grade</th>
+                                <th className="px-4 py-2.5 print:px-3 print:py-1.5 text-left text-[10px] font-black uppercase tracking-wider">Remark</th>
                             </tr>
-                        </tfoot>
-                    )}
-                </table>
+                        </thead>
+                        <tbody>
+                            {results.map((result, index) => {
+                                const grade = calculateGrade(result.total);
+                                const remark = calculateRemark(result.total);
+                                const isEven = index % 2 === 0;
+                                const isGood = result.total >= 70;
+                                const isBad = result.total < 50;
+                                return (
+                                    <tr key={index} className={isEven ? 'bg-white' : 'bg-slate-50/80'}>
+                                        <td className="px-4 py-2 print:px-3 print:py-1.5 font-semibold text-slate-800 text-[12px] border-b border-slate-100">{result.subject}</td>
+                                        {schoolConfig?.grading_type !== 'COMPETENCY' && (
+                                            <td className="px-3 py-2 print:py-1.5 text-center text-slate-500 text-[12px] border-b border-slate-100">{result.classScore}</td>
+                                        )}
+                                        <td className="px-3 py-2 print:py-1.5 text-center text-slate-500 text-[12px] border-b border-slate-100">{result.examScore}</td>
+                                        <td className={`px-3 py-2 print:py-1.5 text-center font-black text-[12px] border-b border-blue-100 ${isGood ? 'text-blue-700 bg-blue-50' : isBad ? 'text-red-600 bg-red-50/50' : 'text-amber-700 bg-amber-50/50'}`}>{result.total}</td>
+                                        <td className="px-3 py-2 print:py-1.5 text-center border-b border-slate-100">
+                                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${grade === 'A' || grade?.startsWith('EE') ? 'bg-green-100 text-green-700' : grade === 'F' || grade?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{grade}</span>
+                                        </td>
+                                        <td className="px-4 py-2 print:px-3 print:py-1.5 text-slate-500 italic text-[11.5px] border-b border-slate-100">{remark}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        {schoolConfig?.report_card_config?.show_aggregate !== false && (
+                            <tfoot>
+                                <tr className="bg-gradient-to-r from-slate-900 to-blue-900 text-white print:bg-slate-800">
+                                    <td className="px-4 py-2.5 print:px-3 print:py-1.5 text-right font-black uppercase text-[10px] tracking-[0.2em]" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Performance Summary</td>
+                                    <td className="px-3 py-2.5 print:py-1.5 text-center font-black text-xl underline decoration-blue-300 decoration-2">{overallAverage}</td>
+                                    <td className="px-3 py-2.5 print:py-1.5" colSpan={2}></td>
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
+                </div>
             </div>
 
-            {/* ── BOTTOM GRID ── */}
-            <div className={`px-6 pt-2 pb-2 print:px-4 print:pt-1.5 print:pb-1.5 grid gap-2.5 print:gap-2 ${showFees ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {/* ══ BOTTOM SECTION ══ */}
+            <div className={`px-8 pb-6 print:px-6 print:pb-4 grid gap-4 print:gap-3 flex-shrink-0 ${showFees ? 'grid-cols-2' : 'grid-cols-1'}`}>
 
-                {/* Left: Meta + Remarks */}
-                <div className="space-y-2 print:space-y-1.5">
-                    {/* Meta row */}
-                    <div className="grid grid-cols-2 gap-2 print:gap-1.5">
+                {/* Left: Meta grid + Remarks */}
+                <div className="flex flex-col gap-4 print:gap-3">
+                    {/* Meta cards grid */}
+                    <div className="grid grid-cols-2 gap-3 print:gap-2">
                         {schoolConfig?.report_card_config?.show_attendance !== false && (
-                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                                <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest leading-none mb-1">Attendance Record</p>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[11px] font-black text-slate-800">{attendancePresentDays} <span className="text-slate-400 font-normal">/ {attendanceTotalDays}</span> <span className="text-[9px] text-slate-400">Days</span></span>
-                                    <div className="w-14 bg-slate-200 h-1.5 rounded-full overflow-hidden shrink-0">
-                                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${attendanceTotalDays > 0 ? Math.min(100, (attendancePresentDays / attendanceTotalDays) * 100) : 0}%` }} />
+                            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                                <p className="text-[9.5px] font-black text-blue-600 uppercase tracking-widest leading-none mb-2">Attendance Record</p>
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <span className="text-lg font-black text-slate-900">{attendancePresentDays}</span>
+                                        <span className="text-slate-400 font-medium text-sm"> / {attendanceTotalDays} </span>
+                                        <span className="text-[10px] text-slate-400 font-bold">Days</span>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="text-xs font-black text-blue-600">{attendanceTotalDays > 0 ? Math.round((attendancePresentDays / attendanceTotalDays) * 100) : 0}%</span>
+                                        <div className="w-20 bg-blue-200 h-2 rounded-full overflow-hidden">
+                                            <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${attendanceTotalDays > 0 ? Math.min(100, (attendancePresentDays / attendanceTotalDays) * 100) : 0}%` }} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         )}
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Reopens</p>
-                            <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-[11px] p-0" placeholder="—" />
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                            <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Reopening Date</p>
+                            <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-sm p-0" placeholder="—" />
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Conduct</p>
-                            <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-[11px] p-0" placeholder="—" />
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                            <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Conduct & Attitude</p>
+                            <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-sm p-0" placeholder="—" />
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Interest</p>
-                            <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-[11px] p-0" placeholder="—" />
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                            <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Interest & Talent</p>
+                            <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-sm p-0" placeholder="—" />
                         </div>
                     </div>
 
                     {/* Remarks */}
-                    <div className={`grid gap-2 print:gap-1.5 ${showFees ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <div className={`grid gap-3 print:gap-2 ${showFees ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
-                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Teacher Remark</p>
-                                <textarea value={teacherRemark} onChange={(e) => setTeacherRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-[11px] italic font-semibold resize-none h-8 print:h-6 outline-none text-slate-800 leading-snug" placeholder="..." />
+                            <div className="bg-amber-50/60 border border-amber-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                                <p className="text-[9.5px] font-black text-amber-600 uppercase tracking-widest leading-none mb-2">Class Teacher's Remark</p>
+                                <textarea value={teacherRemark} onChange={(e) => setTeacherRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-[12px] italic font-semibold resize-none h-14 print:h-10 outline-none text-slate-800 leading-relaxed" placeholder="Enter teacher evaluation here..." />
                             </div>
                         )}
                         {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
-                            <div className="bg-slate-50/80 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Final Decision</p>
-                                <textarea value={principalRemark} onChange={(e) => setPrincipalRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-[11px] italic font-semibold resize-none h-8 print:h-6 outline-none text-slate-800 leading-snug" placeholder="..." />
+                            <div className="bg-green-50/60 border border-green-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2">
+                                <p className="text-[9.5px] font-black text-green-700 uppercase tracking-widest leading-none mb-2">Head Teacher's Final Decision</p>
+                                <textarea value={principalRemark} onChange={(e) => setPrincipalRemark(e.target.value)} className="w-full bg-transparent border-none p-0 text-[12px] italic font-semibold resize-none h-14 print:h-10 outline-none text-slate-800 leading-relaxed" placeholder="Enter principal remarks here..." />
                             </div>
                         )}
                     </div>
 
                     {/* Extra Sections */}
                     {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2 print:gap-1.5">
+                        <div className="grid grid-cols-2 gap-3 print:gap-2">
                             {extraReportSections.map((section, idx) => (
-                                <div key={idx} className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 print:px-2 print:py-1 relative group">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <input type="text" value={section.title} onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} placeholder="Section Title" className="bg-transparent border-none text-[9px] font-black uppercase text-blue-500 outline-none w-full tracking-widest p-0" />
+                                <div key={idx} className="bg-purple-50/60 border border-purple-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2 relative group">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <input type="text" value={section.title} onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} placeholder="Section Title" className="bg-transparent border-none text-[9.5px] font-black uppercase text-purple-600 outline-none w-full tracking-widest p-0" />
                                         <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-0.5 text-red-400 rounded print:hidden shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </div>
-                                    <textarea value={section.content} onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} className="w-full bg-transparent border-none outline-none text-[10.5px] text-slate-600 h-7 print:h-5 resize-none italic font-medium leading-snug p-0" placeholder="..." />
+                                    <textarea value={section.content} onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} className="w-full bg-transparent border-none outline-none text-[11px] text-slate-700 h-10 print:h-8 resize-none italic font-medium leading-snug p-0" placeholder="..." />
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {/* Standalone Signatures when no fees */}
+                    {/* Standalone Signatures (when no fees) */}
                     {!showFees && schoolConfig?.report_card_config?.show_signature !== false && (
-                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 print:pt-1.5">
+                        <div className="grid grid-cols-2 gap-6 pt-4 border-t-2 border-dashed border-slate-200 print:pt-3 mt-auto">
                             <div>
-                                <div className="h-6 print:h-4"></div>
-                                <div className="h-px bg-slate-400 w-32 mb-0.5"></div>
-                                <p className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest">Class Teacher Signature</p>
+                                <div className="h-12 print:h-8"></div>
+                                <div className="h-px bg-slate-400 w-40 mb-1"></div>
+                                <p className="text-[9.5px] font-black text-slate-500 uppercase tracking-widest">Class Teacher Signature</p>
+                                <p className="text-[9px] text-slate-300 mt-0.5">{new Date().toLocaleDateString('en-GB')}</p>
                             </div>
                             <div className="relative">
                                 {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-8 object-contain absolute -top-7 left-0 z-10" alt="Signature" />
+                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-9 left-4 z-10" alt="Signature" />
                                 )}
-                                <div className="h-6 print:h-4"></div>
-                                <div className="h-px bg-slate-900 w-32 mb-0.5 relative z-20"></div>
-                                <p className="text-[8.5px] font-black text-slate-900 uppercase tracking-widest relative z-20">Head Teacher / Principal</p>
+                                <div className="h-12 print:h-8"></div>
+                                <div className="h-px bg-slate-900 w-40 mb-1 relative z-20"></div>
+                                <p className="text-[9.5px] font-black text-slate-800 uppercase tracking-widest relative z-20">Head Teacher / Principal</p>
                                 {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-14 w-14 object-contain absolute -top-10 right-0 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
                                 )}
                             </div>
                         </div>
@@ -1285,61 +1311,66 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
                 {/* Right: Financial Statement */}
                 {showFees && (
-                    <div className="bg-slate-900 text-white rounded-2xl p-4 print:p-3 print:rounded-xl flex flex-col justify-between relative overflow-hidden print:bg-white print:border-2 print:border-slate-800 print:text-slate-900">
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 text-white rounded-2xl print:rounded-lg p-5 print:p-4 flex flex-col justify-between relative overflow-hidden print:bg-white print:border-2 print:border-slate-800 print:text-slate-900">
+                        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-500/10 pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
                         <div className="absolute inset-0 opacity-5 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] print:hidden pointer-events-none" />
+                        
                         <div className="relative z-10">
-                            <div className="flex justify-between items-center mb-2.5 print:mb-2">
-                                <h4 className="text-[9.5px] font-black uppercase tracking-widest border-b border-white/30 pb-0.5 print:border-slate-300">Financial Statement</h4>
-                                <span className="text-[8.5px] font-bold bg-white/20 px-2 py-0.5 rounded-full print:bg-slate-100 print:text-slate-700">TERM {schoolConfig?.current_term || 1}</span>
+                            <div className="flex justify-between items-center mb-4 print:mb-3">
+                                <h4 className="text-[10.5px] font-black uppercase tracking-widest text-white/80 print:text-slate-700">Financial Statement</h4>
+                                <span className="text-[9px] font-bold bg-blue-500/30 border border-blue-400/30 px-2.5 py-1 rounded-full print:bg-slate-100 print:text-slate-700 print:border-slate-200">TERM {schoolConfig?.current_term || 1}</span>
                             </div>
-                            <div className="space-y-1.5 print:space-y-1 text-[10.5px]">
-                                <div className="flex justify-between items-center border-b border-white/10 pb-1 print:border-slate-200">
-                                    <span className="opacity-70 font-semibold uppercase tracking-wide text-[9.5px]">Outstanding Balance</span>
-                                    <span className="font-mono font-black">{(student as any).balance || '0.00'}</span>
+                            <div className="space-y-3 print:space-y-2">
+                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
+                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">Outstanding Balance</span>
+                                    <span className="font-mono font-black text-sm">GHS {(student as any).balance || '0.00'}</span>
                                 </div>
-                                <div className="flex justify-between items-center border-b border-white/10 pb-1 print:border-slate-200">
-                                    <span className="opacity-70 font-semibold uppercase tracking-wide text-[9.5px]">New Bill Amount</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="opacity-50 text-[9.5px] font-mono">GHS</span>
-                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-16 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0 px-1 print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-[10.5px]" />
+                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
+                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">New Bill Amount</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="opacity-50 text-[10px] font-mono">GHS</span>
+                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center border-b border-white/10 pb-1 print:border-slate-200">
-                                    <span className="opacity-70 font-semibold uppercase tracking-wide text-[9.5px]">Auxiliary Charges</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="opacity-50 text-[9.5px] font-mono">GHS</span>
-                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-16 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0 px-1 print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-[10.5px]" />
+                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
+                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">Auxiliary Charges</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="opacity-50 text-[10px] font-mono">GHS</span>
+                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
                                     </div>
                                 </div>
                                 {extraBillItems.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between items-center group">
-                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item" className="bg-transparent border-b border-white/20 text-[9.5px] uppercase tracking-wide font-bold outline-none w-1/2 opacity-70 print:border-none print:opacity-100 p-0" />
-                                        <div className="flex items-center gap-1">
-                                            <span className="opacity-50 font-mono text-[9.5px]">GHS</span>
-                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-16 bg-white/10 border-b border-white/30 text-right outline-none font-mono py-0 px-1 print:bg-slate-50 print:border-slate-300 print:text-slate-900 text-[10.5px]" />
-                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-4 w-4 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100"><X className="w-2.5 h-2.5" /></button>
+                                    <div key={idx} className="flex justify-between items-center group border-b border-white/10 pb-2.5 print:border-slate-200">
+                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent border-b border-white/20 text-[10px] uppercase tracking-wider font-bold outline-none w-1/2 opacity-70 print:border-none print:opacity-100 p-0" />
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="opacity-50 font-mono text-[10px]">GHS</span>
+                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-5 w-5 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5" /></button>
                                         </div>
                                     </div>
                                 ))}
-                                <button onClick={addExtraBillItem} className="print:hidden w-full py-1 border border-dashed border-white/30 rounded-lg text-[8.5px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-1"><X className="w-2 h-2 rotate-45" /> Add Item</button>
+                                <button onClick={addExtraBillItem} className="print:hidden w-full py-2 border border-dashed border-white/20 rounded-xl text-[9.5px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-1.5 mt-1"><X className="w-2.5 h-2.5 rotate-45" /> Add Bill Item</button>
                             </div>
                         </div>
-                        <div className="relative z-10 mt-2.5 print:mt-2 pt-2 border-t border-white/20 print:border-slate-300 flex justify-between items-end">
+
+                        {/* Total + Signature */}
+                        <div className="relative z-10 mt-4 print:mt-3 pt-3 border-t border-white/20 print:border-slate-300 flex justify-between items-end">
                             <div>
-                                <p className="text-[8.5px] font-black uppercase opacity-60 tracking-widest mb-0.5">Grand Total Payable</p>
-                                <p className="text-lg print:text-base font-black tracking-tighter"><span className="text-[10px] mr-1 opacity-50">GHS</span>{totalBill.toFixed(2)}</p>
+                                <p className="text-[9px] font-black uppercase opacity-60 tracking-widest mb-1">Grand Total Payable</p>
+                                <p className="text-2xl print:text-xl font-black tracking-tighter"><span className="text-xs mr-1 opacity-50">GHS</span>{totalBill.toFixed(2)}</p>
                             </div>
                             {schoolConfig?.report_card_config?.show_signature !== false && (
-                                <div className="text-right relative min-w-[90px]">
+                                <div className="text-right relative min-w-[100px]">
                                     {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-8 object-contain absolute -top-9 right-0 z-10 brightness-110" alt="Signature" />
+                                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-12 right-0 z-10 brightness-110" alt="Signature" />
                                     )}
-                                    <div className="h-7 w-7 bg-white/20 rounded-full ml-auto mb-1 flex items-center justify-center print:bg-slate-100 relative z-20">
-                                        <Building2 className="w-3.5 h-3.5 opacity-60 print:text-slate-500" />
+                                    <div className="h-8 w-8 bg-white/20 rounded-full ml-auto mb-1.5 flex items-center justify-center print:bg-slate-100 relative z-20">
+                                        <Building2 className="w-4 h-4 opacity-60 print:text-slate-500" />
                                     </div>
-                                    <p className="text-[8px] font-black uppercase opacity-60 tracking-widest relative z-20">Verified</p>
+                                    <p className="text-[8.5px] font-black uppercase opacity-60 tracking-widest relative z-20">Principal / Verified</p>
                                     {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                        <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-14 w-14 object-contain absolute -top-10 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                        <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
                                     )}
                                 </div>
                             )}
@@ -1348,34 +1379,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 )}
             </div>
 
-            {/* ── FOOTER BAR ── */}
-            <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-blue-700 to-slate-900 print:h-px print:bg-slate-400 mt-auto" />
-            <div className="px-6 py-1 print:px-4 flex justify-between items-center text-[8.5px] font-black text-slate-300 uppercase tracking-[0.25em]">
-                <div>Secure Academic Record · {student.id.substring(0, 12).toUpperCase()}</div>
-                <div>© {new Date().getFullYear()} Base16 Schools Management</div>
+            {/* ══ FOOTER STRIPE ══ */}
+            <div className="mt-auto bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 px-8 py-2.5 print:px-6 print:py-2 flex justify-between items-center flex-shrink-0">
+                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em]">Secure Academic Record · {student.id.substring(0, 12).toUpperCase()}</p>
+                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em]">© {new Date().getFullYear()} Base16 Schools Management System</p>
             </div>
         </div>
     );
-
-
-    
-    
-    // Helper to calculate deterministic subject rankings like J.A. Boateng
-    const getSubjectRank = (subject: string, score: number) => {
-        const roll = position?.total || 49;
-        const charCodeSum = subject.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        // Vary the total subject roll slightly per subject (e.g. 42 to 49)
-        const subjectRoll = Math.max(15, Math.min(roll, roll - (charCodeSum % 6))); 
-        
-        if (score >= 95) return { pos: 1, roll: subjectRoll };
-        if (score <= 15) return { pos: subjectRoll, roll: subjectRoll };
-        
-        // Calculate position: higher score yields better rank (closer to 1)
-        const studentHash = (student.id || 'abc').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const offset = (charCodeSum + studentHash) % 3;
-        const pos = Math.max(1, Math.min(subjectRoll, Math.round(((100 - score) / 100) * subjectRoll) + offset));
-        
-        return { pos, roll: subjectRoll };
     };
 
     const adventistContent = (
