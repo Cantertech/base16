@@ -731,6 +731,24 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         </div>
     );
 
+    // Helper to calculate deterministic subject rankings like J.A. Boateng
+    const getSubjectRank = (subject: string, score: number) => {
+        const roll = position?.total || 49;
+        const charCodeSum = subject.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        // Vary the total subject roll slightly per subject (e.g. 42 to 49)
+        const subjectRoll = Math.max(15, Math.min(roll, roll - (charCodeSum % 6))); 
+        
+        if (score >= 95) return { pos: 1, roll: subjectRoll };
+        if (score <= 15) return { pos: subjectRoll, roll: subjectRoll };
+        
+        // Calculate position: higher score yields better rank (closer to 1)
+        const studentHash = (student.id || 'abc').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const offset = (charCodeSum + studentHash) % 3;
+        const pos = Math.max(1, Math.min(subjectRoll, Math.round(((100 - score) / 100) * subjectRoll) + offset));
+        
+        return { pos, roll: subjectRoll };
+    };
+
     const classicContent = (
         <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-12 print:p-4 print:p-2 min-h-[1056px] print:min-h-0 text-slate-900 flex flex-col font-serif relative overflow-hidden ${printMode ? 'p-0 shadow-none' : 'shadow-2xl border border-slate-200'}`} style={{ fontFamily: 'Georgia, serif' }}>
 
@@ -1394,24 +1412,6 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
         </div>
     );
-
-    // Helper to calculate deterministic subject rankings like J.A. Boateng
-    const getSubjectRank = (subject: string, score: number) => {
-        const roll = position?.total || 49;
-        const charCodeSum = subject.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        // Vary the total subject roll slightly per subject (e.g. 42 to 49)
-        const subjectRoll = Math.max(15, Math.min(roll, roll - (charCodeSum % 6))); 
-        
-        if (score >= 95) return { pos: 1, roll: subjectRoll };
-        if (score <= 15) return { pos: subjectRoll, roll: subjectRoll };
-        
-        // Calculate position: higher score yields better rank (closer to 1)
-        const studentHash = (student.id || 'abc').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const offset = (charCodeSum + studentHash) % 3;
-        const pos = Math.max(1, Math.min(subjectRoll, Math.round(((100 - score) / 100) * subjectRoll) + offset));
-        
-        return { pos, roll: subjectRoll };
-    };
 
     const adventistContent = (
         <div ref={printMode ? undefined : componentRef} className="bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-10 text-slate-900 flex flex-col font-serif relative overflow-hidden border border-slate-350 shadow-sm" style={{ fontFamily: 'Georgia, serif' }}>
