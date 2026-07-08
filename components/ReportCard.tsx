@@ -1,4 +1,4 @@
-﻿import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Building2, Save, Plus, PenTool } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -765,7 +765,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* Watermark */}
             {schoolConfig?.logo_url && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.025] pointer-events-none w-[420px] h-[420px] z-0">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.09] pointer-events-none w-[420px] h-[420px] z-0">
                     <img src={schoolConfig.logo_url} alt="" className="w-full h-full object-contain" />
                 </div>
             )}
@@ -852,17 +852,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <div>
                             <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Position</p>
                             <p className="text-[12px] font-black text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">
-                                {position?.position || '—'}<span className="text-[9px] font-normal italic text-slate-400"> / {position?.total || '—'}</span>
+                                {position?.position ? `${position.position} / ${position.total}` : '—'}
                             </p>
                         </div>
                     )}
                     {schoolConfig?.report_card_config?.show_attendance !== false && (
                         <div>
                             <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Attendance</p>
-                            <div className="flex items-center gap-1 border-b border-slate-400 pb-0.5 mt-0.5">
-                                <input type="number" value={attendancePresentDays} readOnly className="w-7 bg-transparent outline-none text-[12px] font-black text-slate-900 text-center cursor-not-allowed" />
-                                <span className="text-[9px] italic text-slate-400">of</span>
-                                <input type="number" value={attendanceTotalDays} readOnly className="w-7 bg-transparent outline-none text-[12px] font-bold text-slate-500 text-center cursor-not-allowed" />
+                            <div className="flex items-baseline gap-1 border-b border-slate-400 pb-0.5 mt-0.5">
+                                <span className="text-[12px] font-black text-slate-900 leading-tight">{attendancePresentDays}</span>
+                                <span className="text-[9px] italic text-slate-400 leading-tight">of</span>
+                                <span className="text-[11px] font-bold text-slate-500 leading-tight">{attendanceTotalDays}</span>
                             </div>
                         </div>
                     )}
@@ -892,18 +892,18 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
                 <table className="w-full border-collapse border border-slate-800 text-[11px] print:text-[10.5px]" style={{ fontFamily: 'Georgia, serif' }}>
                     <thead>
-                        <tr className="bg-slate-900 text-white print:bg-slate-800">
-                            <th className="border border-slate-600 px-2.5 py-1.5 print:px-2 print:py-1 text-left font-black uppercase tracking-wider text-[9.5px]">Subject</th>
+                        <tr className="bg-slate-100 text-slate-900 border-b border-slate-800">
+                            <th className="border border-slate-400 px-2.5 py-2 print:px-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[9.5px]">Subject</th>
                             {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                <th className="border border-slate-600 px-2 py-1.5 print:py-1 text-center font-black uppercase tracking-wider text-[9px] w-16">Class<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.class || 30}%)</span></th>
+                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-16">Class<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.class || 30}%)</span></th>
                             )}
-                            <th className="border border-slate-600 px-2 py-1.5 print:py-1 text-center font-black uppercase tracking-wider text-[9px] w-16">Exam<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.exam || 70}%)</span></th>
-                            <th className="border border-slate-600 px-2 py-1.5 print:py-1 text-center font-black uppercase tracking-wider text-[9px] w-14 underline decoration-double bg-slate-800 print:bg-slate-700">Total</th>
-                            <th className="border border-slate-600 px-2 py-1.5 print:py-1 text-center font-black uppercase tracking-wider text-[9px] w-10">Grade</th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-16">Exam<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.exam || 70}%)</span></th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-14 underline decoration-double bg-slate-200/50 print:bg-slate-200">Total</th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-10">Grade</th>
                             {schoolConfig?.report_card_config?.show_position !== false && (
-                                <th className="border border-slate-600 px-2 py-1.5 print:py-1 text-center font-black uppercase tracking-wider text-[9px] w-8">Pos</th>
+                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-8">Pos</th>
                             )}
-                            <th className="border border-slate-600 px-2.5 py-1.5 print:py-1 text-left font-black uppercase tracking-wider text-[9px]">Teacher's Remark</th>
+                            <th className="border border-slate-400 px-2.5 py-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[9px]">Teacher's Remark</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -915,21 +915,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             const isEven = index % 2 === 0;
                             return (
                                 <tr key={index} className={isEven ? 'bg-[#fdfcf8]' : 'bg-slate-50/70'}>
-                                    <td className="border border-slate-300 px-2.5 py-1 print:px-2 print:py-0.5 font-bold text-slate-900 uppercase text-[10.5px]">{result.subject}</td>
+                                    <td className="border border-slate-300 px-2.5 py-2 print:px-2 print:py-1.5 font-bold text-slate-900 uppercase text-[10.5px]">{result.subject}</td>
                                     {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                        <td className="border border-slate-300 px-2 py-1 print:py-0.5 text-center text-slate-600 font-semibold">{result.classScore}</td>
+                                        <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center text-slate-600 font-semibold">{result.classScore}</td>
                                     )}
-                                    <td className="border border-slate-300 px-2 py-1 print:py-0.5 text-center text-slate-600 font-semibold">{result.examScore}</td>
-                                    <td className={`border border-slate-400 px-2 py-1 print:py-0.5 text-center font-black ${isGood ? 'text-slate-900' : isBad ? 'text-slate-700' : 'text-slate-800'} bg-slate-100/50`}>
+                                    <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center text-slate-600 font-semibold">{result.examScore}</td>
+                                    <td className={`border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black ${isGood ? 'text-slate-900 bg-slate-100/30' : isBad ? 'text-slate-700 bg-red-50/10' : 'text-slate-800 bg-amber-50/10'} bg-slate-100/50`}>
                                         <span className={`border-b-2 ${isGood ? 'border-slate-700' : isBad ? 'border-slate-400 line-through decoration-red-500' : 'border-slate-500'}`}>{result.total}</span>
                                     </td>
-                                    <td className="border border-slate-300 px-2 py-1 print:py-0.5 text-center font-black text-slate-900">{grade}</td>
+                                    <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-black text-slate-900">{grade}</td>
                                     {schoolConfig?.report_card_config?.show_position !== false && (
-                                        <td className="border border-slate-300 px-2 py-1 print:py-0.5 text-center font-bold text-slate-500 text-[10px]">
+                                        <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[10px]">
                                             {getSubjectRank(result.subject, result.total).pos}
                                         </td>
                                     )}
-                                    <td className="border border-slate-300 px-2.5 py-1 print:py-0.5 italic text-slate-500 text-[10.5px]">{remark}</td>
+                                    <td className="border border-slate-300 px-2.5 py-2 print:py-1.5 italic text-slate-500 text-[10.5px]">{remark}</td>
                                 </tr>
                             );
                         })}
