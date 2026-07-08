@@ -1171,11 +1171,14 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             <tr className="bg-slate-900 text-white print:bg-slate-800">
                                 <th className="px-4 py-2.5 print:px-3 print:py-1.5 text-left text-[10px] font-black uppercase tracking-wider">Subject</th>
                                 {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                    <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-20">Class ({schoolConfig?.weights?.class || 30}%)</th>
+                                    <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-16">Class ({schoolConfig?.weights?.class || 30}%)</th>
                                 )}
-                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-20">Exam ({schoolConfig?.weights?.exam || 70}%)</th>
-                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-16 bg-blue-600 print:bg-blue-800">Total</th>
-                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-14">Grade</th>
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-16">Exam ({schoolConfig?.weights?.exam || 70}%)</th>
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-14 bg-blue-600 print:bg-blue-800">Total</th>
+                                <th className="px-3 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-12">Grade</th>
+                                {schoolConfig?.report_card_config?.show_position !== false && (
+                                    <th className="px-2 py-2.5 print:py-1.5 text-center text-[10px] font-black uppercase tracking-wider w-10">Pos</th>
+                                )}
                                 <th className="px-4 py-2.5 print:px-3 print:py-1.5 text-left text-[10px] font-black uppercase tracking-wider">Remark</th>
                             </tr>
                         </thead>
@@ -1197,6 +1200,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <td className="px-3 py-2 print:py-1.5 text-center border-b border-slate-100">
                                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${grade === 'A' || grade?.startsWith('EE') ? 'bg-green-100 text-green-700' : grade === 'F' || grade?.startsWith('BE') ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{grade}</span>
                                         </td>
+                                        {schoolConfig?.report_card_config?.show_position !== false && (
+                                            <td className="px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[11px] border-b border-slate-100">
+                                                {getSubjectRank(result.subject, result.total).pos}
+                                            </td>
+                                        )}
                                         <td className="px-4 py-2 print:px-3 print:py-1.5 text-slate-500 italic text-[11.5px] border-b border-slate-100">{remark}</td>
                                     </tr>
                                 );
@@ -1207,7 +1215,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <tr className="bg-gradient-to-r from-slate-900 to-blue-900 text-white print:bg-slate-800">
                                     <td className="px-4 py-2.5 print:px-3 print:py-1.5 text-right font-black uppercase text-[10px] tracking-[0.2em]" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Performance Summary</td>
                                     <td className="px-3 py-2.5 print:py-1.5 text-center font-black text-xl underline decoration-blue-300 decoration-2">{overallAverage}</td>
-                                    <td className="px-3 py-2.5 print:py-1.5" colSpan={2}></td>
+                                    <td className="px-3 py-2.5 print:py-1.5" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 3 : 2}></td>
                                 </tr>
                             </tfoot>
                         )}
@@ -1322,30 +1330,30 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <span className="text-[9px] font-bold bg-blue-500/30 border border-blue-400/30 px-2.5 py-1 rounded-full print:bg-slate-100 print:text-slate-700 print:border-slate-200">TERM {schoolConfig?.current_term || 1}</span>
                             </div>
                             <div className="space-y-3 print:space-y-2">
-                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
-                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">Outstanding Balance</span>
-                                    <span className="font-mono font-black text-sm">GHS {(student as any).balance || '0.00'}</span>
+                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-300">
+                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">Outstanding Balance</span>
+                                    <span className="font-mono font-black text-sm print:text-slate-900">GHS {(student as any).balance || '0.00'}</span>
                                 </div>
-                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
-                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">New Bill Amount</span>
+                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-300">
+                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">New Bill Amount</span>
                                     <div className="flex items-center gap-1.5">
                                         <span className="opacity-50 text-[10px] font-mono">GHS</span>
                                         <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
-                                    <span className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">Auxiliary Charges</span>
+                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">Auxiliary Charges</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="opacity-50 text-[10px] font-mono">GHS</span>
-                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                        <span className="opacity-50 print:opacity-100 print:text-slate-500 text-[10px] font-mono">GHS</span>
+                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-white print:border-slate-300 print:text-slate-900" />
                                     </div>
                                 </div>
                                 {extraBillItems.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between items-center group border-b border-white/10 pb-2.5 print:border-slate-200">
-                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent border-b border-white/20 text-[10px] uppercase tracking-wider font-bold outline-none w-1/2 opacity-70 print:border-none print:opacity-100 p-0" />
+                                    <div key={idx} className="flex justify-between items-center group border-b border-white/10 pb-2.5 print:border-slate-300">
+                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent border-b border-white/20 text-[10px] uppercase tracking-wider font-bold outline-none w-1/2 opacity-70 print:text-slate-700 print:border-none print:opacity-100 p-0" />
                                         <div className="flex items-center gap-1.5">
-                                            <span className="opacity-50 font-mono text-[10px]">GHS</span>
-                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                            <span className="opacity-50 print:opacity-100 print:text-slate-500 font-mono text-[10px]">GHS</span>
+                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-white print:border-slate-300 print:text-slate-900" />
                                             <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-5 w-5 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5" /></button>
                                         </div>
                                     </div>
@@ -1357,8 +1365,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         {/* Total + Signature */}
                         <div className="relative z-10 mt-4 print:mt-3 pt-3 border-t border-white/20 print:border-slate-300 flex justify-between items-end">
                             <div>
-                                <p className="text-[9px] font-black uppercase opacity-60 tracking-widest mb-1">Grand Total Payable</p>
-                                <p className="text-2xl print:text-xl font-black tracking-tighter"><span className="text-xs mr-1 opacity-50">GHS</span>{totalBill.toFixed(2)}</p>
+                                <p className="text-[9px] font-black uppercase opacity-60 print:opacity-100 print:text-slate-500 tracking-widest mb-1">Grand Total Payable</p>
+                                <p className="text-2xl print:text-xl font-black tracking-tighter print:text-slate-900"><span className="text-xs mr-1 opacity-50 print:opacity-100 print:text-slate-500">GHS</span>{totalBill.toFixed(2)}</p>
                             </div>
                             {schoolConfig?.report_card_config?.show_signature !== false && (
                                 <div className="text-right relative min-w-[100px]">
