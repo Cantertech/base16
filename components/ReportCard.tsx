@@ -1,4 +1,4 @@
-﻿import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Building2, Save, Plus, PenTool } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -1386,7 +1386,6 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
         </div>
     );
-    };
 
     const adventistContent = (
         <div ref={printMode ? undefined : componentRef} className="bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-10 text-slate-900 flex flex-col font-serif relative overflow-hidden border border-slate-350 shadow-sm" style={{ fontFamily: 'Georgia, serif' }}>
