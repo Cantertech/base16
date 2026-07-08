@@ -783,15 +783,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             )}
                         </div>
                         <div>
-                            <h1 className="text-[20px] print:text-[17px] font-black uppercase tracking-[0.08em] text-slate-900 leading-tight">
+                            <h1 className="text-[24px] print:text-[21px] font-black uppercase tracking-[0.08em] text-slate-900 leading-tight">
                                 {schoolConfig?.name || 'Name of School'}
                             </h1>
                             {schoolConfig?.motto && (
-                                <p className="text-[10px] print:text-[9px] font-bold italic text-slate-500 tracking-wider mt-0.5">
+                                <p className="text-[11.5px] print:text-[10px] font-bold italic text-slate-500 tracking-wider mt-0.5">
                                     "{schoolConfig.motto}"
                                 </p>
                             )}
-                            <p className="text-[9px] print:text-[8.5px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                            <p className="text-[10.5px] print:text-[9.5px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                                 {schoolConfig?.address || 'School Address'}{schoolConfig?.phone ? ` · Tel: ${schoolConfig.phone}` : ''}
                             </p>
                         </div>
@@ -800,11 +800,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     {/* Centre: Decorative Title */}
                     <div className="text-center flex-1 px-4 hidden md:block print:block">
                         <div className="border-t-2 border-b-2 border-slate-800 py-2 inline-block w-full">
-                            <p className="text-[9px] font-black uppercase tracking-[0.35em] text-slate-600">Academic Progress Report</p>
-                            <p className="text-[16px] print:text-[14px] font-black uppercase tracking-[0.2em] text-slate-900 mt-0.5">
+                            <p className="text-[10.5px] print:text-[9.5px] font-black uppercase tracking-[0.35em] text-slate-600">Academic Progress Report</p>
+                            <p className="text-[18px] print:text-[15.5px] font-black uppercase tracking-[0.2em] text-slate-900 mt-0.5">
                                 {schoolConfig?.current_term ? `${schoolConfig.current_term === 1 || schoolConfig.current_term === '1' ? 'First' : schoolConfig.current_term === 2 || schoolConfig.current_term === '2' ? 'Second' : 'Third'} Term` : 'End of Term'} Report
                             </p>
-                            <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-500 mt-0.5">
+                            <p className="text-[10.5px] print:text-[9.5px] font-bold uppercase tracking-[0.25em] text-slate-500 mt-0.5">
                                 Academic Year: {schoolConfig?.academic_year || '2024/2025'}
                             </p>
                         </div>
@@ -836,48 +836,48 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 <div className="grid grid-cols-4 print:grid-cols-4 gap-x-6 gap-y-2 print:gap-x-4 print:gap-y-1.5">
                     {/* Name */}
                     <div className="col-span-2 print:col-span-2">
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Full Name of Student</p>
-                        <p className="text-[13px] print:text-[12px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5 tracking-wide">{student.name}</p>
+                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Full Name of Student</p>
+                        <p className="text-[14.5px] print:text-[13.5px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5 tracking-wide">{student.name}</p>
                     </div>
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Class</p>
-                        <p className="text-[12px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">{student.class}</p>
+                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Class</p>
+                        <p className="text-[13.5px] print:text-[13px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">{student.class}</p>
                     </div>
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Enrol. No.</p>
-                        <p className="text-[11px] font-bold uppercase text-slate-700 border-b border-slate-400 pb-0.5 mt-0.5 font-mono">{student.id.substring(0, 8).toUpperCase()}</p>
+                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Enrol. No.</p>
+                        <p className="text-[12.5px] print:text-[12px] font-bold uppercase text-slate-700 border-b border-slate-400 pb-0.5 mt-0.5 font-mono">{student.id.substring(0, 8).toUpperCase()}</p>
                     </div>
                     {/* Second row */}
                     {schoolConfig?.report_card_config?.show_position !== false && (
                         <div>
-                            <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Position</p>
-                            <p className="text-[12px] font-black text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Position</p>
+                            <p className="text-[13.5px] print:text-[13px] font-black text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">
                                 {position?.position ? `${position.position} / ${position.total}` : '—'}
                             </p>
                         </div>
                     )}
                     {schoolConfig?.report_card_config?.show_attendance !== false && (
                         <div>
-                            <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Attendance</p>
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Attendance</p>
                             <div className="flex items-baseline gap-1 border-b border-slate-400 pb-0.5 mt-0.5">
-                                <span className="text-[12px] font-black text-slate-900 leading-tight">{attendancePresentDays}</span>
-                                <span className="text-[9px] italic text-slate-400 leading-tight">of</span>
-                                <span className="text-[11px] font-bold text-slate-500 leading-tight">{attendanceTotalDays}</span>
+                                <span className="text-[13.5px] print:text-[13px] font-black text-slate-900 leading-tight">{attendancePresentDays}</span>
+                                <span className="text-[10px] italic text-slate-400 leading-tight">of</span>
+                                <span className="text-[12.5px] print:text-[12px] font-bold text-slate-500 leading-tight">{attendanceTotalDays}</span>
                             </div>
                         </div>
                     )}
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Re-opening Date</p>
+                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Re-opening Date</p>
                         <input
                             type="text"
                             value={nextTermReopens}
                             onChange={e => setNextTermReopens(e.target.value)}
-                            className="w-full bg-transparent border-b border-slate-400 outline-none text-[11px] font-bold text-slate-700 uppercase pb-0.5 mt-0.5"
+                            className="w-full bg-transparent border-b border-slate-400 outline-none text-[12.5px] print:text-[12px] font-bold text-slate-700 uppercase pb-0.5 mt-0.5"
                         />
                     </div>
                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-500">Next Class</p>
-                        <p className="text-[12px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">{nextClass || '—'}</p>
+                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Next Class</p>
+                        <p className="text-[13.5px] print:text-[13px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">{nextClass || '—'}</p>
                     </div>
                 </div>
             </div>
@@ -886,24 +886,24 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className="relative z-10 px-10 pt-3 pb-2 print:px-7 print:pt-2 print:pb-1.5 flex-1">
                 {/* Section label */}
                 <div className="flex items-center gap-3 mb-1.5 print:mb-1">
-                    <p className="text-[8.5px] font-black uppercase tracking-[0.3em] text-slate-600">Academic Assessment</p>
+                    <p className="text-[10px] print:text-[9.5px] font-black uppercase tracking-[0.3em] text-slate-600">Academic Assessment</p>
                     <div className="flex-1 h-px bg-slate-400" />
                 </div>
 
-                <table className="w-full border-collapse border border-slate-800 text-[11px] print:text-[10.5px]" style={{ fontFamily: 'Georgia, serif' }}>
+                <table className="w-full border-collapse border border-slate-800 text-[12px] print:text-[11px]" style={{ fontFamily: 'Georgia, serif' }}>
                     <thead>
                         <tr className="bg-slate-100 text-slate-900 border-b border-slate-800">
-                            <th className="border border-slate-400 px-2.5 py-2 print:px-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[9.5px]">Subject</th>
+                            <th className="border border-slate-400 px-2.5 py-2 print:px-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[10.5px] print:text-[10px]">Subject</th>
                             {schoolConfig?.grading_type !== 'COMPETENCY' && (
-                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-16">Class<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.class || 30}%)</span></th>
+                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[10px] print:text-[9px] w-16">Class<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.class || 30}%)</span></th>
                             )}
-                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-16">Exam<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.exam || 70}%)</span></th>
-                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-14 underline decoration-double bg-slate-200/50 print:bg-slate-200">Total</th>
-                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-10">Grade</th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[10px] print:text-[9px] w-16">Exam<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.exam || 70}%)</span></th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[10px] print:text-[9px] w-14 underline decoration-double bg-slate-200/50 print:bg-slate-200">Total</th>
+                            <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[10px] print:text-[9px] w-10">Grade</th>
                             {schoolConfig?.report_card_config?.show_position !== false && (
-                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[9px] w-8">Pos</th>
+                                <th className="border border-slate-400 px-2 py-2 print:py-1.5 text-center font-black uppercase tracking-wider text-[10px] print:text-[9px] w-8">Pos</th>
                             )}
-                            <th className="border border-slate-400 px-2.5 py-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[9px]">Teacher's Remark</th>
+                            <th className="border border-slate-400 px-2.5 py-2 print:py-1.5 text-left font-black uppercase tracking-wider text-[10px] print:text-[9px]">Teacher's Remark</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -915,7 +915,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             const isEven = index % 2 === 0;
                             return (
                                 <tr key={index} className={isEven ? 'bg-[#fdfcf8]' : 'bg-slate-50/70'}>
-                                    <td className="border border-slate-300 px-2.5 py-2 print:px-2 print:py-1.5 font-bold text-slate-900 uppercase text-[10.5px]">{result.subject}</td>
+                                    <td className="border border-slate-300 px-2.5 py-2 print:px-2 print:py-1.5 font-bold text-slate-900 uppercase text-[12px] print:text-[11.5px]">{result.subject}</td>
                                     {schoolConfig?.grading_type !== 'COMPETENCY' && (
                                         <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center text-slate-600 font-semibold">{result.classScore}</td>
                                     )}
@@ -925,11 +925,11 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     </td>
                                     <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-black text-slate-900">{grade}</td>
                                     {schoolConfig?.report_card_config?.show_position !== false && (
-                                        <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[10px]">
+                                        <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[11.5px] print:text-[10.5px]">
                                             {getSubjectRank(result.subject, result.total).pos}
                                         </td>
                                     )}
-                                    <td className="border border-slate-300 px-2.5 py-2 print:py-1.5 italic text-slate-500 text-[10.5px]">{remark}</td>
+                                    <td className="border border-slate-300 px-2.5 py-2 print:py-1.5 italic text-slate-500 text-[11.5px] print:text-[11px]">{remark}</td>
                                 </tr>
                             );
                         })}
@@ -937,12 +937,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     {schoolConfig?.report_card_config?.show_aggregate !== false && (
                         <tfoot>
                             <tr className="bg-slate-900 text-white print:bg-slate-800 border-t-2 border-slate-700">
-                                <td className="border border-slate-600 px-2.5 py-1 print:py-0.5 text-right uppercase tracking-[0.25em] font-black text-[8.5px]"
+                                <td className="border border-slate-600 px-2.5 py-1.5 print:py-0.5 text-right uppercase tracking-[0.25em] font-black text-[10px] print:text-[9.5px]"
                                     colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 1 : 2}>
                                     Aggregate Summary &amp; Average
                                 </td>
-                                <td className="border border-slate-600 px-2 py-1 print:py-0.5 text-center font-black text-base underline decoration-double">{overallAverage}</td>
-                                <td className="border border-slate-600 px-2 py-1 print:py-0.5" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 4 : 3}></td>
+                                <td className="border border-slate-600 px-2 py-1.5 print:py-0.5 text-center font-black text-lg print:text-base underline decoration-double">{overallAverage}</td>
+                                <td className="border border-slate-600 px-2 py-1.5 print:py-0.5" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 4 : 3}></td>
                             </tr>
                         </tfoot>
                     )}
@@ -953,32 +953,32 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className={`relative z-10 px-10 pb-5 pt-2 print:px-7 print:pb-4 print:pt-2 grid gap-4 print:gap-3 ${showFees ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {/* LEFT: Conduct / Remarks */}
                 <div className="space-y-2 print:space-y-1.5 border-t-2 border-slate-700 pt-2 print:pt-1.5">
-                    <p className="text-[8.5px] font-black uppercase tracking-[0.3em] text-slate-600 mb-1">Appraisal &amp; Conduct</p>
+                    <p className="text-[10px] print:text-[9.5px] font-black uppercase tracking-[0.3em] text-slate-600 mb-1">Appraisal &amp; Conduct</p>
 
                     <div className={`grid gap-2 print:gap-1.5 ${showFees ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         <div className="border-b border-dashed border-slate-300 pb-1">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Conduct / Attitude</p>
-                            <input type="text" value={conduct} onChange={(e) => setConduct(e.target.value)} className="w-full bg-transparent outline-none text-[11px] font-bold text-slate-900 mt-0.5 italic" />
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-400">Conduct / Attitude</p>
+                            <input type="text" value={conduct} onChange={(e) => setConduct(e.target.value)} className="w-full bg-transparent outline-none text-[12px] font-bold text-slate-900 mt-0.5 italic" />
                         </div>
                         <div className="border-b border-dashed border-slate-300 pb-1">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Interest / Talent</p>
-                            <input type="text" value={interest} onChange={(e) => setInterest(e.target.value)} className="w-full bg-transparent outline-none text-[11px] font-bold text-slate-900 mt-0.5 italic" />
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-400">Interest / Talent</p>
+                            <input type="text" value={interest} onChange={(e) => setInterest(e.target.value)} className="w-full bg-transparent outline-none text-[12px] font-bold text-slate-900 mt-0.5 italic" />
                         </div>
                     </div>
 
                     {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
                         <div className="border-b border-slate-300 pb-1.5">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 italic mb-0.5">Class Teacher's Remark</p>
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-400 italic mb-0.5">Class Teacher's Remark</p>
                             <textarea
                                 value={teacherRemark}
                                 onChange={(e) => setTeacherRemark(e.target.value)}
                                 rows={2}
-                                className="w-full bg-transparent outline-none text-[11px] font-bold text-slate-900 italic resize-none leading-snug"
+                                className="w-full bg-transparent outline-none text-[12.5px] print:text-[11.5px] font-bold text-slate-900 italic resize-none leading-snug"
                             />
                             <div className="flex justify-end mt-1">
                                 <div>
                                     <div className="h-px w-24 bg-slate-500 mb-0.5"></div>
-                                    <p className="text-[7.5px] font-black uppercase tracking-widest text-slate-400">Teacher's Signature</p>
+                                    <p className="text-[9px] print:text-[8px] font-black uppercase tracking-widest text-slate-400">Teacher's Signature</p>
                                 </div>
                             </div>
                         </div>
@@ -986,15 +986,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
                     {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
                         <div>
-                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-700 mb-0.5">Final Decision &amp; Headmaster</p>
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-700 mb-0.5">Final Decision &amp; Headmaster</p>
                             <textarea
                                 value={principalRemark}
                                 onChange={(e) => setPrincipalRemark(e.target.value)}
                                 rows={2}
-                                className="w-full bg-transparent outline-none text-[11px] font-black text-slate-900 italic resize-none leading-snug"
+                                className="w-full bg-transparent outline-none text-[12.5px] print:text-[11.5px] font-black text-slate-900 italic resize-none leading-snug"
                             />
                             <div className="flex justify-between items-end mt-2 print:mt-1">
-                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString('en-GB')}</p>
+                                <p className="text-[9px] print:text-[8.5px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString('en-GB')}</p>
                                 {schoolConfig?.report_card_config?.show_signature !== false && (
                                     <div className="text-right relative">
                                         {(schoolConfig as any)?.report_card_config?.signature_url && (
@@ -1004,7 +1004,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                             <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-60 rotate-12 mix-blend-multiply z-20" alt="Stamp" />
                                         )}
                                         <div className="h-px w-28 bg-slate-800 mb-0.5 relative z-30"></div>
-                                        <p className="text-[7.5px] font-black uppercase tracking-widest text-slate-700 relative z-30">Principal / Headmaster</p>
+                                        <p className="text-[9px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-700 relative z-30">Principal / Headmaster</p>
                                     </div>
                                 )}
                             </div>
@@ -1018,47 +1018,47 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <div className="border-2 border-slate-800 print:border-slate-700 h-full p-3 print:p-2.5 flex flex-col justify-between bg-white print:bg-transparent">
                             {/* Header */}
                             <div className="border-b-2 border-double border-slate-700 pb-1.5 mb-2 print:mb-1.5 flex justify-between items-center">
-                                <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-900">Financial Summary</p>
-                                <p className="text-[7.5px] font-black uppercase tracking-widest text-slate-400">Pupil's Bill</p>
+                                <p className="text-[10.5px] print:text-[9.5px] font-black uppercase tracking-[0.25em] text-slate-900">Financial Summary</p>
+                                <p className="text-[9px] print:text-[8px] font-black uppercase tracking-widest text-slate-400">Pupil's Bill</p>
                             </div>
 
                             {/* Line items */}
                             <div className="space-y-1.5 print:space-y-1 flex-1">
                                 <div className="flex justify-between items-center border-b border-dashed border-slate-300 pb-1">
-                                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-600">Arrears</span>
-                                    <span className="text-[11px] font-black font-mono text-slate-900">GHS {(student as any).balance || '0.00'}</span>
+                                    <span className="text-[11px] print:text-[10px] font-bold uppercase tracking-wider text-slate-600">Arrears</span>
+                                    <span className="text-[12.5px] print:text-[11.5px] font-black font-mono text-slate-900">GHS {(student as any).balance || '0.00'}</span>
                                 </div>
                                 <div className="flex justify-between items-center border-b border-dashed border-slate-300 pb-1">
-                                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-600">Current Fees</span>
+                                    <span className="text-[11px] print:text-[10px] font-bold uppercase tracking-wider text-slate-600">Current Fees</span>
                                     <div className="flex items-center gap-1">
-                                        <span className="text-[9px] text-slate-400 font-mono">GHS</span>
+                                        <span className="text-[10.5px] text-slate-400 font-mono">GHS</span>
                                         <input
                                             type="number"
                                             value={pupilBill}
                                             onChange={(e) => setPupilBill(Number(e.target.value))}
-                                            className="w-20 bg-transparent border-b border-slate-400 text-right outline-none font-mono font-black text-[11px] text-slate-900 print:text-slate-900 py-0"
+                                            className="w-20 bg-transparent border-b border-slate-400 text-right outline-none font-mono font-black text-[12.5px] print:text-[11.5px] text-slate-900 py-0"
                                         />
                                     </div>
                                 </div>
                                 {extraBillItems.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center group border-b border-dashed border-slate-300 pb-1">
-                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent text-[9.5px] uppercase tracking-wider font-bold outline-none w-1/2 text-slate-600 print:text-slate-600" />
+                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent text-[11px] uppercase tracking-wider font-bold outline-none w-1/2 text-slate-600 print:text-slate-600" />
                                         <div className="flex items-center gap-1">
-                                            <span className="text-[9px] text-slate-400 font-mono">GHS</span>
-                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-transparent border-b border-slate-400 text-right outline-none font-mono font-black text-[11px] text-slate-900 py-0" />
+                                            <span className="text-[10.5px] text-slate-400 font-mono">GHS</span>
+                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-transparent border-b border-slate-400 text-right outline-none font-mono font-black text-[12.5px] text-slate-900 py-0" />
                                             <button onClick={() => removeExtraBillItem(idx)} className="print:hidden text-red-400 opacity-0 group-hover:opacity-100"><X className="w-3 h-3" /></button>
                                         </div>
                                     </div>
                                 ))}
-                                <button onClick={addExtraBillItem} className="print:hidden w-full py-0.5 border border-dashed border-slate-400 text-[8.5px] font-black uppercase hover:bg-slate-50 text-slate-500 mt-1">+ Add Charge</button>
+                                <button onClick={addExtraBillItem} className="print:hidden w-full py-0.5 border border-dashed border-slate-400 text-[9.5px] font-black uppercase hover:bg-slate-50 text-slate-500 mt-1">+ Add Charge</button>
                             </div>
 
                             {/* Total */}
                             <div className="border-t-4 border-double border-slate-800 pt-2 mt-2 print:pt-1.5 print:mt-1.5 flex justify-between items-end">
                                 <div>
-                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500">Total Payable</p>
-                                    <p className="text-[22px] print:text-[20px] font-black text-slate-900 tracking-tight leading-none mt-0.5" style={{ fontFamily: 'Georgia, serif' }}>
-                                        <span className="text-[11px] mr-1 text-slate-500 font-bold">GHS</span>{totalBill.toFixed(2)}
+                                    <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.2em] text-slate-500">Total Payable</p>
+                                    <p className="text-[26px] print:text-[23px] font-black text-slate-900 tracking-tight leading-none mt-0.5" style={{ fontFamily: 'Georgia, serif' }}>
+                                        <span className="text-[13px] mr-1 text-slate-500 font-bold">GHS</span>{totalBill.toFixed(2)}
                                     </p>
                                 </div>
                                 <div className="text-right">
@@ -1066,7 +1066,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <img src={(schoolConfig as any).report_card_config.signature_url} className="h-8 object-contain mb-0.5 ml-auto" alt="Signature" />
                                     )}
                                     <div className="h-px w-24 bg-slate-800 mb-0.5"></div>
-                                    <p className="text-[7.5px] font-black uppercase tracking-widest text-slate-600">Authorized Stamp</p>
+                                    <p className="text-[9px] print:text-[8px] font-black uppercase tracking-widest text-slate-600">Authorized Stamp</p>
                                 </div>
                             </div>
                         </div>
@@ -1076,8 +1076,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* ══════════ FOOTER ══════════ */}
             <div className="relative z-10 px-10 pb-4 print:px-7 print:pb-3 border-t border-slate-300 flex justify-between items-center">
-                <p className="text-[7.5px] font-bold uppercase tracking-[0.25em] text-slate-400">Issued: {new Date().toLocaleDateString('en-GB')} · Ref: {student.id.substring(0, 10).toUpperCase()}</p>
-                <p className="text-[7.5px] font-bold uppercase tracking-[0.25em] text-slate-400">© {new Date().getFullYear()} Base16 Schools Management System</p>
+                <p className="text-[9px] print:text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400">Issued: {new Date().toLocaleDateString('en-GB')} · Ref: {student.id.substring(0, 10).toUpperCase()}</p>
+                <p className="text-[9px] print:text-[8px] font-bold uppercase tracking-[0.25em] text-slate-400">© {new Date().getFullYear()} Base16 Schools Management System</p>
             </div>
         </div>
     );
