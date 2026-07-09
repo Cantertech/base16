@@ -615,23 +615,23 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
                             
                             <div className="relative z-10">
-                                <h4 className="text-[10.5px] font-black uppercase tracking-widest mb-3 opacity-60">Financial Overview</h4>
+                                <h4 className="text-[10.5px] font-black uppercase tracking-widest mb-3 opacity-60 print:opacity-100 print:text-slate-500">Financial Overview</h4>
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-[12px] font-bold opacity-60">Termly Fees</span>
-                                        <span className="font-mono text-xs">GHS {pupilBill.toFixed(2)}</span>
+                                        <span className="text-[12px] font-bold opacity-60 print:opacity-100 print:text-slate-700">Termly Fees</span>
+                                        <span className="font-mono text-xs print:text-slate-900 font-bold">GHS {pupilBill.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-[12px] font-bold opacity-60">Ancillary</span>
-                                        <span className="font-mono text-xs">GHS {otherFees.toFixed(2)}</span>
+                                        <span className="text-[12px] font-bold opacity-60 print:opacity-100 print:text-slate-700">Ancillary</span>
+                                        <span className="font-mono text-xs print:text-slate-900 font-bold">GHS {otherFees.toFixed(2)}</span>
                                     </div>
                                     <div className="pt-2 flex justify-between items-end">
                                         <div>
-                                            <p className="text-[12px] font-black uppercase opacity-40 mb-0.5">Total Due</p>
-                                            <p className="text-xl font-black">GHS {(pupilBill + otherFees).toFixed(2)}</p>
+                                            <p className="text-[12px] font-black uppercase opacity-40 print:opacity-100 print:text-slate-500 mb-0.5">Total Due</p>
+                                            <p className="text-xl font-black print:text-slate-950">GHS {(pupilBill + otherFees).toFixed(2)}</p>
                                         </div>
-                                        <div className="h-6 w-6 bg-white/10 rounded-full flex items-center justify-center print:bg-slate-100">
-                                            <Building2 className="w-3 h-3 opacity-40 print:opacity-100 print:text-slate-400" />
+                                        <div className="h-6 w-6 bg-white/10 rounded-full flex items-center justify-center print:bg-slate-100 print:border print:border-slate-200">
+                                            <Building2 className="w-3 h-3 opacity-40 print:opacity-100 print:text-slate-700" />
                                         </div>
                                     </div>
                                 </div>
@@ -1338,7 +1338,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         
                         <div className="relative z-10">
                             <div className="flex justify-between items-center mb-4 print:mb-3">
-                                <h4 className="text-[10.5px] font-black uppercase tracking-widest text-white/80 print:text-slate-700">Financial Statement</h4>
+                                <h4 className="text-[10.5px] font-black uppercase tracking-widest text-white/80 print:text-slate-700 print:opacity-100">Financial Statement</h4>
                                 <span className="text-[9px] font-bold bg-blue-500/30 border border-blue-400/30 px-2.5 py-1 rounded-full print:bg-slate-100 print:text-slate-700 print:border-slate-200">TERM {schoolConfig?.current_term || 1}</span>
                             </div>
                             <div className="space-y-3 print:space-y-2">
@@ -1349,7 +1349,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-300">
                                     <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">New Bill Amount</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="opacity-50 text-[10px] font-mono">GHS</span>
+                                        <span className="opacity-50 print:opacity-100 print:text-slate-500 text-[10px] font-mono">GHS</span>
                                         <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
                                     </div>
                                 </div>
@@ -1378,7 +1378,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <div className="relative z-10 mt-4 print:mt-3 pt-3 border-t border-white/20 print:border-slate-300 flex justify-between items-end">
                             <div>
                                 <p className="text-[9px] font-black uppercase opacity-60 print:opacity-100 print:text-slate-500 tracking-widest mb-1">Grand Total Payable</p>
-                                <p className="text-2xl print:text-xl font-black tracking-tighter print:text-slate-900"><span className="text-xs mr-1 opacity-50 print:opacity-100 print:text-slate-500">GHS</span>{totalBill.toFixed(2)}</p>
+                                <p className="text-2xl print:text-xl font-black tracking-tighter print:text-slate-950"><span className="text-xs mr-1 opacity-50 print:opacity-100 print:text-slate-500 font-bold">GHS</span>{totalBill.toFixed(2)}</p>
                             </div>
                             {schoolConfig?.report_card_config?.show_signature !== false && (
                                 <div className="text-right relative min-w-[100px]">
@@ -1388,7 +1388,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     <div className="h-8 w-8 bg-white/20 rounded-full ml-auto mb-1.5 flex items-center justify-center print:bg-slate-100 relative z-20">
                                         <Building2 className="w-4 h-4 opacity-60 print:text-slate-500" />
                                     </div>
-                                    <p className="text-[8.5px] font-black uppercase opacity-60 tracking-widest relative z-20">Principal / Verified</p>
+                                    <p className="text-[8.5px] font-black uppercase opacity-60 print:opacity-100 print:text-slate-500 tracking-widest relative z-20">Principal / Verified</p>
                                     {(schoolConfig as any)?.report_card_config?.stamp_url && (
                                         <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
                                     )}
@@ -1396,7 +1396,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             )}
                         </div>
                     </div>
-                )}
+                )
             </div>
 
             {/* ══ FOOTER STRIPE ══ */}
@@ -1626,7 +1626,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* ══════════ BOTTOM SECTION: Modern Appraisal Grid ══════════ */}
             <div className="relative z-10 px-8 pb-6 pt-3 print:px-6 print:pb-4 print:pt-2 grid grid-cols-2 gap-x-8 border-t border-slate-100 bg-slate-50/20 mt-auto">
-                {/* Column 1: Conduct & Attitude */}
+                {/* Column 1: Conduct, Remarks & Decisions */}
                 <div className="space-y-2.5 border-r border-slate-100 pr-8">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                         <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Conduct</span>
@@ -1640,39 +1640,127 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Talent &amp; Interest</span>
                         <input type="text" value={itemsToBring} onChange={e => setItemsToBring(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11.5px] w-2/3" />
                     </div>
+                    
+                    {/* Class Teacher Evaluation */}
                     {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
                         <div className="pt-2">
                             <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Class Teacher Evaluation</p>
                             <textarea value={teacherRemark} onChange={e => setTeacherRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-medium text-slate-700 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
                         </div>
                     )}
+
+                    {/* Headmaster Verdict shifts to Column 1 if financials occupy Column 2 */}
+                    {showFees && schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
+                        <div className="pt-2">
+                            <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Headmaster's Final Verdict</p>
+                            <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-semibold text-slate-800 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
+                        </div>
+                    )}
                 </div>
 
-                {/* Column 2: Headmaster remark and stamp */}
+                {/* Column 2: Headmaster remark/stamp OR Financial Summary */}
                 <div className="space-y-2.5 flex flex-col justify-between">
                     <div className="space-y-2.5">
-                        {schoolConfig?.report_card_config?.show_attendance !== false && (
-                            <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Attendance Status</span>
-                                <div className="flex items-baseline gap-1 text-[11.5px] font-black text-slate-800">
-                                    <span>{attendancePresentDays}</span>
-                                    <span className="text-[9.5px] text-slate-400 font-bold italic">of</span>
-                                    <span className="text-[11px] text-slate-500 font-bold">{attendanceTotalDays} days</span>
+                        {showFees ? (
+                            /* Financial Summary Box - sleek and print friendly */
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                                <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                                    <h4 className="text-[9.5px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                        Financial Summary
+                                    </h4>
+                                    <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest">Pupil's Bill</span>
+                                </div>
+                                <div className="space-y-2 text-xs">
+                                    <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1">
+                                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Arrears</span>
+                                        <span className="font-black font-mono text-slate-900">GHS {(student as any).balance || '0.00'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1">
+                                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Current Fees</span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[10px] text-slate-400 font-mono">GHS</span>
+                                            <input
+                                                type="number"
+                                                value={pupilBill}
+                                                onChange={(e) => setPupilBill(Number(e.target.value))}
+                                                className="w-20 bg-transparent border-b border-slate-300 text-right outline-none font-mono font-black text-[12px] text-slate-900 py-0"
+                                            />
+                                        </div>
+                                    </div>
+                                    {extraBillItems.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center group border-b border-dashed border-slate-200 pb-1">
+                                            <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent text-[9.5px] uppercase tracking-wider font-bold outline-none w-1/2 text-slate-600" />
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-400 font-mono">GHS</span>
+                                                <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-transparent border-b border-slate-300 text-right outline-none font-mono font-black text-[12px] text-slate-900 py-0" />
+                                                <button onClick={() => removeExtraBillItem(idx)} className="print:hidden text-red-400 opacity-0 group-hover:opacity-100 ml-1"><X className="w-3 h-3" /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button onClick={addExtraBillItem} className="print:hidden w-full py-1 border border-dashed border-slate-300 text-[9px] font-black uppercase hover:bg-slate-100/50 rounded text-slate-400 mt-1 transition-colors">+ Add Charge</button>
+                                </div>
+                                <div className="border-t border-slate-200 pt-2.5 mt-3 flex justify-between items-end">
+                                    <div>
+                                        <p className="text-[8.5px] font-black uppercase tracking-wider text-slate-400">Total Payable</p>
+                                        <p className="text-lg font-black text-slate-900 tracking-tight leading-none mt-0.5">
+                                            <span className="text-xs mr-0.5 text-slate-400 font-bold">GHS</span>{totalBill.toFixed(2)}
+                                        </p>
+                                    </div>
+                                    <span className="text-[8.5px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 uppercase tracking-wider">Authorized Summary</span>
                                 </div>
                             </div>
+                        ) : (
+                            /* Regular Details Block if showFees is false */
+                            <div className="space-y-2.5">
+                                {schoolConfig?.report_card_config?.show_attendance !== false && (
+                                    <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                        <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Attendance Status</span>
+                                        <div className="flex items-baseline gap-1 text-[11.5px] font-black text-slate-800">
+                                            <span>{attendancePresentDays}</span>
+                                            <span className="text-[9.5px] text-slate-400 font-bold italic">of</span>
+                                            <span className="text-[11px] text-slate-500 font-bold">{attendanceTotalDays} days</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                    <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Vacation Date</span>
+                                    <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11.5px] w-2/3" placeholder="Date" />
+                                </div>
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                    <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Re-opening Date</span>
+                                    <span className="font-bold text-slate-800 text-[11.5px]">{schoolConfig?.next_term_reopens || 'TBD'}</span>
+                                </div>
+                                {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
+                                    <div className="pt-2">
+                                        <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Headmaster's Final Verdict</p>
+                                        <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-semibold text-slate-800 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
+                                    </div>
+                                )}
+                            </div>
                         )}
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                            <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Vacation Date</span>
-                            <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11.5px] w-2/3" placeholder="Date" />
-                        </div>
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                            <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Re-opening Date</span>
-                            <span className="font-bold text-slate-800 text-[11.5px]">{schoolConfig?.next_term_reopens || 'TBD'}</span>
-                        </div>
-                        {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
-                            <div className="pt-2">
-                                <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Headmaster's Final Verdict</p>
-                                <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-semibold text-slate-800 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
+
+                        {/* Stacking Attendance and Dates if Column 2 is occupied by financials */}
+                        {showFees && (
+                            <div className="space-y-1.5 border border-slate-150 p-3 rounded-2xl bg-slate-50/10">
+                                {schoolConfig?.report_card_config?.show_attendance !== false && (
+                                    <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Attendance</span>
+                                        <div className="flex items-baseline gap-1 text-[11px] font-black text-slate-800">
+                                            <span>{attendancePresentDays}</span>
+                                            <span className="text-[9px] text-slate-400 font-bold italic">of</span>
+                                            <span className="text-[10.5px] text-slate-500 font-bold">{attendanceTotalDays} days</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                    <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Vacation Date</span>
+                                    <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11px] w-2/3" placeholder="Date" />
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Re-opening Date</span>
+                                    <span className="font-bold text-slate-800 text-[11px]">{schoolConfig?.next_term_reopens || 'TBD'}</span>
+                                </div>
                             </div>
                         )}
                     </div>
