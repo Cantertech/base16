@@ -1,6 +1,6 @@
-﻿import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Building2, Save, Plus, PenTool } from 'lucide-react';
+import { X, Printer, Building2, Save, Plus, PenTool, User } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { supabase } from '../utils/supabaseClient';
 
