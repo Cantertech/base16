@@ -1421,38 +1421,38 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 z-55" />
 
             {/* ══════════ HEADER: Modern Academic Banner ══════════ */}
-            <div className="relative z-10 px-6 pt-5 pb-3 border-b border-slate-100 bg-slate-50/40">
+            <div className="relative z-10 px-8 pt-7 pb-4 border-b border-slate-100 bg-slate-50/40">
                 <div className="flex justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
                         {schoolConfig?.logo_url ? (
-                            <div className="h-12 w-12 p-1 bg-white border border-slate-150 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="h-16 w-16 p-1.5 bg-white border border-slate-150 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
                                 <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
                             </div>
                         ) : (
-                            <div className="h-12 w-12 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center shrink-0">
-                                <Building2 className="w-5 h-5 text-slate-400" />
+                            <div className="h-16 w-16 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center shrink-0">
+                                <Building2 className="w-6 h-6 text-slate-400" />
                             </div>
                         )}
                         <div>
-                            <h1 className="text-lg print:text-base font-black uppercase tracking-tight text-slate-900 leading-none">
+                            <h1 className="text-2xl print:text-xl font-black uppercase tracking-tight text-slate-900 leading-none">
                                 {schoolConfig?.name || 'NAME OF SCHOOL'}
                             </h1>
                             {schoolConfig?.motto && (
-                                <p className="text-[9.5px] print:text-[8.5px] font-bold text-indigo-600 uppercase tracking-widest mt-0.5">
+                                <p className="text-[10.5px] print:text-[9.5px] font-bold text-indigo-600 uppercase tracking-widest mt-1.5">
                                     {schoolConfig.motto}
                                 </p>
                             )}
-                            <p className="text-[9px] print:text-[8px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">
+                            <p className="text-[10px] print:text-[9px] font-medium text-slate-500 uppercase tracking-wider mt-1">
                                 {schoolConfig?.address || 'School Address'}{schoolConfig?.phone ? ` · Tel: ${schoolConfig.phone}` : ''}
                             </p>
                         </div>
                     </div>
 
-                    <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
-                        <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-indigo-100 shadow-sm">
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                        <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm">
                             Analytical Report Card
                         </span>
-                        <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
                             {schoolConfig?.academic_year || '2026/2027'}
                         </span>
                     </div>
@@ -1460,21 +1460,28 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
 
             {/* ══════════ STUDENT REGISTRY Profile Card ══════════ */}
-            <div className="relative z-10 px-6 py-2.5 border-b border-slate-100 flex items-center justify-between gap-6 bg-white">
-                <div className={`flex-1 grid ${schoolConfig?.report_card_config?.show_position !== false ? 'grid-cols-3' : 'grid-cols-2'} gap-y-2.5 gap-x-6`}>
-                    <div>
+            <div className="relative z-10 px-8 py-3.5 border-b border-slate-100 flex items-center justify-between gap-6 bg-white">
+                <div className="flex-1 grid grid-cols-4 gap-y-3 gap-x-6">
+                    <div className="col-span-2">
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Student Name</span>
-                        <p className="font-bold text-slate-900 uppercase text-[12px] tracking-wide mt-0.5">{student.name}</p>
+                        <p className="font-bold text-slate-900 uppercase text-[12.5px] tracking-wide mt-0.5">{student.name}</p>
                     </div>
                     <div>
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Class Form</span>
                         <p className="font-bold text-slate-900 uppercase text-[12px] mt-0.5">{student.class}</p>
                     </div>
-                    {schoolConfig?.report_card_config?.show_position !== false && (
+                    {schoolConfig?.report_card_config?.show_position !== false ? (
                         <div>
                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Class Rank</span>
                             <p className="font-black text-indigo-600 text-[12px] mt-0.5">
                                 {position?.position ? `${position.position} / ${position.total}` : '—'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Term Session</span>
+                            <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">
+                                {schoolConfig?.current_term ? `${schoolConfig.current_term === 1 || schoolConfig.current_term === '1' ? 'First' : schoolConfig.current_term === 2 || schoolConfig.current_term === '2' ? 'Second' : 'Third'} Term` : '—'}
                             </p>
                         </div>
                     )}
@@ -1482,16 +1489,29 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Registry Number</span>
                         <p className="font-bold text-slate-700 text-[11px] font-mono mt-0.5">{student.id.substring(0, 8).toUpperCase()}</p>
                     </div>
+                    {schoolConfig?.report_card_config?.show_position !== false ? (
+                        <div>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Term Session</span>
+                            <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">
+                                {schoolConfig?.current_term ? `${schoolConfig.current_term === 1 || schoolConfig.current_term === '1' ? 'First' : schoolConfig.current_term === 2 || schoolConfig.current_term === '2' ? 'Second' : 'Third'} Term` : '—'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                            <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">{nextClass || '—'}</p>
+                        </div>
+                    )}
                     <div>
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Term Session</span>
-                        <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">
-                            {schoolConfig?.current_term ? `${schoolConfig.current_term === 1 || schoolConfig.current_term === '1' ? 'First' : schoolConfig.current_term === 2 || schoolConfig.current_term === '2' ? 'Second' : 'Third'} Term` : '—'}
-                        </p>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Parent Contact</span>
+                        <p className="font-bold text-slate-900 text-[11px] mt-0.5">{(student as any).parent_phone || (student as any).phone || '—'}</p>
                     </div>
-                    <div>
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
-                        <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">{nextClass || '—'}</p>
-                    </div>
+                    {schoolConfig?.report_card_config?.show_position !== false && (
+                        <div>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                            <p className="font-bold text-slate-900 uppercase text-[11px] mt-0.5">{nextClass || '—'}</p>
+                        </div>
+                    )}
                 </div>
 
                 {schoolConfig?.report_card_config?.show_student_photo !== false && (
