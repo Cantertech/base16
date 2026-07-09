@@ -1461,7 +1461,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
             {/* ══════════ STUDENT REGISTRY Profile Card ══════════ */}
             <div className="relative z-10 px-8 py-4 print:px-6 print:py-3 border-b border-slate-100 flex items-center justify-between gap-6 bg-white">
-                <div className="flex-1 grid grid-cols-3 gap-y-3 gap-x-6">
+                <div className={`flex-1 grid ${schoolConfig?.report_card_config?.show_position !== false ? 'grid-cols-3' : 'grid-cols-2'} gap-y-3 gap-x-6`}>
                     <div>
                         <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Student Name</span>
                         <p className="font-bold text-slate-900 uppercase text-[13px] tracking-wide mt-0.5">{student.name}</p>
@@ -1470,15 +1470,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Class Form</span>
                         <p className="font-bold text-slate-900 uppercase text-[13px] mt-0.5">{student.class}</p>
                     </div>
+                    {schoolConfig?.report_card_config?.show_position !== false && (
+                        <div>
+                            <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Class Rank</span>
+                            <p className="font-black text-indigo-600 text-[13px] mt-0.5">
+                                {position?.position ? `${position.position} / ${position.total}` : '—'}
+                            </p>
+                        </div>
+                    )}
                     <div>
                         <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Registry Number</span>
                         <p className="font-bold text-slate-700 text-[12px] font-mono mt-0.5">{student.id.substring(0, 8).toUpperCase()}</p>
-                    </div>
-                    <div>
-                        <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Class Rank</span>
-                        <p className="font-black text-indigo-600 text-[13px] mt-0.5">
-                            {position?.position ? `${position.position} / ${position.total}` : '—'}
-                        </p>
                     </div>
                     <div>
                         <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Term Session</span>
@@ -1521,8 +1523,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <th className="pb-2 text-center font-black w-20">Exam ({schoolConfig?.weights?.exam || 70}%)</th>
                                 <th className="pb-2 text-center font-black w-20 text-slate-900 bg-slate-50/50">Total</th>
                                 <th className="pb-2 text-center font-black w-12">Grade</th>
-                                <th className="pb-2 text-center font-black w-16">Rank</th>
-                                <th className="pb-2 text-center font-black w-20">Roll</th>
+                                {schoolConfig?.report_card_config?.show_position !== false && (
+                                    <>
+                                        <th className="pb-2 text-center font-black w-16">Rank</th>
+                                        <th className="pb-2 text-center font-black w-20">Roll</th>
+                                    </>
+                                )}
                                 <th className="pb-2 pl-4 font-black">Remarks</th>
                             </tr>
                         </thead>
@@ -1545,19 +1551,23 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                             {result.total}
                                         </td>
                                         <td className="py-2.5 text-center font-black text-slate-800">{grade}</td>
-                                        <td className="py-2.5 text-center text-slate-600 font-bold">{rankInfo.pos}</td>
-                                        <td className="py-2.5 text-center text-slate-400 font-medium">{rankInfo.roll}</td>
+                                        {schoolConfig?.report_card_config?.show_position !== false && (
+                                            <>
+                                                <td className="py-2.5 text-center text-slate-600 font-bold">{rankInfo.pos}</td>
+                                                <td className="py-2.5 text-center text-slate-400 font-medium">{rankInfo.roll}</td>
+                                            </>
+                                        )}
                                         <td className="py-2.5 pl-4 text-slate-500 font-medium italic text-[11px] truncate max-w-[180px]">{remark}</td>
                                     </tr>
                                 );
                             })}
                             {schoolConfig?.report_card_config?.show_aggregate !== false && (
                                 <tr className="border-t-2 border-slate-100 bg-slate-50/50 font-black text-[10px] text-slate-500">
-                                    <td className="py-3 text-right uppercase tracking-wider pr-2" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 1 : 3}>Totals:</td>
+                                    <td className="py-3 text-right uppercase tracking-wider pr-2" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Totals:</td>
                                     <td className="py-3 text-center text-[12px] text-slate-900 font-bold">{overallTotal} / {results.length * 100}</td>
-                                    <td className="py-3 text-right uppercase tracking-wider pr-2" colSpan={2}>Average Score:</td>
+                                    <td className="py-3 text-right uppercase tracking-wider pr-2" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 2 : 1}>Average Score:</td>
                                     <td className="py-3 text-center text-[12px] text-indigo-600 font-black">{overallAverage}</td>
-                                    <td className="py-3"></td>
+                                    {schoolConfig?.report_card_config?.show_position !== false && <td className="py-3"></td>}
                                 </tr>
                             )}
                         </tbody>
@@ -1630,23 +1640,27 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Talent &amp; Interest</span>
                         <input type="text" value={itemsToBring} onChange={e => setItemsToBring(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11.5px] w-2/3" />
                     </div>
-                    <div className="pt-2">
-                        <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Class Teacher Evaluation</p>
-                        <textarea value={teacherRemark} onChange={e => setTeacherRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-medium text-slate-700 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
-                    </div>
+                    {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
+                        <div className="pt-2">
+                            <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Class Teacher Evaluation</p>
+                            <textarea value={teacherRemark} onChange={e => setTeacherRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-medium text-slate-700 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
+                        </div>
+                    )}
                 </div>
 
                 {/* Column 2: Headmaster remark and stamp */}
                 <div className="space-y-2.5 flex flex-col justify-between">
                     <div className="space-y-2.5">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                            <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Attendance Status</span>
-                            <div className="flex items-baseline gap-1 text-[11.5px] font-black text-slate-800">
-                                <span>{attendancePresentDays}</span>
-                                <span className="text-[9.5px] text-slate-400 font-bold italic">of</span>
-                                <span className="text-[11px] text-slate-500 font-bold">{attendanceTotalDays} days</span>
+                        {schoolConfig?.report_card_config?.show_attendance !== false && (
+                            <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
+                                <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Attendance Status</span>
+                                <div className="flex items-baseline gap-1 text-[11.5px] font-black text-slate-800">
+                                    <span>{attendancePresentDays}</span>
+                                    <span className="text-[9.5px] text-slate-400 font-bold italic">of</span>
+                                    <span className="text-[11px] text-slate-500 font-bold">{attendanceTotalDays} days</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                             <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Vacation Date</span>
                             <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="bg-transparent text-right font-bold text-slate-800 outline-none uppercase text-[11.5px] w-2/3" placeholder="Date" />
@@ -1655,10 +1669,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             <span className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Re-opening Date</span>
                             <span className="font-bold text-slate-800 text-[11.5px]">{schoolConfig?.next_term_reopens || 'TBD'}</span>
                         </div>
-                        <div className="pt-2">
-                            <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Headmaster's Final Verdict</p>
-                            <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-semibold text-slate-800 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
-                        </div>
+                        {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
+                            <div className="pt-2">
+                                <p className="font-black text-slate-400 uppercase tracking-widest text-[8.5px] mb-1.5">Headmaster's Final Verdict</p>
+                                <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2.5 outline-none text-[12px] font-semibold text-slate-800 italic resize-none leading-snug h-12 shadow-sm focus:border-indigo-500" />
+                            </div>
+                        )}
                     </div>
 
                     {/* Stamp and signature footer row */}
