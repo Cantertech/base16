@@ -113,56 +113,63 @@ export const ExamPublishingPanel: React.FC = () => {
                     return (
                         <div
                             key={cls}
-                            className={`relative rounded-2xl border-2 overflow-hidden shadow-sm transition-all duration-300 flex flex-col
-                                ${isReleased
-                                    ? 'border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 shadow-green-100'
-                                    : 'border-slate-200 bg-white hover:border-primary-200 hover:shadow-md'
-                                }`}
+                            className="relative bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300 flex flex-col"
                         >
                             {/* Status ribbon */}
-                            <div className={`px-5 py-3 flex items-center justify-between ${isReleased ? 'bg-green-100/60' : 'bg-slate-50'}`}>
-                                <h4 className="font-black text-slate-800 uppercase tracking-tight text-sm">{cls}</h4>
-                                <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full flex items-center gap-1.5 ${isReleased ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-700'}`}>
-                                    {isReleased ? <><CheckCircle className="w-3 h-3" /> Released</> : <><Clock className="w-3 h-3" /> Pending</>}
+                            <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+                                <div className="flex flex-col gap-0.5">
+                                    <h4 className="font-black text-slate-800 uppercase tracking-tight text-[15px]">{cls}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{studentCount} Students</p>
+                                </div>
+                                <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border flex items-center gap-1.5 
+                                    ${isReleased 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isReleased ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                    {isReleased ? 'Released' : 'Pending'}
                                 </span>
                             </div>
 
                             <div className="p-5 flex-1 flex flex-col gap-4">
                                 {/* Stats row */}
                                 <div className="grid grid-cols-3 gap-2">
-                                    <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                    <div className="bg-slate-50/50 rounded-xl p-2.5 text-center border border-slate-100/80">
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Students</p>
-                                        <p className="text-lg font-black text-slate-700">{studentCount}</p>
+                                        <p className="text-base font-black text-slate-700">{studentCount}</p>
                                     </div>
-                                    <div className="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+                                    <div className="bg-slate-50/50 rounded-xl p-2.5 text-center border border-slate-100/80">
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Subjects</p>
-                                        <p className="text-lg font-black text-slate-700">{totalSubjects}</p>
+                                        <p className="text-base font-black text-slate-700">{totalSubjects}</p>
                                     </div>
-                                    <div className={`rounded-xl p-2.5 text-center border ${allSubmitted ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
+                                    <div className="bg-slate-50/50 rounded-xl p-2.5 text-center border border-slate-100/80">
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Submitted</p>
-                                        <p className={`text-lg font-black ${allSubmitted ? 'text-green-600' : 'text-amber-600'}`}>{submittedSubjects}/{totalSubjects}</p>
+                                        <p className={`text-base font-black ${allSubmitted ? 'text-emerald-600' : 'text-amber-600'}`}>{submittedSubjects}/{totalSubjects}</p>
                                     </div>
                                 </div>
 
                                 {/* Progress bar */}
                                 <div>
                                     <div className="flex justify-between items-center mb-1.5">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Mark Entry Progress</span>
-                                        <span className={`text-[9px] font-black ${allSubmitted ? 'text-green-600' : 'text-amber-600'}`}>{progressPct}%</span>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Entry Progress</span>
+                                        <span className="text-[9px] font-black text-slate-950">{progressPct}%</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full transition-all duration-700 ${allSubmitted ? 'bg-green-500' : progressPct > 0 ? 'bg-amber-400' : 'bg-slate-200'}`}
+                                            className="h-full rounded-full transition-all duration-700 bg-slate-900"
                                             style={{ width: `${progressPct}%` }}
                                         />
                                     </div>
                                     {!allSubmitted && totalSubjects > 0 && (
-                                        <p className="text-[9px] text-amber-600 font-bold mt-1">
-                                            {totalSubjects - submittedSubjects} subject{totalSubjects - submittedSubjects !== 1 ? 's' : ''} still pending
+                                        <p className="text-[9px] text-amber-600 font-semibold mt-1.5 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                                            {totalSubjects - submittedSubjects} subject{totalSubjects - submittedSubjects !== 1 ? 's' : ''} pending submission
                                         </p>
                                     )}
                                     {allSubmitted && !isReleased && (
-                                        <p className="text-[9px] text-green-600 font-bold mt-1">✓ All subjects submitted — ready to release</p>
+                                        <p className="text-[9px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                            All subjects submitted — ready to release
+                                        </p>
                                     )}
                                 </div>
 
@@ -175,14 +182,14 @@ export const ExamPublishingPanel: React.FC = () => {
                                         setSelectedClass(cls);
                                         setSelectedSubject('');
                                     }}
-                                    className="w-full py-2 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm border border-primary-100"
+                                    className="w-full py-2.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all flex items-center justify-center gap-1.5 border border-slate-200/60"
                                 >
-                                    <ClipboardCheck className="w-3.5 h-3.5" />
+                                    <ClipboardCheck className="w-3.5 h-3.5 text-slate-500" />
                                     {expandedMonitoringClass === cls ? "Hide Submissions" : "Track Submissions"}
                                 </button>
 
                                 {expandedMonitoringClass === cls && (
-                                    <div className="border border-slate-100 rounded-xl bg-slate-50/50 p-3 space-y-2 mt-1 animate-in slide-in-from-top-1 duration-200">
+                                    <div className="border border-slate-100 rounded-xl bg-slate-50/30 p-3 space-y-2 mt-1 animate-in slide-in-from-top-1 duration-200">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subject Status</p>
                                         <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                                             {classSubs.map((sub: any, idx: number) => {
@@ -194,24 +201,24 @@ export const ExamPublishingPanel: React.FC = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => setSelectedSubject(isSelected ? '' : sub.subject_name)}
-                                                            className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${isSelected ? 'bg-white border-primary-500 shadow-sm' : 'bg-white border-slate-200 hover:border-primary-300'}`}
+                                                            className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-left transition-all ${isSelected ? 'bg-white border-slate-900 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-350'}`}
                                                         >
                                                             <div className="flex items-center gap-2 min-w-0">
-                                                                <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${isSubSubmitted ? 'bg-green-500' : 'bg-amber-400'}`} />
+                                                                <div className={`h-2 w-2 rounded-full shrink-0 ${isSubSubmitted ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                                                                 <div className="min-w-0">
                                                                     <span className="font-bold text-slate-800 text-[10px] block truncate uppercase tracking-tight">{sub.subject_name}</span>
                                                                     <p className="text-[8px] font-bold text-slate-400 truncate uppercase tracking-wider">{sub.teacherName}</p>
                                                                 </div>
                                                             </div>
-                                                            <div className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${isSubSubmitted ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                            <div className={`text-[8.5px] font-black uppercase px-2 py-0.5 rounded border ${isSubSubmitted ? 'bg-emerald-50/50 text-emerald-700 border-emerald-100' : 'bg-amber-50/50 text-amber-700 border-amber-100'}`}>
                                                                 {isSubSubmitted ? 'Submitted' : sub.status}
                                                             </div>
                                                         </button>
 
                                                         {/* Sub-results preview table */}
                                                         {isSelected && (
-                                                            <div className="bg-white rounded-lg border border-primary-100 shadow-md overflow-hidden p-2 text-xs">
-                                                                <div className="bg-primary-50/50 p-1.5 border-b border-primary-50 flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-primary-700">
+                                                            <div className="bg-white rounded-lg border border-slate-200 shadow-md overflow-hidden p-2 text-xs">
+                                                                <div className="bg-slate-50 p-1.5 border-b border-slate-100 flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-700">
                                                                     <span>Read-Only Sheet</span>
                                                                     <button
                                                                         type="button"
@@ -239,7 +246,7 @@ export const ExamPublishingPanel: React.FC = () => {
                                                                                     <tr key={student.id}>
                                                                                         <td className="py-1 text-[9px] uppercase font-medium text-slate-600 truncate max-w-[80px]">{student.name}</td>
                                                                                         <td className="py-1 text-center text-[9px] text-slate-400">{savedExam}</td>
-                                                                                        <td className="py-1 text-center text-[9px] font-bold text-primary-600">{total}</td>
+                                                                                        <td className="py-1 text-center text-[9px] font-bold text-slate-900">{total}</td>
                                                                                     </tr>
                                                                                 );
                                                                             })}
@@ -259,9 +266,9 @@ export const ExamPublishingPanel: React.FC = () => {
                                 <div className="flex gap-2 mt-auto">
                                     <button
                                         onClick={() => { setViewingClassList(cls); setSelectedClass(cls); }}
-                                        className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5"
+                                        className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5 border border-slate-200/40"
                                     >
-                                        <FileText className="w-3.5 h-3.5" /> View Reports
+                                        <FileText className="w-3.5 h-3.5 text-slate-500" /> View Reports
                                     </button>
                                     <button
                                         onClick={() => {
@@ -270,19 +277,19 @@ export const ExamPublishingPanel: React.FC = () => {
                                             setReleaseModalData({ className: cls, studentCount: classCount, validPhones: phoneCount });
                                         }}
                                         disabled={isReleased || publishResultsMutation.isPending}
-                                        className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm
+                                        className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm border
                                             ${isReleased
-                                                ? 'bg-green-100 text-green-600 cursor-not-allowed'
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100 cursor-not-allowed shadow-none'
                                                 : allSubmitted
-                                                    ? 'bg-primary-600 text-white hover:bg-primary-700 hover:-translate-y-0.5 active:scale-95 shadow-primary-200'
-                                                    : 'bg-slate-800 text-white hover:bg-slate-900'
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-slate-200 hover:bg-slate-800'
+                                                    : 'bg-slate-700 text-white border-slate-700 shadow-slate-200 hover:bg-slate-800'
                                             }`}
                                     >
                                         {isReleased
-                                            ? <><CheckCircle className="w-3.5 h-3.5" /> Released</>
+                                            ? <><CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Released</>
                                             : publishResultsMutation.isPending
                                                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Releasing...</>
-                                                : <><Send className="w-3.5 h-3.5" /> Release Results</>
+                                                : <><Send className="w-3.5 h-3.5" /> Release</>
                                         }
                                     </button>
                                 </div>
