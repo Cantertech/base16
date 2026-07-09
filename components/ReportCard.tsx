@@ -1396,7 +1396,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             )}
                         </div>
                     </div>
-                )
+                )}
             </div>
 
             {/* ══ FOOTER STRIPE ══ */}
