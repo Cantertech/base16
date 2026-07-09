@@ -113,7 +113,8 @@ export const ExamPublishingPanel: React.FC = () => {
                     return (
                         <div
                             key={cls}
-                            className="relative bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300 flex flex-col"
+                            className={`relative bg-white rounded-3xl border overflow-hidden shadow-sm hover:shadow-md hover:border-slate-350 transition-all duration-300 flex flex-col
+                                ${isReleased ? 'border-2 border-primary-500' : 'border-slate-200/80'}`}
                         >
                             {/* Status ribbon */}
                             <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
