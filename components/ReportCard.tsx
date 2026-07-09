@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+﻿import { useQueryClient } from '@tanstack/react-query';
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Building2, Save, Plus, PenTool } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -1408,188 +1408,268 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     );
 
     const adventistContent = (
-        <div ref={printMode ? undefined : componentRef} className="bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-10 text-slate-900 flex flex-col font-serif relative overflow-hidden border border-slate-350 shadow-sm" style={{ fontFamily: 'Georgia, serif' }}>
-            
-            {/* Header */}
-            <div className="text-center pb-3 border-b-2 border-slate-850 relative z-10">
-                <div className="flex justify-center items-center gap-4 mb-2">
-                    {schoolConfig?.logo_url ? (
-                        <div className="h-16 w-16 p-1 bg-white border border-slate-200 rounded flex items-center justify-center shrink-0">
-                            <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
-                        </div>
-                    ) : (
-                        <div className="h-16 w-16 bg-slate-100 border border-slate-400 rounded flex items-center justify-center shrink-0">
-                            <Building2 className="w-8 h-8 text-slate-300" />
-                        </div>
-                    )}
-                    <div className="text-center">
-                        <h1 className="text-xl md:text-2xl font-black uppercase tracking-wide text-slate-950 leading-none mb-1">
-                            {schoolConfig?.name || 'NAME OF SCHOOL'}
-                        </h1>
-                        <p className="text-[10px] font-bold text-slate-800 uppercase leading-tight">
-                            {schoolConfig?.address || 'P.O. BOX 143, BEKWAI- ASHANTI, GHANA'}
-                        </p>
-                        <p className="text-[9.5px] font-bold text-slate-700 uppercase tracking-tight mt-0.5">
-                            {(schoolConfig?.phone || 'CONTACT PHONE') + (schoolConfig?.email ? ' | ' + schoolConfig.email : '')}
-                        </p>
-                    </div>
-                </div>
-                <h2 className="text-[14px] font-black uppercase tracking-[0.2em] text-slate-950 border-t border-slate-800 pt-1.5 inline-block">Terminal Report</h2>
-            </div>
+        <div
+            ref={printMode ? undefined : componentRef}
+            className={`bg-[#fafaf9] max-w-4xl mx-auto flex flex-col relative overflow-hidden ${printMode ? '' : 'shadow-2xl border-2 border-slate-800'}`}
+            style={{
+                fontFamily: "'Inter', 'Segoe UI', 'Georgia', serif",
+                minHeight: printMode ? '297mm' : '1056px',
+                maxHeight: printMode ? '297mm' : undefined,
+            }}
+        >
+            {/* Outer double borders for premium print */}
+            <div className="absolute inset-2 border border-slate-300 pointer-events-none z-50 print:inset-1.5" />
+            <div className="absolute inset-3 border-2 border-slate-800 pointer-events-none z-50 print:inset-2" />
 
-            {/* Student Particulars Certification Text Block */}
-            <div className="my-4 print:my-2 p-3 bg-slate-50/50 border border-slate-250 text-xs text-slate-800 leading-relaxed">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">This is to certify that: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{student.name}</span>
+            {/* Subtle Watermark */}
+            {schoolConfig?.logo_url && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.035] pointer-events-none w-[450px] h-[450px] z-0">
+                    <img src={schoolConfig.logo_url} alt="" className="w-full h-full object-contain grayscale" />
+                </div>
+            )}
+
+            {/* ══════════ HEADER ══════════ */}
+            <div className="relative z-10 px-8 pt-6 pb-3 print:px-6 print:pt-5 print:pb-2 border-b-2 border-slate-900">
+                <div className="flex justify-between items-center gap-4">
+                    {/* Left: School Info */}
+                    <div className="flex items-center gap-4">
+                        {schoolConfig?.logo_url ? (
+                            <div className="h-16 w-16 p-1 bg-white border border-slate-200 rounded flex items-center justify-center shrink-0 shadow-sm">
+                                <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                            </div>
+                        ) : (
+                            <div className="h-16 w-16 bg-slate-100 border border-slate-400 rounded flex items-center justify-center shrink-0">
+                                <Building2 className="w-8 h-8 text-slate-350" />
+                            </div>
+                        )}
+                        <div>
+                            <h1 className="text-[20px] print:text-[18px] font-black uppercase tracking-tight text-slate-900 leading-tight">
+                                {schoolConfig?.name || 'NAME OF SCHOOL'}
+                            </h1>
+                            {schoolConfig?.motto && (
+                                <p className="text-[10px] print:text-[9px] font-medium text-slate-500 italic mt-0.5">
+                                    "{schoolConfig.motto}"
+                                </p>
+                            )}
+                            <p className="text-[9.5px] print:text-[8.5px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                {schoolConfig?.address || 'School Address'}{schoolConfig?.phone ? ` · Tel: ${schoolConfig.phone}` : ''}
+                            </p>
+                        </div>
                     </div>
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Class/Form: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{student.class}</span>
-                    </div>
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Position In Class: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{position?.position || '-'}</span>
-                    </div>
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Term & Session: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{(schoolConfig?.current_term || schoolConfig?.term || '-') + ' ' + (schoolConfig?.academic_year || '')}</span>
-                    </div>
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">No. on Roll: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{position?.total || '49'}</span>
-                    </div>
-                    <div className="pb-1 border-b border-slate-200/60">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Class Group Postn: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{position?.position ? (position.position + 12) + ' / ' + (position.total + 24) : '-'}</span>
-                    </div>
-                    <div className="pb-1 border-b border-slate-200/60 sm:col-span-2">
-                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Promoted To: </span>
-                        <span className="font-black text-slate-950 uppercase text-[11px] ml-1">{nextClass}</span>
+
+                    {/* Right: Badge */}
+                    <div className="text-right shrink-0">
+                        <span className="bg-slate-900 text-white text-[10px] font-black tracking-[0.25em] px-4 py-2 rounded uppercase shadow-sm">
+                            Terminal Report
+                        </span>
                     </div>
                 </div>
             </div>
 
-            {/* Assessment Table */}
-            <div className="flex-1 mb-3 print:mb-1 overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-400 text-[10px]">
-                    <thead>
-                        <tr className="bg-slate-700 text-white border-b border-slate-400">
-                            <th className="p-1.5 text-left font-black uppercase border-r border-slate-400">Subject</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-20">Class Score ({schoolConfig?.weights?.class || 30}%)</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-20">Exam Score ({schoolConfig?.weights?.exam || 70}%)</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-20 bg-slate-800">Total Score</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-16">Grade</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-20">Subject Positn</th>
-                            <th className="p-1.5 text-center font-black uppercase border-r border-slate-400 w-24">Subject Positn / Total Roll</th>
-                            <th className="p-1.5 text-left font-black uppercase">Remarks</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-350 border-b border-slate-400">
-                        {results.map((result, idx) => {
-                            const grade = calculateGrade(result.total);
-                            const remark = calculateRemark(result.total);
-                            const rankInfo = getSubjectRank(result.subject, result.total);
-                            return (
-                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                    <td className="p-1.5 font-black text-slate-950 uppercase border-r border-slate-400">{result.subject}</td>
-                                    <td className="p-1.5 text-center font-bold text-slate-700 border-r border-slate-400">{result.classScore}</td>
-                                    <td className="p-1.5 text-center font-bold text-slate-700 border-r border-slate-400">{result.examScore}</td>
-                                    <td className="p-1.5 text-center font-black text-slate-950 bg-slate-100/50 border-r border-slate-400">{result.total}</td>
-                                    <td className="p-1.5 text-center font-black text-slate-950 border-r border-slate-400">{grade}</td>
-                                    <td className="p-1.5 text-center font-bold text-slate-700 border-r border-slate-400">{rankInfo.pos}</td>
-                                    <td className="p-1.5 text-center font-bold text-slate-700 border-r border-slate-400">{rankInfo.roll}</td>
-                                    <td className="p-1.5 font-bold uppercase text-[9px] text-slate-650">{remark}</td>
+            {/* ══════════ STUDENT PROFILE CERTIFICATE ══════════ */}
+            <div className="relative z-10 px-8 py-3 print:px-6 print:py-2 border-b border-slate-200 bg-slate-50/50">
+                <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-xs">
+                    <div className="col-span-2 border-b border-slate-200 pb-1">
+                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Student Name</span>
+                        <p className="font-black text-slate-900 uppercase text-[12.5px] mt-0.5 tracking-wide">{student.name}</p>
+                    </div>
+                    <div className="border-b border-slate-200 pb-1">
+                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Class / Form</span>
+                        <p className="font-black text-slate-900 uppercase text-[12.5px] mt-0.5">{student.class}</p>
+                    </div>
+                    <div className="border-b border-slate-200 pb-1">
+                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Position in Class</span>
+                        <p className="font-black text-slate-900 uppercase text-[12.5px] mt-0.5">
+                            {position?.position || '—'}<span className="text-[10px] text-slate-400 font-bold"> / {position?.total || '—'}</span>
+                        </p>
+                    </div>
+                    <div className="border-b border-slate-200 pb-1">
+                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Term &amp; Session</span>
+                        <p className="font-black text-slate-900 uppercase text-[12px] mt-0.5">
+                            {schoolConfig?.current_term ? `${schoolConfig.current_term === 1 || schoolConfig.current_term === '1' ? 'First' : schoolConfig.current_term === 2 || schoolConfig.current_term === '2' ? 'Second' : 'Third'} Term` : '—'} · {schoolConfig?.academic_year || '—'}
+                        </p>
+                    </div>
+                    <div className="border-b border-slate-200 pb-1">
+                        <span className="font-black text-slate-400 uppercase tracking-widest text-[8.5px]">Promoted To</span>
+                        <p className="font-black text-slate-900 uppercase text-[12px] mt-0.5">{nextClass || '—'}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* ══════════ ACADEMIC ASSESSMENT TABLE ══════════ */}
+            <div className="relative z-10 px-8 pt-3 pb-2 print:px-6 print:pt-2 print:pb-1.5 flex-1 flex flex-col justify-between">
+                <div>
+                    <div className="flex items-center gap-3 mb-1.5 print:mb-1">
+                        <p className="text-[9.5px] font-black uppercase tracking-[0.3em] text-slate-500">Academic Assessment</p>
+                        <div className="flex-1 h-px bg-slate-300" />
+                    </div>
+
+                    <table className="w-full border-collapse border border-slate-800 text-[11px] print:text-[10.5px]" style={{ fontFamily: 'Georgia, serif' }}>
+                        <thead>
+                            <tr className="bg-slate-900 text-white print:bg-slate-800">
+                                <th className="border border-slate-600 px-3 py-2 text-left font-black uppercase tracking-wider text-[9.5px]">Subject</th>
+                                {schoolConfig?.grading_type !== 'COMPETENCY' && (
+                                    <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-20">Class<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.class || 30}%)</span></th>
+                                )}
+                                <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-20">Exam<br /><span className="text-[8px] opacity-70">({schoolConfig?.weights?.exam || 70}%)</span></th>
+                                <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-20 bg-slate-800 print:bg-slate-700 underline decoration-double">Total</th>
+                                <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-12">Grade</th>
+                                <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-16">Subject Pos</th>
+                                <th className="border border-slate-600 px-2 py-2 text-center font-black uppercase tracking-wider text-[9px] w-24">Pos / Roll</th>
+                                <th className="border border-slate-600 px-3 py-2 text-left font-black uppercase tracking-wider text-[9.5px]">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {results.map((result, idx) => {
+                                const grade = calculateGrade(result.total);
+                                const remark = calculateRemark(result.total);
+                                const rankInfo = getSubjectRank(result.subject, result.total);
+                                const isGood = result.total >= 70;
+                                const isBad = result.total < 50;
+                                const isEven = idx % 2 === 0;
+
+                                return (
+                                    <tr key={idx} className={isEven ? 'bg-white' : 'bg-slate-50/70'}>
+                                        <td className="border border-slate-350 px-3 py-2 font-bold text-slate-900 uppercase text-[11px]">{result.subject}</td>
+                                        {schoolConfig?.grading_type !== 'COMPETENCY' && (
+                                            <td className="border border-slate-350 px-2 py-2 text-center text-slate-600 font-semibold">{result.classScore}</td>
+                                        )}
+                                        <td className="border border-slate-350 px-2 py-2 text-center text-slate-600 font-semibold">{result.examScore}</td>
+                                        <td className={`border border-slate-400 px-2 py-2 text-center font-black ${isGood ? 'text-slate-900 bg-slate-100/30' : isBad ? 'text-slate-700 bg-red-50/10' : 'text-slate-800 bg-amber-50/10'} bg-slate-100/50`}>
+                                            <span className={`border-b-2 ${isGood ? 'border-slate-700' : isBad ? 'border-slate-400 line-through decoration-red-500' : 'border-slate-500'}`}>{result.total}</span>
+                                        </td>
+                                        <td className="border border-slate-350 px-2 py-2 text-center font-black text-slate-900">{grade}</td>
+                                        <td className="border border-slate-350 px-2 py-2 text-center font-bold text-slate-500">{rankInfo.pos}</td>
+                                        <td className="border border-slate-350 px-2 py-2 text-center font-bold text-slate-500">{rankInfo.pos} / {rankInfo.roll}</td>
+                                        <td className="border border-slate-350 px-3 py-2 italic text-slate-500 text-[10.5px]">{remark}</td>
+                                    </tr>
+                                );
+                            })}
+                            {schoolConfig?.report_card_config?.show_aggregate !== false && (
+                                <tr className="bg-slate-900 text-white print:bg-slate-800 font-black border-t-2 border-slate-700">
+                                    <td className="border border-slate-600 px-3 py-1.5 text-right uppercase tracking-[0.25em] text-[9px]" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 1 : 3}>Totals:</td>
+                                    <td className="border border-slate-600 px-2 py-1.5 text-center text-base underline decoration-double">{overallTotal} / {results.length * 100}</td>
+                                    <td className="border border-slate-600 px-2 py-1.5 text-right uppercase text-[9px]" colSpan={2}>Average Score:</td>
+                                    <td className="border border-slate-600 px-2 py-1.5 text-center text-base underline decoration-double">{overallAverage}</td>
+                                    <td className="border border-slate-600 px-3 py-1.5"></td>
                                 </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* ══════════ PERFORMANCE VISUALIZATION CHART ══════════ */}
+                <div className="border border-slate-300 p-4 rounded-xl bg-white text-center mt-3 mb-2 shadow-sm relative overflow-hidden">
+                    {/* Graph Paper Grid Effect Background */}
+                    <div className="absolute inset-0 opacity-[0.015] pointer-events-none" style={{
+                        backgroundImage: 'radial-gradient(circle, #000 10%, transparent 11%)',
+                        backgroundSize: '10px 10px'
+                    }} />
+
+                    <h4 className="text-[9.5px] font-black uppercase tracking-widest text-slate-800 mb-2 border-b border-slate-100 pb-1.5 flex items-center justify-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-slate-900 rounded-full"></span>
+                        Performance Chart — Subject Total Scores
+                    </h4>
+
+                    {/* Chart area */}
+                    <div className="relative flex items-end justify-around h-[120px] pt-4 px-4 border-b border-slate-300 bg-slate-50/40 rounded-lg">
+                        {/* Horizontal background scale lines */}
+                        <div className="absolute left-0 right-0 top-1/4 border-t border-slate-200 border-dashed pointer-events-none" />
+                        <div className="absolute left-0 right-0 top-2/4 border-t border-slate-200 border-dashed pointer-events-none" />
+                        <div className="absolute left-0 right-0 top-3/4 border-t border-slate-200 border-dashed pointer-events-none" />
+
+                        {results.map((r, i) => {
+                            const barColor = r.total >= 80 
+                                ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' 
+                                : r.total >= 50 
+                                    ? 'bg-gradient-to-t from-slate-800 to-slate-600' 
+                                    : 'bg-gradient-to-t from-rose-500 to-rose-400';
+                            
+                            return (
+                                <div key={i} className="flex flex-col items-center flex-1 h-full justify-end group z-10 max-w-[50px]">
+                                    {/* Tooltip score value */}
+                                    <div className="text-[10px] font-black text-slate-900 mb-1 leading-none bg-slate-100 border border-slate-300 rounded px-1 shadow-sm">{r.total}</div>
+                                    {/* Bar element */}
+                                    <div 
+                                        className={`w-5 md:w-7 ${barColor} rounded-t-sm border border-slate-800 shadow-sm transition-all duration-300 hover:opacity-90`} 
+                                        style={{ height: `${Math.max(10, Math.min(100, r.total))}%` }}
+                                    />
+                                    {/* Subject Label */}
+                                    <div className="text-[8.5px] font-black text-slate-500 mt-2 truncate w-full leading-none uppercase text-center" title={r.subject}>
+                                        {r.subject.substring(0, 6)}
+                                    </div>
+                                </div>
                             );
                         })}
-                        <tr className="bg-slate-100 font-black border-t border-slate-400">
-                            <td className="p-1.5 text-right uppercase border-r border-slate-400" colSpan={3}>Totals:</td>
-                            <td className="p-1.5 text-center border-r border-slate-400">{overallTotal} / {results.length * 100}</td>
-                            <td className="p-1.5 text-right uppercase border-r border-slate-400" colSpan={2}>Avrge Scores:</td>
-                            <td className="p-1.5 text-center border-r border-slate-400">{overallAverage}</td>
-                            <td></td>
-                        </tr>
-                    </tbody>
-                </table>
+                    </div>
+                </div>
             </div>
 
-            {/* Subject Total Scores Bar Chart (CSS-based) */}
-            <div className="border border-slate-400 p-4 rounded bg-white text-center mb-4 print:mb-2 shadow-sm">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-2 border-b border-slate-200 pb-1 flex items-center justify-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                    Performance Chart — Subject Total Scores
-                </h4>
-                <div className="flex items-end justify-center gap-4 md:gap-6 h-28 pt-4 px-4 border-b border-slate-350 overflow-hidden bg-slate-50/50 rounded">
-                    {results.map((r, i) => {
-                        const scoreColor = r.total >= 80 ? 'bg-gradient-to-t from-green-600 to-green-400' : r.total >= 50 ? 'bg-gradient-to-t from-blue-600 to-blue-400' : 'bg-gradient-to-t from-red-500 to-red-400';
-                        return (
-                            <div key={i} className="flex flex-col items-center flex-1 h-full justify-end group">
-                                <div className="text-[9px] font-bold text-slate-700 mb-1 leading-none">{r.total}</div>
-                                <div className={`w-6 md:w-8 ${scoreColor} rounded-t-sm border border-slate-700 shadow-sm transition-all duration-300 hover:opacity-90`} style={{ height: Math.max(10, r.total) + '%' }}></div>
-                                <div className="text-[8px] font-bold text-slate-500 mt-1.5 truncate max-w-[50px] leading-none uppercase" title={r.subject}>{r.subject.substring(0, 8)}</div>
+            {/* ══════════ BOTTOM SECTION: Appraisal + Remarks ══════════ */}
+            <div className="relative z-10 px-8 pb-5 pt-2 print:px-6 print:pb-4 print:pt-2 grid grid-cols-2 gap-x-6 border-t-2 border-slate-700 mt-auto">
+                {/* Column 1: Appraisal details */}
+                <div className="space-y-2 border-r border-slate-200 pr-6">
+                    <div className="flex items-center gap-2 border-b border-dashed border-slate-300 pb-1">
+                        <span className="font-black text-slate-400 w-24 shrink-0 uppercase tracking-wider text-[9.5px]">Conduct:</span>
+                        <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent font-bold text-slate-900 outline-none uppercase text-[12px] italic" />
+                    </div>
+                    <div className="flex items-start gap-2 border-b border-dashed border-slate-300 pb-1">
+                        <span className="font-black text-slate-400 w-24 shrink-0 uppercase tracking-wider text-[9.5px] mt-0.5">Attitude:</span>
+                        <textarea value={interest} onChange={e => setInterest(e.target.value)} placeholder="ATTITUDE DETAILS" className="w-full bg-transparent font-bold text-slate-900 outline-none uppercase text-[12px] italic h-12 resize-none" />
+                    </div>
+                    <div className="flex items-center gap-2 border-b border-slate-300 pb-1">
+                        <span className="font-black text-slate-400 w-24 shrink-0 uppercase tracking-wider text-[9.5px]">Interest / Talent:</span>
+                        <input type="text" value={itemsToBring} onChange={e => setItemsToBring(e.target.value)} className="w-full bg-transparent font-bold text-slate-900 outline-none uppercase text-[12px] italic" />
+                    </div>
+                    <div className="pt-1.5">
+                        <p className="font-black text-slate-500 uppercase tracking-wider text-[9.5px] mb-1">Class Teacher's Remarks</p>
+                        <textarea value={teacherRemark} onChange={e => setTeacherRemark(e.target.value)} className="w-full bg-transparent outline-none text-[12.5px] font-bold text-slate-900 italic resize-none leading-snug h-12" />
+                    </div>
+                </div>
+
+                {/* Column 2: Headmaster Decisions and Signatures */}
+                <div className="space-y-2 flex flex-col justify-between">
+                    <div className="space-y-2">
+                        <div className="flex items-baseline gap-2 border-b border-dashed border-slate-300 pb-1">
+                            <span className="font-black text-slate-400 w-24 shrink-0 uppercase tracking-wider text-[9.5px]">Attendance:</span>
+                            <div className="flex items-baseline gap-1 text-[12px] font-black text-slate-900">
+                                <span>{attendancePresentDays}</span>
+                                <span className="text-[10px] text-slate-400 font-bold italic">of</span>
+                                <span className="text-[11.5px] text-slate-500 font-bold">{attendanceTotalDays}</span>
                             </div>
-                        );
-                    })}
-                </div>
-            </div>
+                        </div>
+                        <div className="flex items-baseline gap-2 border-b border-dashed border-slate-300 pb-1">
+                            <span className="font-black text-slate-450 w-24 shrink-0 uppercase tracking-wider text-[9.5px]">Vacation Date:</span>
+                            <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="w-full bg-transparent font-bold text-slate-900 outline-none uppercase text-[12px] italic" placeholder="Date" />
+                        </div>
+                        <div className="flex items-baseline gap-2 border-b border-slate-300 pb-1">
+                            <span className="font-black text-slate-400 w-24 shrink-0 uppercase tracking-wider text-[9.5px]">Re-opening Date:</span>
+                            <span className="font-bold text-slate-700 text-[12px]">{schoolConfig?.next_term_reopens || 'TBD'}</span>
+                        </div>
+                        <div className="pt-1.5">
+                            <p className="font-black text-slate-500 uppercase tracking-wider text-[9.5px] mb-1">Final Decision &amp; Headmaster</p>
+                            <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-transparent outline-none text-[12.5px] font-black text-slate-900 italic resize-none leading-snug h-12" />
+                        </div>
+                    </div>
 
-            {/* Appraisal conduct and Dates */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-[10px] border-t border-slate-200 pt-3 relative z-10">
-                <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0">CONDUCT:</span>
-                        <input type="text" value={conduct} onChange={e => setConduct(e.target.value)} className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5" />
-                    </div>
-                    <div className="flex items-start gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0 mt-0.5">ATTITUDE:</span>
-                        <textarea value={interest} onChange={e => setInterest(e.target.value)} placeholder="ATTITUDE DETAILS" className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5 h-10 resize-none" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0">INTEREST:</span>
-                        <input type="text" value={itemsToBring} onChange={e => setItemsToBring(e.target.value)} className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5" />
-                    </div>
-                    <div className="flex items-start gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0 mt-0.5">CLASS TEACHER'S REMARKS:</span>
-                        <textarea value={teacherRemark} onChange={e => setTeacherRemark(e.target.value)} className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5 h-10 resize-none" />
-                    </div>
-                </div>
-
-                <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0">ATTENDANCE:</span>
-                        <span className="font-black text-slate-900 uppercase">{attendancePresentDays + ' Out Of ' + attendanceTotalDays}</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                        <span className="font-black text-slate-600 w-24 shrink-0 mt-0.5">HEAD TEACHER'S REMARKS:</span>
-                        <textarea value={principalRemark} onChange={e => setPrincipalRemark(e.target.value)} className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5 h-10 resize-none" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-650 w-24 shrink-0">VACATION DATE:</span>
-                        <input type="text" value={nextTermReopens} onChange={e => setNextTermReopens(e.target.value)} className="w-full bg-transparent border-b border-slate-300 font-black text-slate-900 outline-none uppercase pb-0.5" placeholder="Date" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-605 w-24 shrink-0">RE-OPENING DATE:</span>
-                        <span className="font-black text-slate-900 uppercase">{schoolConfig?.next_term_reopens || 'TBD'}</span>
+                    {/* Stamp and signature footer row */}
+                    <div className="flex justify-between items-end pt-3">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString('en-GB')}</p>
+                        {schoolConfig?.report_card_config?.show_signature !== false && (
+                            <div className="text-right relative min-w-[140px]">
+                                {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-11 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                )}
+                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-50 rotate-12 mix-blend-multiply z-20" alt="Stamp" />
+                                )}
+                                <div className="h-px w-full bg-slate-800 mb-0.5 relative z-30"></div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-700 relative z-30">Principal Signature</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
-
-            {/* Signature & Footnote */}
-            <div className="mt-6 pt-3 border-t border-slate-300 flex justify-end items-end relative">
-                <div className="text-center relative min-w-[150px]">
-                    {(schoolConfig as any)?.report_card_config?.signature_url && (
-                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain mx-auto absolute -top-11 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
-                    )}
-                    <div className="h-px bg-slate-900 w-full mb-1"></div>
-                    <span className="text-[9.5px] font-black uppercase text-slate-900 tracking-wider">Signature</span>
-                    {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                        <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-4 opacity-50 rotate-12 mix-blend-multiply z-20" alt="Stamp" />
-                    )}
-                </div>
-            </div>
-
         </div>
     );
 
