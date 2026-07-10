@@ -949,6 +949,38 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 </table>
             </div>
 
+            {/* ══════════ CLASSIC CUSTOM NOTES SECTIONS ══════════ */}
+            {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
+                <div className="relative z-10 px-10 pt-1 pb-3 print:px-7 print:pb-2.5">
+                    <div className={`grid gap-4 ${extraReportSections.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {extraReportSections.map((section, idx) => (
+                            <div key={idx} className="border border-slate-400 p-3 bg-[#fbfbfa] relative group flex flex-col gap-1">
+                                <div className="flex justify-between items-center border-b border-slate-300 pb-1">
+                                    <input
+                                        type="text"
+                                        value={section.title}
+                                        onChange={e => updateExtraReportSection(idx, 'title', e.target.value)}
+                                        placeholder="Section Title"
+                                        className="bg-transparent border-none text-[9.5px] print:text-[8.5px] font-black uppercase text-slate-800 outline-none w-full"
+                                        style={{ fontFamily: 'Georgia, serif' }}
+                                    />
+                                    <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden absolute top-2 right-2 z-10">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={section.content}
+                                    onChange={e => updateExtraReportSection(idx, 'content', e.target.value)}
+                                    placeholder="Add notes or items here..."
+                                    className="w-full bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none resize-none h-11 leading-snug mt-1 italic"
+                                    style={{ fontFamily: 'Georgia, serif' }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* ══════════ BOTTOM SECTION: Remarks + Financials ══════════ */}
             <div className={`relative z-10 px-10 pb-5 pt-2 print:px-7 print:pb-4 print:pt-2 grid gap-4 print:gap-3 ${showFees ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {/* LEFT: Conduct / Remarks */}
@@ -1643,6 +1675,36 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
                 </div>
             </div>
+
+            {/* ══════════ ADVENTIST CUSTOM NOTES SECTIONS ══════════ */}
+            {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
+                <div className="relative z-10 px-8 py-2.5 border-t border-slate-100 bg-slate-50/20">
+                    <div className={`grid gap-4 ${extraReportSections.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {extraReportSections.map((section, idx) => (
+                            <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm group relative flex flex-col gap-1">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                                    <input
+                                        type="text"
+                                        value={section.title}
+                                        onChange={e => updateExtraReportSection(idx, 'title', e.target.value)}
+                                        placeholder="Section Title"
+                                        className="bg-transparent border-none text-[9.5px] font-black uppercase text-slate-700 outline-none w-full"
+                                    />
+                                    <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden absolute top-2 right-2 z-10">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={section.content}
+                                    onChange={e => updateExtraReportSection(idx, 'content', e.target.value)}
+                                    placeholder="Add notes or items here..."
+                                    className="w-full bg-transparent border-none text-[11px] font-medium text-slate-650 outline-none resize-none h-11 leading-snug mt-1 italic"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ══════════ BOTTOM SECTION: Modern Appraisal Grid ══════════ */}
             <div className="relative z-10 px-8 pb-5 pt-3 print:px-6 print:pb-4 print:pt-2 grid grid-cols-2 gap-x-8 border-t border-slate-100 bg-slate-50/20 mt-auto">
