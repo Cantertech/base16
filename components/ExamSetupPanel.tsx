@@ -417,7 +417,7 @@ export const ExamSetupPanel: React.FC = () => {
                                     <p className="text-[11px] text-slate-500 mt-0.5">Apply a specific layout template to all classes simultaneously.</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                    {['modern', 'classic_tabular', 'nursery', 'adventist', 'compact'].map(layoutId => (
+                                    {['modern', 'classic_tabular', 'nursery', 'adventist'].map(layoutId => (
                                         <button
                                             key={layoutId}
                                             type="button"
@@ -473,7 +473,6 @@ export const ExamSetupPanel: React.FC = () => {
                                                             { id: 'classic_tabular', label: 'Classic' },
                                                             { id: 'nursery', label: 'Nursery' },
                                                             { id: 'adventist', label: 'Chart' },
-                                                            { id: 'compact', label: 'Minimalist' }
                                                         ].map(layout => {
                                                             const isSelected = currentLayout === layout.id;
                                                             return (
@@ -616,29 +615,6 @@ export const ExamSetupPanel: React.FC = () => {
                                             </div>
                                         </div>
                                     );
-                                case 'compact':
-                                    return (
-                                        <div className="w-full h-24 bg-white border border-slate-200 rounded-lg p-2.5 flex flex-col gap-1.5 overflow-hidden select-none shadow-inner bg-slate-50/20">
-                                            {/* Compact header */}
-                                            <div className="flex justify-between items-center border-b pb-1">
-                                                <div className="w-20 h-1 bg-slate-800 rounded-sm" />
-                                                <div className="w-8 h-1 bg-slate-400 rounded-sm" />
-                                            </div>
-                                            {/* Compact Particulars */}
-                                            <div className="grid grid-cols-4 gap-1 bg-slate-100 p-0.5 rounded-md">
-                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
-                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
-                                                <div className="h-0.5 bg-slate-450 rounded-sm" />
-                                                <div className="h-0.5 bg-slate-500 rounded-sm" />
-                                            </div>
-                                            {/* Tight table */}
-                                            <div className="border border-slate-200 divide-y divide-slate-100 mt-0.5 rounded-sm">
-                                                <div className="h-1.5 bg-slate-50" />
-                                                <div className="h-1.5 bg-white" />
-                                                <div className="h-1.5 bg-slate-50" />
-                                            </div>
-                                        </div>
-                                    );
                                 default:
                                     return null;
                             }
@@ -653,8 +629,7 @@ export const ExamSetupPanel: React.FC = () => {
                                         { id: 'modern', name: 'Standard Modern', desc: 'Clean sans-serif fonts, blue/slate brand highlights, rounded status badges.', badge: 'Standard' },
                                         { id: 'classic_tabular', name: 'Classic Tabular', desc: 'Traditional institutional layout, high-contrast black borders, classic layout grid.', badge: 'Classic' },
                                         { id: 'nursery', name: 'Nursery Narrative', desc: 'Georgia serif fonts, narrative developmental milestones, decorative corner frames.', badge: 'Nursery' },
-                                        { id: 'adventist', name: 'Chart-Integrated Classic', desc: 'Inspired by J.A. Boateng. Features dynamic horizontal bar charts mapping subject scores.', badge: 'New/Chart' },
-                                        { id: 'compact', name: 'Compact Minimalist', desc: 'High-contrast grid lines, minimalist layout structure optimized to fit single-page print constraints.', badge: 'Minimalist' }
+                                        { id: 'adventist', name: 'Chart-Integrated Classic', desc: 'Inspired by J.A. Boateng. Features dynamic horizontal bar charts mapping subject scores.', badge: 'New/Chart' }
                                     ].map(template => {
                                         const isSelected = (localConfig?.report_card_config?.layout || 'modern') === template.id;
                                         return (
