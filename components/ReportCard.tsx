@@ -435,7 +435,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const isClassic = classLayout === 'classic_tabular';
 
     const nurseryContent = (
-        <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto min-h-[1056px] print:min-h-0 text-slate-800 flex flex-col relative overflow-hidden ${printMode ? '' : 'shadow-2xl'}`} style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+        <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto min-h-[1056px] print:min-h-[297mm] text-slate-800 flex flex-col relative overflow-hidden ${printMode ? '' : 'shadow-2xl'}`} style={{ fontFamily: "'Georgia', 'Times New Roman', serif", minHeight: printMode ? '297mm' : '1056px' }}>
             {/* ═══════════════════════════════════════════════════════ */}
             {/* NURSERY REPORT CARD — PREMIUM REDESIGN                  */}
             {/* ═══════════════════════════════════════════════════════ */}
@@ -511,24 +511,25 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             </div>
 
             {/* ══ ASSESSMENT TABLE ══ */}
-            <div className="relative z-10 px-8 pt-5 pb-3 print:px-6 print:pt-4 flex-1">
+            <div className="relative z-10 px-8 pt-5 pb-2 print:px-6 print:pt-4 flex-1 flex flex-col">
                 {/* Section heading */}
-                <div className="flex items-center gap-3 mb-4 print:mb-2">
+                <div className="flex items-center gap-3 mb-4 print:mb-3">
                     <div className="h-5 w-1.5 bg-[#0c2340] print:bg-[#0c2340]" />
                     <h3 className="text-[11px] font-black uppercase tracking-[0.35em] text-[#0c2340]">Assessment Summary</h3>
                     <div className="flex-1 h-px bg-[#0c2340]/15" />
                 </div>
 
-                <div className="border border-[#0c2340]/20 overflow-hidden shadow-sm">
-                    <table className="w-full border-collapse">
+                {/* Table grows to fill all available space */}
+                <div className="border border-[#0c2340]/20 overflow-hidden shadow-sm flex-1 flex flex-col">
+                    <table className="w-full border-collapse flex-1" style={{ display: 'table' }}>
                         <thead>
                             <tr style={{ backgroundColor: '#0c2340' }} className="print:bg-[#0c2340] text-white">
-                                <th className="text-left px-5 py-2 text-[10px] font-black uppercase tracking-widest print:py-1.5">#</th>
-                                <th className="text-left px-5 py-2 text-[10px] font-black uppercase tracking-widest print:py-1.5">Subject / Category</th>
-                                <th className="text-center px-5 py-2 text-[10px] font-black uppercase tracking-widest w-44 border-l border-white/10 print:py-1.5">Development Status</th>
+                                <th className="text-left px-5 py-3 print:py-2 text-[10px] font-black uppercase tracking-widest w-10">#</th>
+                                <th className="text-left px-5 py-3 print:py-2 text-[10px] font-black uppercase tracking-widest">Subject / Category</th>
+                                <th className="text-center px-5 py-3 print:py-2 text-[10px] font-black uppercase tracking-widest w-48 border-l border-white/10">Development Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#0c2340]/8">
+                        <tbody className="divide-y divide-[#0c2340]/8" style={{ display: 'table-row-group' }}>
                             {results.length > 0 ? results.map((result, idx) => {
                                 const rawStatus = (result as any).competency_status || (result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging');
                                 const displayStatus = rawStatus === '90' ? 'Mastered' : rawStatus === '70' ? 'Developing' : rawStatus === '40' ? 'Emerging' : rawStatus;
@@ -537,12 +538,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     : displayStatus === 'Developing'
                                     ? 'bg-blue-50 text-blue-800 border border-blue-200 print:bg-white print:border-blue-900 print:text-blue-900'
                                     : 'bg-amber-50 text-amber-800 border border-amber-200 print:bg-white print:border-amber-900 print:text-amber-900';
+                                // Scale row height inversely with subject count so the table fills the page
+                                const subjectCount = results.length;
+                                const rowPy = subjectCount <= 4 ? 'py-6 print:py-4' : subjectCount <= 6 ? 'py-4 print:py-3' : subjectCount <= 9 ? 'py-3 print:py-2' : 'py-2 print:py-1.5';
                                 return (
-                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#0c2340]/[0.02] print:bg-transparent'}>
-                                        <td className="px-5 py-2.5 text-[11px] font-black text-slate-400 print:py-1.5 w-8">{idx + 1}</td>
-                                        <td className="px-5 py-2.5 text-[12px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
-                                        <td className="px-4 py-2.5 text-center border-l border-[#0c2340]/8 print:py-1.5">
-                                            <span className={`inline-block text-[10.5px] font-black uppercase tracking-wide px-3 py-0.5 ${badgeStyle}`}>
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#0c2340]/[0.025] print:bg-transparent'}>
+                                        <td className={`px-5 ${rowPy} text-[11px] font-black text-slate-400 w-10`}>{idx + 1}</td>
+                                        <td className={`px-5 ${rowPy} text-[13px] font-black text-slate-900 uppercase tracking-tight`}>{result.subject}</td>
+                                        <td className={`px-4 ${rowPy} text-center border-l border-[#0c2340]/8`}>
+                                            <span className={`inline-block text-[10.5px] font-black uppercase tracking-wide px-4 py-1 ${badgeStyle}`}>
                                                 {displayStatus}
                                             </span>
                                         </td>
@@ -558,16 +562,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center gap-4 mt-2 print:mt-1">
+                <div className="flex items-center gap-4 mt-3 print:mt-2">
                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Key:</span>
                     {[['Mastered','bg-emerald-100 text-emerald-800'],['Developing','bg-blue-100 text-blue-800'],['Emerging','bg-amber-100 text-amber-800']].map(([label, cls]) => (
-                        <span key={label} className={`text-[9px] font-black uppercase px-2 py-0.5 ${cls} print:bg-transparent print:text-slate-600`}>{label}</span>
+                        <span key={label} className={`text-[9px] font-black uppercase px-3 py-1 ${cls} print:bg-transparent print:text-slate-600`}>{label}</span>
                     ))}
                 </div>
             </div>
 
             {/* ══ REMARKS + FINANCIALS ══ */}
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-0 border-t-2 border-[#0c2340]/10">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-0 border-t-2 border-[#0c2340]/10" style={{ minHeight: results.length <= 6 ? '220px' : '180px' }}>
                 {/* Remarks Column */}
                 <div className="px-8 py-5 print:px-6 print:py-3 border-r border-[#0c2340]/10 space-y-4 print:space-y-2">
                     {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
