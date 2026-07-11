@@ -749,6 +749,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         return { pos, roll: subjectRoll };
     };
 
+    // Helper to calculate deterministic overall class position
+    const getOverallPosition = () => {
+        if (!position || !position.position) return '—';
+        return `${position.position} / ${position.total}`;
+    };
+
+    // Helper to calculate deterministic subject position
+    const getSubjectPosition = (subject: string, score: number) => {
+        return getSubjectRank(subject, score);
+    };
+
     const classicContent = (
         <div
             ref={printMode ? undefined : componentRef}
@@ -926,7 +937,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-black text-slate-900">{grade}</td>
                                     {schoolConfig?.report_card_config?.show_position !== false && (
                                         <td className="border border-slate-300 px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[11.5px] print:text-[10.5px]">
-                                            {getSubjectRank(result.subject, result.total).pos}
+                                            {getSubjectPosition(result.subject, result.total).pos}
                                         </td>
                                     )}
                                     <td className="border border-slate-300 px-2.5 py-2 print:py-1.5 italic text-slate-500 text-[11.5px] print:text-[11px]">{remark}</td>
@@ -1246,7 +1257,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         </td>
                                         {schoolConfig?.report_card_config?.show_position !== false && (
                                             <td className="px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[11px] border-b border-slate-100">
-                                                {getSubjectRank(result.subject, result.total).pos}
+                                                {getSubjectPosition(result.subject, result.total).pos}
                                             </td>
                                         )}
                                         <td className="px-4 py-2 print:px-3 print:py-1.5 text-slate-500 italic text-[11.5px] border-b border-slate-100">{remark}</td>
@@ -1259,7 +1270,14 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <tr className="bg-gradient-to-r from-slate-900 to-blue-900 text-white print:bg-slate-800">
                                     <td className="px-4 py-2.5 print:px-3 print:py-1.5 text-right font-black uppercase text-[10px] tracking-[0.2em]" colSpan={schoolConfig?.grading_type === 'COMPETENCY' ? 2 : 3}>Performance Summary</td>
                                     <td className="px-3 py-2.5 print:py-1.5 text-center font-black text-xl underline decoration-blue-300 decoration-2">{overallAverage}</td>
-                                    <td className="px-3 py-2.5 print:py-1.5" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 3 : 2}></td>
+                                    <td className="px-3 py-2.5 print:py-1.5" colSpan={schoolConfig?.report_card_config?.show_position !== false ? 3 : 2}>
+                                        {schoolConfig?.report_card_config?.show_position !== false && (
+                                            <div className="flex justify-end items-center gap-2 pr-4">
+                                                <span className="text-[9px] font-black text-white/50 uppercase tracking-widest leading-none">Class Rank:</span>
+                                                <span className="text-xs font-black text-white bg-white/10 px-2 py-0.5 rounded font-mono leading-none">{getOverallPosition()}</span>
+                                            </div>
+                                        )}
+                                    </td>
                                 </tr>
                             </tfoot>
                         )}
@@ -1304,6 +1322,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Interest & Talent</p>
                             <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-sm p-0" placeholder="—" />
                         </div>
+                        {schoolConfig?.report_card_config?.show_position !== false && (
+                            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-150 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2 col-span-2 flex justify-between items-center shadow-inner">
+                                <div>
+                                    <p className="text-[9.5px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">Overall Class Position</p>
+                                    <p className="text-[10px] text-slate-450 font-medium">Student's academic standing in the class form</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-base font-black text-indigo-955 font-mono bg-white border border-indigo-200 px-3 py-1 rounded-xl shadow-sm leading-none">{getOverallPosition()}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Remarks */}
@@ -1588,7 +1617,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             {results.map((result, idx) => {
                                 const grade = calculateGrade(result.total);
                                 const remark = calculateRemark(result.total);
-                                const rankInfo = getSubjectRank(result.subject, result.total);
+                                const rankInfo = getSubjectPosition(result.subject, result.total);
                                 const isGood = result.total >= 70;
                                 const isBad = result.total < 50;
 
