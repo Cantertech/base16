@@ -17,7 +17,8 @@ import {
     CheckCircle,
     Archive,
     User,
-    BookOpen
+    BookOpen,
+    Search
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
 import ReportCard from './ReportCard';
@@ -58,6 +59,7 @@ export const ExamsTeacherView: React.FC = () => {
         schoolInfo,
         localConfig,
         studentRank,
+        classRanks,
         schoolId,
         activeModules,
         allReportCards,
@@ -84,6 +86,41 @@ export const ExamsTeacherView: React.FC = () => {
     } = useExamsContext();
 
     const isNurseryLayout = getLayoutForClass(selectedClass) === 'nursery';
+
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [sortBy, setSortBy] = React.useState<'name' | 'totalScore' | 'rank'>('name');
+
+    const processedStudents = React.useMemo(() => {
+        let list = [...classStudents];
+        
+        // Filter by searchQuery
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            list = list.filter(s => s.name.toLowerCase().includes(query));
+        }
+
+        // Sort
+        list.sort((a, b) => {
+            if (sortBy === 'name') {
+                return a.name.localeCompare(b.name);
+            }
+            if (sortBy === 'totalScore') {
+                const aResults = results.filter(r => r.studentId === a.id);
+                const aTotal = aResults.reduce((sum, r) => sum + r.total, 0);
+                const bResults = results.filter(r => r.studentId === b.id);
+                const bTotal = bResults.reduce((sum, r) => sum + r.total, 0);
+                return bTotal - aTotal; // descending
+            }
+            if (sortBy === 'rank') {
+                const aRank = classRanks[a.id]?.position || 9999;
+                const bRank = classRanks[b.id]?.position || 9999;
+                return aRank - bRank; // ascending
+            }
+            return 0;
+        });
+
+        return list;
+    }, [classStudents, searchQuery, sortBy, results, classRanks]);
 
     const remarkPresets = localConfig?.remark_presets || [
         "Excellent performance, keep it up.",
@@ -383,77 +420,200 @@ export const ExamsTeacherView: React.FC = () => {
                         </div>
                     ) : (
                         <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-50/50">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {classStudents.map(student => {
+                            {/* Search and Sort controls */}
+                            <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                                <div className="relative w-full sm:w-80">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search student..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none text-sm font-semibold text-slate-800 focus:border-primary-500 focus:ring-4 focus:ring-primary-50 transition-all placeholder:text-slate-400"
+                                    />
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                        <Search className="w-4 h-4" />
+                                    </span>
+                                </div>
+                                <div className="flex gap-3 items-center w-full sm:w-auto justify-end">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sort By</span>
+                                    <select 
+                                        value={sortBy} 
+                                        onChange={e => setSortBy(e.target.value as any)}
+                                        className="p-2.5 px-3 border border-slate-200 rounded-xl outline-none bg-white font-bold text-xs text-slate-700 cursor-pointer shadow-sm focus:ring-4 focus:ring-primary-50"
+                                    >
+                                        <option value="name">Student Name</option>
+                                        <option value="totalScore">Total Score</option>
+                                        <option value="rank">Class Position</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                                <table className="min-w-full divide-y divide-slate-150">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-3.5 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Pos</th>
+                                            <th className="px-6 py-3.5 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                            <th className="px-6 py-3.5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Subjects</th>
+                                            <th className="px-6 py-3.5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Marks</th>
+                                            <th className="px-6 py-3.5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Average</th>
+                                            <th className="px-6 py-3.5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Attendance</th>
+                                            <th className="px-6 py-3.5 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Remarks Preview</th>
+                                            <th className="px-6 py-3.5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-150 bg-white">
+                                        {processedStudents.map(student => {
+                                            const studentResults = results.filter(r => r.studentId === student.id);
+                                            const totalScore = studentResults.reduce((sum, r) => sum + r.total, 0);
+                                            const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
+                                            const averageScore = subjCount > 0 ? (totalScore / subjCount).toFixed(1) : '—';
+                                            const rankObj = classRanks[student.id];
+                                            const savedData = allReportCards.find((r: any) => r.student_id === student.id);
+                                            const attendanceStr = savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
+                                                ? `${savedData.attendance_present} / ${savedData.attendance_total || localConfig?.term_total_days || '—'}`
+                                                : '—';
+
+                                            return (
+                                                <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {rankObj?.position === 1 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">🥇 1st</span>
+                                                        ) : rankObj?.position === 2 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-200 shadow-sm">🥈 2nd</span>
+                                                        ) : rankObj?.position === 3 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
+                                                        ) : rankObj?.position ? (
+                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs font-bold">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-9 w-9 rounded-xl bg-slate-50 overflow-hidden shrink-0 border border-slate-200/50 shadow-inner flex items-center justify-center">
+                                                                {student.photo ? (
+                                                                    <img src={student.photo} className="h-full w-full object-cover" />
+                                                                ) : (
+                                                                    <User className="h-4.5 w-4.5 text-slate-400" />
+                                                                )}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <h4 className="font-bold text-slate-800 text-sm truncate uppercase tracking-tight">{student.name}</h4>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">ID: {student.id.substring(0, 6)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-bold text-slate-650">
+                                                        {subjCount}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-black text-slate-800">
+                                                        {totalScore}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        {averageScore !== '—' ? (
+                                                            <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-1 rounded-lg border border-primary-100">{averageScore}%</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-bold text-slate-650">
+                                                        {attendanceStr !== '—' ? (
+                                                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-mono">{attendanceStr}</span>
+                                                        ) : (
+                                                            <span className="text-slate-350">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 max-w-xs truncate">
+                                                        <span className="text-xs font-semibold text-slate-600 italic block truncate" title={savedData?.teacher_remark || ''}>
+                                                            {savedData?.teacher_remark || <span className="text-slate-300 not-italic">No remark yet</span>}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        <button
+                                                            onClick={() => setReportStudent(student)}
+                                                            className="inline-flex items-center gap-1.5 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg hover:bg-primary-600 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-sm border-none"
+                                                        >
+                                                            <FileText className="w-3 h-3" /> Report
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Grid/List View */}
+                            <div className="md:hidden space-y-3.5">
+                                {processedStudents.map(student => {
                                     const studentResults = results.filter(r => r.studentId === student.id);
                                     const totalScore = studentResults.reduce((sum, r) => sum + r.total, 0);
-                                    const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
+                                    const rankObj = classRanks[student.id];
+                                    const savedData = allReportCards.find((r: any) => r.student_id === student.id);
 
                                     return (
-                                        <div
-                                            key={student.id}
-                                            className="group bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary-500/10 hover:border-primary-200 transition-all duration-300 flex flex-col justify-between"
-                                        >
-                                            <div className="flex items-center gap-4 mb-5">
-                                                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 shadow-inner group-hover:scale-105 transition-transform duration-500">
-                                                    {student.photo ? (
-                                                        <img src={student.photo} className="h-full w-full object-cover" />
-                                                    ) : (
-                                                        <div className="bg-primary-50 w-full h-full flex items-center justify-center">
-                                                            <User className="h-7 w-7 text-primary-300" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <h4 className="font-black text-slate-800 text-sm truncate uppercase tracking-tight group-hover:text-primary-700 transition-colors">{student.name}</h4>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-widest">ID: {student.id.substring(0, 6)}</span>
+                                        <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-9 w-9 rounded-xl bg-slate-50 overflow-hidden shrink-0 border border-slate-200/50 shadow-inner flex items-center justify-center">
+                                                        {student.photo ? (
+                                                            <img src={student.photo} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <User className="h-4.5 w-4.5 text-slate-400" />
+                                                        )}
                                                     </div>
+                                                    <div className="min-w-0">
+                                                        <h4 className="font-bold text-slate-800 text-sm truncate uppercase tracking-tight">{student.name}</h4>
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">ID: {student.id.substring(0, 6)}</span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    {rankObj?.position === 1 ? (
+                                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">🥇 1st</span>
+                                                    ) : rankObj?.position === 2 ? (
+                                                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-200 shadow-sm">🥈 2nd</span>
+                                                    ) : rankObj?.position === 3 ? (
+                                                        <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
+                                                    ) : rankObj?.position ? (
+                                                        <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                    ) : (
+                                                        <span className="text-slate-350 text-xs font-bold">—</span>
+                                                    )}
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-2 mb-5">
-                                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100/50">
-                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Marks</p>
-                                                    <p className="text-sm font-black text-slate-700">{totalScore}</p>
+                                            <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                                <div>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Total Score</span>
+                                                    <span className="text-sm font-black text-slate-800">{totalScore}</span>
                                                 </div>
-                                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100/50">
-                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Subjects</p>
-                                                    <p className="text-sm font-black text-slate-700">{subjCount}</p>
+                                                <div>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Attendance</span>
+                                                    <span className="text-xs font-bold text-slate-700">{savedData?.attendance_present !== undefined && savedData?.attendance_present !== null ? `${savedData.attendance_present}/${savedData.attendance_total || localConfig?.term_total_days || '—'}` : '—'}</span>
                                                 </div>
                                             </div>
 
                                             <button
                                                 onClick={() => setReportStudent(student)}
-                                                className="w-full py-3 flex items-center justify-center gap-2 bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest rounded-xl hover:bg-primary-600 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-slate-200 hover:shadow-primary-100 cursor-pointer"
+                                                className="w-full py-2.5 flex items-center justify-center gap-2 bg-slate-900 hover:bg-primary-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-md cursor-pointer border-none"
                                             >
-                                                <FileText className="w-3.5 h-3.5" /> View Full Report
+                                                <FileText className="w-3.5 h-3.5" /> View Report
                                             </button>
                                         </div>
                                     );
                                 })}
-                                {classStudents.length === 0 && (
-                                    <div className="col-span-full p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-3xl bg-white/50">
-                                        {!selectedClass ? (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <Filter className="w-8 h-8 text-slate-300" />
-                                                <p>Select a class to view students</p>
-                                            </div>
-                                        ) : !myAssignments.some(a => a.className.trim().toLowerCase() === selectedClass.trim().toLowerCase()) && (currentUser?.role || '').toLowerCase() === 'teacher' ? (
-                                            <div className="flex flex-col items-center gap-2 text-orange-400">
-                                                <ShieldAlert className="w-8 h-8" />
-                                                <p>Assignment Check Failed: You don't appear to be assigned to {selectedClass}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase font-black px-4">Contact your school administrator to verify your class/subject records</p>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <Users className="w-8 h-8 text-slate-300" />
-                                                <p>No students found in {selectedClass}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
+
+                            {processedStudents.length === 0 && (
+                                <div className="p-16 text-center text-slate-400 font-bold border-4 border-dashed border-slate-100 rounded-3xl bg-white/50">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Users className="w-8 h-8 text-slate-300" />
+                                        <p>No students found matching "{searchQuery}"</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )
                 ) : (
