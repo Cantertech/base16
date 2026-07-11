@@ -543,7 +543,9 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const { data: submissionOverview = [] } = useQuery({
         queryKey: ['submissionOverview', schoolId, currentTerm, currentYear],
         queryFn: () => fetchSubmissionOverview(schoolId!, currentTerm, currentYear),
-        enabled: !!schoolId && !!examConfig && ((currentUser?.role || '').toLowerCase().includes('admin'))
+        enabled: !!schoolId && !!examConfig && ((currentUser?.role || '').toLowerCase().includes('admin')),
+        refetchInterval: 30 * 1000, // Poll every 30s so admin sees teacher submissions without a reload
+        staleTime: 0,
     });
 
     const { data: allAssignments = [] } = useQuery({
