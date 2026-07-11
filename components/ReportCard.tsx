@@ -294,7 +294,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     if (data.conduct) setConduct(data.conduct);
                     if (data.interest) setInterest(data.interest);
                     if (data.attendance_present !== null) setAttendancePresentDays(data.attendance_present);
-                    if (data.attendance_total !== null) setAttendanceTotalDays(data.attendance_total);
+                    if (data.attendance_total !== null) setAttendanceTotalDays(data.attendance_total || Number((schoolConfig as any)?.term_total_days || 0));
                     if (data.pupil_bill !== null) setPupilBill(Number(data.pupil_bill));
                     if (data.other_fees !== null) setOtherFees(Number(data.other_fees));
                     if (data.next_class) setNextClass(data.next_class);
