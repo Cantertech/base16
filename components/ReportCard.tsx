@@ -435,297 +435,247 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const isClassic = classLayout === 'classic_tabular';
 
     const nurseryContent = (
-        <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto p-4 print:p-2 md:p-12 print:p-4 print:p-2 min-h-[1056px] print:min-h-0 text-slate-800 flex flex-col font-serif relative overflow-hidden ${printMode ? 'p-0 shadow-none' : 'shadow-2xl border border-slate-100'}`} style={{ fontFamily: 'Georgia, serif' }}>
-            {/* Premium Watermark */}
+        <div ref={printMode ? undefined : componentRef} className={`bg-white max-w-4xl mx-auto min-h-[1056px] print:min-h-0 text-slate-800 flex flex-col relative overflow-hidden ${printMode ? '' : 'shadow-2xl'}`} style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* NURSERY REPORT CARD — PREMIUM REDESIGN                  */}
+            {/* ═══════════════════════════════════════════════════════ */}
+
+            {/* Watermark */}
             {schoolConfig?.logo_url && (
-                <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none z-0">
-                    <img src={schoolConfig.logo_url} alt="" className="w-1/2 grayscale" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.04] pointer-events-none w-[380px] h-[380px] z-0">
+                    <img src={schoolConfig.logo_url} alt="" className="w-full h-full object-contain" />
                 </div>
             )}
 
-            {/* Elegant Corner Ornaments */}
-            <div className="absolute top-4 left-4 w-12 h-12 border-t-2 border-l-2 border-slate-200 pointer-events-none"></div>
-            <div className="absolute top-4 right-4 w-12 h-12 border-t-2 border-r-2 border-slate-200 pointer-events-none"></div>
-            <div className="absolute bottom-4 left-4 w-12 h-12 border-b-2 border-l-2 border-slate-200 pointer-events-none"></div>
-            <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-slate-200 pointer-events-none"></div>
+            {/* ══ HEADER BAND ══ */}
+            <div className="relative z-10 bg-[#0c2340] text-white print:bg-[#0c2340] px-8 pt-6 pb-5 print:px-6 print:pt-4 print:pb-4">
+                {/* Decorative gold top stripe */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#c9a84c] via-[#f5d27a] to-[#c9a84c]" />
 
-            {/* Soft texture background */}
-            <div className="absolute inset-0 opacity-[0.015] pointer-events-none select-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]"></div>
+                <div className="flex items-center justify-between gap-6">
+                    {/* Logo */}
+                    {schoolConfig?.logo_url && (
+                        <div className="h-[72px] w-[72px] print:h-14 print:w-14 shrink-0 bg-white border-2 border-[#c9a84c] shadow-lg flex items-center justify-center p-1">
+                            <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                        </div>
+                    )}
 
-            {/* Header */}
-            {/* Classic-Style Institutional Header */}
-            <div className="relative mb-1 text-center border-b-2 border-double border-slate-900 pb-4 print:pb-1 pt-2">
-                <div className="absolute top-0 left-0 w-full h-full opacity-[0.02] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]"></div>
-                
-                <div className="relative z-10 flex flex-col items-center">
-                    <div className="flex justify-center items-center gap-10 mb-2 print:mb-1">
-                        {schoolConfig?.logo_url && (
-                            <div className="h-20 w-20 print:h-18 print:w-18 flex items-center justify-center p-1.5 bg-white border border-slate-200 shadow-sm">
-                                <img src={schoolConfig.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
-                            </div>
-                        )}
-                        {schoolConfig?.report_card_config?.show_student_photo !== false && (
-                        <div className="h-16 w-16 print:h-14 print:w-14 bg-slate-50 border-2 border-slate-900 shadow-lg flex items-center justify-center overflow-hidden shrink-0 print:border-slate-950">
+                    {/* School Info — Center */}
+                    <div className="flex-1 text-center">
+                        <h1 className="text-2xl print:text-xl font-black uppercase tracking-wide leading-tight text-white mb-1">
+                            {schoolConfig?.name || 'NAME OF SCHOOL'}
+                        </h1>
+                        <div className="flex items-center justify-center gap-3 mb-2">
+                            <span className="h-px w-8 bg-[#c9a84c]/60" />
+                            <p className="text-[10px] font-black uppercase tracking-[0.45em] text-[#c9a84c]">Foundation Stage Assessment</p>
+                            <span className="h-px w-8 bg-[#c9a84c]/60" />
+                        </div>
+                        <div className="inline-block border border-[#c9a84c]/40 px-6 py-1 bg-white/5">
+                            <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/90 italic">Terminal Narrative Report</p>
+                        </div>
+                    </div>
+
+                    {/* Passport Photo */}
+                    {schoolConfig?.report_card_config?.show_student_photo !== false && (
+                        <div className="h-[72px] w-[72px] print:h-14 print:w-14 shrink-0 border-2 border-[#c9a84c] overflow-hidden bg-slate-700 flex items-center justify-center">
                             {student.photo ? (
                                 <img src={student.photo} alt={student.name} className="h-full w-full object-cover" />
                             ) : (
                                 <div className="text-center p-1">
-                                    <Building2 className="w-6 h-6 text-slate-200 mx-auto" />
-                                    <span className="text-[12.5px] text-slate-300 font-black uppercase">Passport</span>
+                                    <Building2 className="w-6 h-6 text-slate-400 mx-auto" />
+                                    <span className="text-[9px] text-slate-400 font-black uppercase">Photo</span>
                                 </div>
                             )}
                         </div>
-                        )}
-                    </div>
-                    
-                    <div className="max-w-3xl mx-auto">
-                        <h1 className="font-serif text-3xl md:text-3xl print:text-3xl font-black uppercase tracking-tight text-slate-900 leading-none mb-1 shadow-sm">{schoolConfig?.name || 'NAME OF SCHOOL'}</h1>
-                        <div className="flex items-center justify-center gap-2 mb-3">
-                            <span className="h-0.5 w-6 bg-slate-900/10"></span>
-                            <p className="text-[12.5px] font-black uppercase text-slate-500 tracking-[0.5em]">Foundation Stage Assessment</p>
-                            <span className="h-0.5 w-6 bg-slate-900/10"></span>
-                        </div>
-                        <div className="inline-block px-10 py-1 border-y-2 border-slate-950/20">
-                            <h2 className="text-[14px] font-black uppercase tracking-[0.25em] text-slate-950 italic">Terminal Narrative Report</h2>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
-            {/* Disciplined Student Persona Grid (Consistent with Classic) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-x-4 gap-y-2 mb-4 print:mb-1.5 bg-slate-50/50 p-4 print:p-1.5 border border-slate-200 print:bg-white print:border-slate-950">
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Name of Learner</p>
-                    <p className="text-xs font-black text-slate-900 uppercase truncate leading-tight">{student.name}</p>
-                </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Class</p>
-                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{student.class}</p>
-                </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Session</p>
-                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{schoolConfig?.academic_year || '-'}</p>
-                </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Term</p>
-                    <p className="text-xs font-black text-slate-900 uppercase leading-tight">{schoolConfig?.current_term || schoolConfig?.term || '-'}</p>
-                </div>
-                {schoolConfig?.report_card_config?.show_attendance !== false && (
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance</p>
-                    <p className="text-[12.5px] font-bold text-slate-700 uppercase leading-tight">{attendancePresentDays} / {attendanceTotalDays}</p>
-                </div>
-                )}
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Re-opening</p>
-                    <p className="text-[12.5px] font-bold text-slate-700 uppercase leading-tight">{schoolConfig?.next_term_reopens || 'TBD'}</p>
-                </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                     <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Learner ID</p>
-                     <p className="text-[12.5px] font-bold text-slate-700 uppercase leading-tight">#{student.id.substring(0, 8).toUpperCase()}</p>
-                </div>
-                <div className="space-y-0.5 border-b border-slate-200 pb-0.5 flex flex-col justify-end">
-                     <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest leading-none">Tracking</p>
-                     <p className="text-[12.5px] font-black text-blue-600 uppercase leading-tight">Narrative</p>
-                </div>
+            {/* ══ STUDENT INFO GRID ══ */}
+            <div className="relative z-10 grid grid-cols-4 print:grid-cols-4 border-b-2 border-[#0c2340] text-[11px]">
+                {[
+                    { label: 'Name of Learner', value: student.name },
+                    { label: 'Class', value: student.class },
+                    { label: 'Session', value: schoolConfig?.academic_year || '—' },
+                    { label: 'Term', value: schoolConfig?.current_term || schoolConfig?.term || '—' },
+                    ...(schoolConfig?.report_card_config?.show_attendance !== false ? [{ label: 'Attendance', value: `${attendancePresentDays} / ${attendanceTotalDays}` }] : []),
+                    { label: 'Re-opening', value: schoolConfig?.next_term_reopens || 'TBD' },
+                    { label: 'Learner ID', value: `#${student.id.substring(0, 8).toUpperCase()}` },
+                    { label: 'Tracking', value: 'Narrative', highlight: true },
+                ].map((item: any, i) => (
+                    <div key={i} className={`px-4 py-2.5 print:px-3 print:py-1.5 border-r border-b border-[#0c2340]/10 last:border-r-0 ${i % 4 === 0 ? 'col-span-2' : ''} ${i < 4 ? 'bg-[#0c2340]/5' : 'bg-white'}`}>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-0.5">{item.label}</p>
+                        <p className={`font-black uppercase leading-tight ${item.highlight ? 'text-blue-600' : 'text-slate-900'}`}>{item.value}</p>
+                    </div>
+                ))}
             </div>
 
-            {/* Assessment Core - Premium Classic Table */}
-            <div className="space-y-1 mb-1 print:mb-0.5 flex-1 relative z-10">
-                <div className="flex items-center gap-3 mb-3 print:mb-1.5 px-1">
-                    <div className="w-1.5 h-1.5 bg-slate-950 rotate-45"></div>
-                    <h3 className="text-[12px] font-black uppercase tracking-[0.3em] text-slate-950 font-serif">Assessment Summary</h3>
-                    <div className="flex-1 h-[1px] bg-slate-950/20"></div>
+            {/* ══ ASSESSMENT TABLE ══ */}
+            <div className="relative z-10 px-8 pt-5 pb-3 print:px-6 print:pt-4 flex-1">
+                {/* Section heading */}
+                <div className="flex items-center gap-3 mb-4 print:mb-2">
+                    <div className="h-5 w-1.5 bg-[#0c2340] print:bg-[#0c2340]" />
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.35em] text-[#0c2340]">Assessment Summary</h3>
+                    <div className="flex-1 h-px bg-[#0c2340]/15" />
                 </div>
 
-                <div className="border border-slate-950 shadow-[4px_4px_0px_rgba(0,0,0,0.05)] bg-white">
+                <div className="border border-[#0c2340]/20 overflow-hidden shadow-sm">
                     <table className="w-full border-collapse">
                         <thead>
-                            <tr className="bg-slate-900 text-white print:bg-slate-50 print:text-slate-900">
-                                <th className="text-left px-4 py-1.5 text-[10.5px] font-black uppercase tracking-wider print:py-0.5">Category</th>
-                                <th className="text-center px-4 py-1.5 text-[10.5px] font-black uppercase tracking-wider w-40 border-l border-white/20 print:border-slate-950 print:py-0.5">Status</th>
+                            <tr style={{ backgroundColor: '#0c2340' }} className="print:bg-[#0c2340] text-white">
+                                <th className="text-left px-5 py-2 text-[10px] font-black uppercase tracking-widest print:py-1.5">#</th>
+                                <th className="text-left px-5 py-2 text-[10px] font-black uppercase tracking-widest print:py-1.5">Subject / Category</th>
+                                <th className="text-center px-5 py-2 text-[10px] font-black uppercase tracking-widest w-44 border-l border-white/10 print:py-1.5">Development Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 print:divide-slate-950 border-x border-slate-950">
+                        <tbody className="divide-y divide-[#0c2340]/8">
                             {results.length > 0 ? results.map((result, idx) => {
-                                const status = (result as any).competency_status || (result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging');
-                                const statusColor = (result as any).competency_status ? 'text-slate-900 font-black' : (result.total >= 80 ? 'text-green-700 font-black' : result.total >= 60 ? 'text-blue-700 font-black' : 'text-orange-700 font-black');
+                                const rawStatus = (result as any).competency_status || (result.total >= 80 ? 'Mastered' : result.total >= 60 ? 'Developing' : 'Emerging');
+                                const displayStatus = rawStatus === '90' ? 'Mastered' : rawStatus === '70' ? 'Developing' : rawStatus === '40' ? 'Emerging' : rawStatus;
+                                const badgeStyle = displayStatus === 'Mastered'
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 print:bg-white print:border-emerald-900 print:text-emerald-900'
+                                    : displayStatus === 'Developing'
+                                    ? 'bg-blue-50 text-blue-800 border border-blue-200 print:bg-white print:border-blue-900 print:text-blue-900'
+                                    : 'bg-amber-50 text-amber-800 border border-amber-200 print:bg-white print:border-amber-900 print:text-amber-900';
                                 return (
-                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30 print:bg-transparent'}>
-                                        <td className="px-5 py-2 text-[12px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
-                                        <td className="px-4 py-2 text-center border-l border-slate-100 print:border-slate-300">
-                                            <span className={`text-[12px] uppercase tracking-tighter italic ${statusColor}`}>
-                                                {status === '90' ? 'Mastered' : status === '70' ? 'Developing' : status === '40' ? 'Emerging' : status}
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#0c2340]/[0.02] print:bg-transparent'}>
+                                        <td className="px-5 py-2.5 text-[11px] font-black text-slate-400 print:py-1.5 w-8">{idx + 1}</td>
+                                        <td className="px-5 py-2.5 text-[12px] font-black text-slate-900 uppercase tracking-tight print:py-1.5">{result.subject}</td>
+                                        <td className="px-4 py-2.5 text-center border-l border-[#0c2340]/8 print:py-1.5">
+                                            <span className={`inline-block text-[10.5px] font-black uppercase tracking-wide px-3 py-0.5 ${badgeStyle}`}>
+                                                {displayStatus}
                                             </span>
                                         </td>
                                     </tr>
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan={2} className="py-10 text-center text-slate-400 font-bold italic text-[12.5px] uppercase tracking-widest">No Narrative Recorded</td>
+                                    <td colSpan={3} className="py-10 text-center text-slate-300 font-bold italic text-[12px] uppercase tracking-widest">No Assessment Recorded</td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 mt-2 print:mt-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Key:</span>
+                    {[['Mastered','bg-emerald-100 text-emerald-800'],['Developing','bg-blue-100 text-blue-800'],['Emerging','bg-amber-100 text-amber-800']].map(([label, cls]) => (
+                        <span key={label} className={`text-[9px] font-black uppercase px-2 py-0.5 ${cls} print:bg-transparent print:text-slate-600`}>{label}</span>
+                    ))}
+                </div>
             </div>
 
-            {/* Classic Narrative Feedback */}
-            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8 print:gap-4 mb-2 print:mb-1 pt-4 border-t-2 border-slate-100 relative z-10">
-                <div className="space-y-4">
+            {/* ══ REMARKS + FINANCIALS ══ */}
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-0 border-t-2 border-[#0c2340]/10">
+                {/* Remarks Column */}
+                <div className="px-8 py-5 print:px-6 print:py-3 border-r border-[#0c2340]/10 space-y-4 print:space-y-2">
                     {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
-                    <div className="relative group">
-                        <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
-                            <div className="w-1 h-3 bg-slate-900"></div>
-                            <span className="text-[12.5px] font-black uppercase text-slate-400 tracking-[0.2em]">Lead Educator's Evaluation</span>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="h-3 w-0.5 bg-[#0c2340]" />
+                                <span className="text-[9.5px] font-black uppercase tracking-[0.25em] text-slate-500">Lead Educator's Evaluation</span>
+                            </div>
+                            <div className="border border-dashed border-slate-300 bg-slate-50/50 rounded">
+                                <textarea
+                                    value={teacherRemark}
+                                    onChange={(e) => setTeacherRemark(e.target.value)}
+                                    className="w-full bg-transparent border-none p-2.5 print:p-1.5 text-[12px] font-semibold text-slate-800 italic leading-snug h-16 print:h-12 resize-none outline-none"
+                                    placeholder="Enter lead educator's comments..."
+                                />
+                            </div>
                         </div>
-                        <div className="border border-slate-200 border-dashed rounded-lg p-0.5 bg-slate-50/20">
-                            <textarea
-                                value={teacherRemark}
-                                onChange={(e) => setTeacherRemark(e.target.value)}
-                                className="w-full bg-transparent border border-slate-100 rounded p-2.5 print:p-1.5 text-[12.5px] font-bold text-slate-900 italic leading-snug h-20 print:h-14 resize-none outline-none focus:bg-white transition-all"
-                                placeholder="..."
-                            />
-                        </div>
-                    </div>
                     )}
                     {schoolConfig?.report_card_config?.show_head_teacher_remark !== false && (
-                    <div className="relative group">
-                        <div className="flex items-center gap-2 mb-1.5 translate-x-[-4px]">
-                            <div className="w-1 h-3 bg-slate-900 opacity-40"></div>
-                            <span className="text-[12.5px] font-black uppercase text-slate-900 tracking-[0.2em]">Principal's Final Remark</span>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="h-3 w-0.5 bg-[#c9a84c]" />
+                                <span className="text-[9.5px] font-black uppercase tracking-[0.25em] text-slate-500">Principal's Final Remark</span>
+                            </div>
+                            <div className="border-2 border-double border-[#0c2340]/20 bg-white rounded">
+                                <textarea
+                                    value={principalRemark}
+                                    onChange={(e) => setPrincipalRemark(e.target.value)}
+                                    className="w-full bg-transparent border-none p-2.5 print:p-1.5 text-[12px] font-black text-slate-900 italic leading-snug h-12 print:h-10 resize-none outline-none"
+                                    placeholder="..."
+                                />
+                            </div>
                         </div>
-                        <div className="border-2 border-double border-slate-200 rounded-lg p-0.5 bg-white">
-                            <textarea
-                                value={principalRemark}
-                                onChange={(e) => setPrincipalRemark(e.target.value)}
-                                className="w-full bg-transparent border-none p-2.5 print:p-1.5 text-[12.5px] font-black text-slate-950 italic leading-snug h-12 print:h-10 resize-none outline-none"
-                                placeholder="..."
-                            />
-                        </div>
-                    </div>
                     )}
                 </div>
 
-                {/* Right Column: Financials OR Extra Details if no fees */}
-                {showFees ? (
-                    <div className="flex flex-col gap-4 print:gap-2">
-                        <div className="bg-white border-2 border-slate-900 text-slate-900 p-4 print:p-3 print:py-1.5 print:px-2.5 rounded-2xl shadow-sm relative overflow-hidden">
-                             {/* Decorative Shine */}
-                            <div className="absolute -top-10 -right-10 w-40 h-40 bg-slate-50 rounded-full pointer-events-none"></div>
-                            
-                            <div className="relative z-10">
-                                <h4 className="text-[10.5px] font-black uppercase tracking-widest mb-3 text-slate-500">Financial Overview</h4>
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center pb-1 border-b border-slate-200">
-                                        <span className="text-[12px] font-bold text-slate-650">Termly Fees</span>
-                                        <span className="font-mono text-xs text-slate-900 font-bold">GHS {pupilBill.toFixed(2)}</span>
+                {/* Financials / Signatures Column */}
+                <div className="px-8 py-5 print:px-6 print:py-3">
+                    {showFees ? (
+                        <div className="flex flex-col gap-4 print:gap-2 h-full">
+                            <div className="border-2 border-[#0c2340] p-4 print:p-3 relative overflow-hidden bg-white flex-1">
+                                <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#c9a84c] via-[#f5d27a] to-[#c9a84c]" />
+                                <h4 className="text-[9.5px] font-black uppercase tracking-widest text-slate-400 mb-3 print:mb-2">Financial Overview</h4>
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                                        <span className="text-[11.5px] font-bold text-slate-600">Termly Fees</span>
+                                        <span className="font-mono text-[11.5px] font-bold text-slate-900">GHS {pupilBill.toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center pb-1 border-b border-slate-200">
-                                        <span className="text-[12px] font-bold text-slate-655">Ancillary</span>
-                                        <span className="font-mono text-xs text-slate-900 font-bold">GHS {otherFees.toFixed(2)}</span>
+                                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                                        <span className="text-[11.5px] font-bold text-slate-600">Ancillary</span>
+                                        <span className="font-mono text-[11.5px] font-bold text-slate-900">GHS {otherFees.toFixed(2)}</span>
                                     </div>
-                                    <div className="pt-2 flex justify-between items-end">
+                                    <div className="flex justify-between items-center pt-1">
                                         <div>
-                                            <p className="text-[12px] font-black uppercase text-slate-400 mb-0.5">Total Due</p>
-                                            <p className="text-xl font-black text-slate-950">GHS {(pupilBill + otherFees).toFixed(2)}</p>
+                                            <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">Total Due</p>
+                                            <p className="text-lg font-black text-[#0c2340]">GHS {(pupilBill + otherFees).toFixed(2)}</p>
                                         </div>
-                                        <div className="h-6 w-6 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center">
-                                            <Building2 className="w-3 h-3 text-slate-500" />
-                                        </div>
+                                        <Building2 className="w-5 h-5 text-slate-200" />
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Classic Signatures */}
-                        {schoolConfig?.report_card_config?.show_signature !== false && (
-                        <div className="grid grid-cols-2 gap-8 mt-12 px-4 relative">
-                            <div className="text-center pt-6 relative group">
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <PenTool className="w-full h-full text-slate-900" />
-                                </div>
-                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5"></div>
-                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5"></div>
-                                <span className="text-[10.5px] font-black uppercase text-slate-900 tracking-[0.2em]">Lead Preceptor</span>
-                            </div>
-                            <div className="text-center pt-6 relative group">
-                                {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain mx-auto absolute -top-11 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
-                                )}
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <PenTool className="w-full h-full text-slate-900" />
-                                </div>
-                                <div className="h-[1.5px] bg-slate-950 w-full mb-0.5 relative z-20"></div>
-                                <div className="h-[0.5px] bg-slate-950 w-full opacity-20 mt-[-2px] mb-1.5 relative z-20"></div>
-                                <span className="text-[10.5px] font-black uppercase text-slate-900 tracking-[0.2em] relative z-20">Head of Institution</span>
-                                
-                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-24 w-24 object-contain absolute -top-16 -right-6 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
-                                )}
-                            </div>
-                        </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
-                             <div>
-                                <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Child Development Notes</h4>
-                                <p className="text-[12.5px] text-slate-300 uppercase font-black italic">Behavioral & Material Checklist</p>
-                             </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-4">
-                            {extraReportSections.map((section, idx) => (
-                                <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group relative">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <input 
-                                            type="text" 
-                                            value={section.title} 
-                                            onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} 
-                                            placeholder="Section Title"
-                                            className="bg-transparent border-none text-[12px] font-black uppercase text-slate-700 outline-none w-full"
-                                        />
-                                        <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden">
-                                            <X className="w-3 h-3" />
-                                        </button>
+                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                                <div className="grid grid-cols-2 gap-6 pt-4 print:pt-2">
+                                    <div className="text-center">
+                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
+                                        <div className="h-px bg-[#0c2340]/20 w-full mb-1" />
+                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-700">Lead Preceptor</span>
                                     </div>
-                                    <textarea 
-                                        value={section.content} 
-                                        onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} 
-                                        className="w-full bg-transparent border-none outline-none text-[12.5px] text-slate-600 min-h-12 resize-none italic font-medium leading-relaxed" 
-                                        placeholder="..." 
-                                    />
+                                    <div className="text-center relative">
+                                        {(schoolConfig as any)?.report_card_config?.signature_url && (
+                                            <img src={(schoolConfig as any).report_card_config.signature_url} className="h-9 object-contain mx-auto absolute -top-10 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                        )}
+                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1 relative z-20" />
+                                        <div className="h-px bg-[#0c2340]/20 w-full mb-1 relative z-20" />
+                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-700 relative z-20">Head of Institution</span>
+                                        {(schoolConfig as any)?.report_card_config?.stamp_url && (
+                                            <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-20 w-20 object-contain absolute -top-14 -right-4 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
+                                        )}
+                                    </div>
                                 </div>
-                            ))}
-                            
+                            )}
                         </div>
-
-                        {schoolConfig?.report_card_config?.show_signature !== false && (
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                             <div className="text-center pt-6">
-                                <div className="h-px bg-slate-200 w-full mb-1"></div>
-                                <span className="text-[12px] font-black uppercase text-slate-300 tracking-[0.2em]">Class Teacher</span>
-                             </div>
-                             <div className="text-center pt-6">
-                                <div className="h-px bg-slate-200 w-full mb-1"></div>
-                                <span className="text-[12px] font-black uppercase text-slate-300 tracking-[0.2em]">Principal</span>
-                             </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                                <div className="grid grid-cols-2 gap-6 mt-4 print:mt-2">
+                                    <div className="text-center pt-6">
+                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
+                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-600">Lead Preceptor</span>
+                                    </div>
+                                    <div className="text-center pt-6">
+                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
+                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-600">Head of Institution</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        )}
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
-            {/* Footer */}
-            <div className="mt-auto border-t border-slate-100 pt-4 flex justify-between items-center">
-                <p className="text-[10.5px] font-black text-slate-400 uppercase tracking-widest italic">Encouraging curiosity and lifelong learning since {schoolConfig?.name?.charAt(0) || 'O'}</p>
+            {/* ══ FOOTER ══ */}
+            <div className="relative z-10 bg-[#0c2340] px-8 py-2.5 print:px-6 print:py-2 flex justify-between items-center mt-auto">
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/40 italic">Encouraging curiosity and lifelong learning</p>
                 <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 bg-slate-100 rounded-full flex items-center justify-center">
-                        <Building2 className="w-2.5 h-2.5 text-slate-400" />
-                    </div>
-                    <span className="text-[10.5px] font-black text-slate-300 uppercase">Base16 Schools Management System</span>
+                    <Building2 className="w-3 h-3 text-[#c9a84c]/60" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Base16 Schools Management System</span>
                 </div>
             </div>
         </div>
