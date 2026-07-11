@@ -574,6 +574,36 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-0 border-t-2 border-[#0c2340]/10" style={{ minHeight: results.length <= 6 ? '220px' : '180px' }}>
                 {/* Remarks Column */}
                 <div className="px-8 py-5 print:px-6 print:py-3 border-r border-[#0c2340]/10 space-y-4 print:space-y-2">
+                    {/* Conduct & Interest */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="h-2.5 w-0.5 bg-[#0c2340]" />
+                                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500">Conduct / Attitude</span>
+                            </div>
+                            <input 
+                                type="text"
+                                value={conduct}
+                                onChange={(e) => setConduct(e.target.value)}
+                                className="w-full bg-[#0c2340]/[0.02] border border-[#0c2340]/10 rounded px-2.5 py-1 text-[11px] font-bold text-slate-800 outline-none focus:border-[#0c2340]/30 italic"
+                                placeholder="Conduct"
+                            />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="h-2.5 w-0.5 bg-[#c9a84c]" />
+                                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500">Interest / Talent</span>
+                            </div>
+                            <input 
+                                type="text"
+                                value={interest}
+                                onChange={(e) => setInterest(e.target.value)}
+                                className="w-full bg-[#0c2340]/[0.02] border border-[#0c2340]/10 rounded px-2.5 py-1 text-[11px] font-bold text-slate-800 outline-none focus:border-[#0c2340]/30 italic"
+                                placeholder="Interest"
+                            />
+                        </div>
+                    </div>
+
                     {schoolConfig?.report_card_config?.show_class_teacher_remark !== false && (
                         <div>
                             <div className="flex items-center gap-2 mb-1.5">
@@ -603,6 +633,37 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                     className="w-full bg-transparent border-none p-2.5 print:p-1.5 text-[12px] font-black text-slate-900 italic leading-snug h-12 print:h-10 resize-none outline-none"
                                     placeholder="..."
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Custom Sections / Child Development Notes (when showFees is true) */}
+                    {showFees && schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
+                        <div className="space-y-3 mt-3 border-t border-[#0c2340]/10 pt-3">
+                            <span className="text-[9.5px] font-black uppercase tracking-widest text-[#0c2340] block">Child Development Notes</span>
+                            <div className="grid grid-cols-1 gap-2.5 max-h-48 overflow-y-auto">
+                                {extraReportSections.map((section, idx) => (
+                                    <div key={idx} className="bg-[#0c2340]/[0.01] p-2.5 rounded border border-[#0c2340]/10 group relative">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <input 
+                                                type="text" 
+                                                value={section.title} 
+                                                onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} 
+                                                placeholder="Section Title"
+                                                className="bg-transparent border-none text-[9.5px] font-black uppercase text-slate-700 outline-none w-full"
+                                            />
+                                            <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden absolute top-1 right-1 z-10">
+                                                <X className="w-2.5 h-2.5" />
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            value={section.content} 
+                                            onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} 
+                                            className="w-full bg-transparent border-none outline-none text-[11px] text-slate-600 min-h-8 resize-none italic font-medium leading-tight mt-0.5" 
+                                            placeholder="..." 
+                                        />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -656,7 +717,38 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             )}
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4 h-full flex flex-col justify-between">
+                            {/* Render extra sections checklist here since showFees is false */}
+                            {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
+                                <div className="space-y-3">
+                                    <span className="text-[9.5px] font-black uppercase tracking-widest text-[#0c2340] block">Child Development Notes</span>
+                                    <div className="grid grid-cols-1 gap-2.5 max-h-[350px] overflow-y-auto">
+                                        {extraReportSections.map((section, idx) => (
+                                            <div key={idx} className="bg-[#0c2340]/[0.01] p-2.5 rounded border border-[#0c2340]/10 group relative">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <input 
+                                                        type="text" 
+                                                        value={section.title} 
+                                                        onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} 
+                                                        placeholder="Section Title"
+                                                        className="bg-transparent border-none text-[9.5px] font-black uppercase text-slate-700 outline-none w-full"
+                                                    />
+                                                    <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all print:hidden absolute top-1 right-1 z-10">
+                                                        <X className="w-2.5 h-2.5" />
+                                                    </button>
+                                                </div>
+                                                <textarea 
+                                                    value={section.content} 
+                                                    onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} 
+                                                    className="w-full bg-transparent border-none outline-none text-[11px] text-slate-600 min-h-8 resize-none italic font-medium leading-tight mt-0.5" 
+                                                    placeholder="..." 
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {schoolConfig?.report_card_config?.show_signature !== false && (
                                 <div className="grid grid-cols-2 gap-6 mt-4 print:mt-2">
                                     <div className="text-center pt-6">
