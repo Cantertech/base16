@@ -610,28 +610,28 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 {/* Right Column: Financials OR Extra Details if no fees */}
                 {showFees ? (
                     <div className="flex flex-col gap-4 print:gap-2">
-                        <div className="bg-slate-900 text-white p-4 print:p-3 print:py-1.5 print:px-2.5 rounded-2xl shadow-lg relative overflow-hidden print:bg-white print:text-slate-900 print:border-[1.5px] print:border-slate-950">
+                        <div className="bg-white border-2 border-slate-900 text-slate-900 p-4 print:p-3 print:py-1.5 print:px-2.5 rounded-2xl shadow-sm relative overflow-hidden">
                              {/* Decorative Shine */}
-                            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
+                            <div className="absolute -top-10 -right-10 w-40 h-40 bg-slate-50 rounded-full pointer-events-none"></div>
                             
                             <div className="relative z-10">
-                                <h4 className="text-[10.5px] font-black uppercase tracking-widest mb-3 opacity-60 print:opacity-100 print:text-slate-500">Financial Overview</h4>
+                                <h4 className="text-[10.5px] font-black uppercase tracking-widest mb-3 text-slate-500">Financial Overview</h4>
                                 <div className="space-y-2">
-                                    <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-[12px] font-bold opacity-60 print:opacity-100 print:text-slate-700">Termly Fees</span>
-                                        <span className="font-mono text-xs print:text-slate-900 font-bold">GHS {pupilBill.toFixed(2)}</span>
+                                    <div className="flex justify-between items-center pb-1 border-b border-slate-200">
+                                        <span className="text-[12px] font-bold text-slate-650">Termly Fees</span>
+                                        <span className="font-mono text-xs text-slate-900 font-bold">GHS {pupilBill.toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center pb-1 border-b border-white/10 print:border-slate-200">
-                                        <span className="text-[12px] font-bold opacity-60 print:opacity-100 print:text-slate-700">Ancillary</span>
-                                        <span className="font-mono text-xs print:text-slate-900 font-bold">GHS {otherFees.toFixed(2)}</span>
+                                    <div className="flex justify-between items-center pb-1 border-b border-slate-200">
+                                        <span className="text-[12px] font-bold text-slate-655">Ancillary</span>
+                                        <span className="font-mono text-xs text-slate-900 font-bold">GHS {otherFees.toFixed(2)}</span>
                                     </div>
                                     <div className="pt-2 flex justify-between items-end">
                                         <div>
-                                            <p className="text-[12px] font-black uppercase opacity-40 print:opacity-100 print:text-slate-500 mb-0.5">Total Due</p>
-                                            <p className="text-xl font-black print:text-slate-950">GHS {(pupilBill + otherFees).toFixed(2)}</p>
+                                            <p className="text-[12px] font-black uppercase text-slate-400 mb-0.5">Total Due</p>
+                                            <p className="text-xl font-black text-slate-950">GHS {(pupilBill + otherFees).toFixed(2)}</p>
                                         </div>
-                                        <div className="h-6 w-6 bg-white/10 rounded-full flex items-center justify-center print:bg-slate-100 print:border print:border-slate-200">
-                                            <Building2 className="w-3 h-3 opacity-40 print:opacity-100 print:text-slate-700" />
+                                        <div className="h-6 w-6 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center">
+                                            <Building2 className="w-3 h-3 text-slate-500" />
                                         </div>
                                     </div>
                                 </div>
@@ -1382,64 +1382,63 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
                 {/* Right: Financial Statement */}
                 {showFees && (
-                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 text-white rounded-2xl print:rounded-lg p-5 print:p-4 flex flex-col justify-between relative overflow-hidden print:bg-white print:border-2 print:border-slate-800 print:text-slate-900">
-                        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-500/10 pointer-events-none" />
-                        <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
-                        <div className="absolute inset-0 opacity-5 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] print:hidden pointer-events-none" />
+                    <div className="bg-white border-2 border-blue-900 text-slate-900 rounded-2xl p-5 print:p-4 flex flex-col justify-between relative overflow-hidden shadow-sm">
+                        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-50/50 pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-slate-50 pointer-events-none" />
                         
                         <div className="relative z-10">
                             <div className="flex justify-between items-center mb-4 print:mb-3">
-                                <h4 className="text-[10.5px] font-black uppercase tracking-widest text-white/80 print:text-slate-700 print:opacity-100">Financial Statement</h4>
-                                <span className="text-[9px] font-bold bg-blue-500/30 border border-blue-400/30 px-2.5 py-1 rounded-full print:bg-slate-100 print:text-slate-700 print:border-slate-200">TERM {schoolConfig?.current_term || 1}</span>
+                                <h4 className="text-[10.5px] font-black uppercase tracking-widest text-slate-500">Financial Statement</h4>
+                                <span className="text-[9px] font-bold bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full text-blue-700">TERM {schoolConfig?.current_term || 1}</span>
                             </div>
                             <div className="space-y-3 print:space-y-2">
-                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-300">
-                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">Outstanding Balance</span>
-                                    <span className="font-mono font-black text-sm print:text-slate-900">GHS {(student as any).balance || '0.00'}</span>
+                                <div className="flex justify-between items-center border-b border-slate-200 pb-2.5">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Outstanding Balance</span>
+                                    <span className="font-mono font-black text-sm text-slate-900">GHS {(student as any).balance || '0.00'}</span>
                                 </div>
-                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-300">
-                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">New Bill Amount</span>
+                                <div className="flex justify-between items-center border-b border-slate-200 pb-2.5">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">New Bill Amount</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="opacity-50 print:opacity-100 print:text-slate-500 text-[10px] font-mono">GHS</span>
-                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-slate-50 print:border-slate-300 print:text-slate-900" />
+                                        <span className="text-slate-400 font-mono text-[10px]">GHS</span>
+                                        <input type="number" value={pupilBill} onChange={(e) => setPupilBill(Number(e.target.value))} className="w-20 bg-slate-50 border-b border-slate-300 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm text-slate-900 focus:border-blue-500" />
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center border-b border-white/10 pb-2.5 print:border-slate-200">
-                                    <span className="text-[10px] font-semibold opacity-70 print:opacity-100 print:text-slate-700 uppercase tracking-wide">Auxiliary Charges</span>
+                                <div className="flex justify-between items-center border-b border-slate-200 pb-2.5">
+                                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Auxiliary Charges</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="opacity-50 print:opacity-100 print:text-slate-500 text-[10px] font-mono">GHS</span>
-                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-white print:border-slate-300 print:text-slate-900" />
+                                        <span className="text-slate-400 font-mono text-[10px]">GHS</span>
+                                        <input type="number" value={otherFees} onChange={(e) => setOtherFees(Number(e.target.value))} className="w-20 bg-slate-50 border-b border-slate-300 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm text-slate-900 focus:border-blue-500" />
                                     </div>
                                 </div>
                                 {extraBillItems.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between items-center group border-b border-white/10 pb-2.5 print:border-slate-300">
-                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent border-b border-white/20 text-[10px] uppercase tracking-wider font-bold outline-none w-1/2 opacity-70 print:text-slate-700 print:border-none print:opacity-100 p-0" />
+                                    <div key={idx} className="flex justify-between items-center group border-b border-slate-200 pb-2.5">
+                                        <input type="text" value={item.label} onChange={e => updateExtraBillItem(idx, 'label', e.target.value)} placeholder="Item Name" className="bg-transparent border-b border-slate-300 text-[10px] uppercase tracking-wider font-bold outline-none w-1/2 text-slate-600 p-0 focus:border-blue-500" />
                                         <div className="flex items-center gap-1.5">
-                                            <span className="opacity-50 print:opacity-100 print:text-slate-500 font-mono text-[10px]">GHS</span>
-                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-white/10 border-b border-white/30 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm print:bg-white print:border-slate-300 print:text-slate-900" />
-                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-5 w-5 rounded-full bg-red-400/20 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5" /></button>
+                                            <span className="text-slate-400 font-mono text-[10px]">GHS</span>
+                                            <input type="number" value={item.value} onChange={e => updateExtraBillItem(idx, 'value', e.target.value)} className="w-20 bg-slate-50 border-b border-slate-300 text-right outline-none font-mono font-bold py-0 px-1.5 text-sm text-slate-900 focus:border-blue-500" />
+                                            <button onClick={() => removeExtraBillItem(idx)} className="print:hidden h-5 w-5 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><X className="w-2.5 h-2.5 text-red-500" /></button>
                                         </div>
                                     </div>
                                 ))}
-                                <button onClick={addExtraBillItem} className="print:hidden w-full py-2 border border-dashed border-white/20 rounded-xl text-[9.5px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-1.5 mt-1"><X className="w-2.5 h-2.5 rotate-45" /> Add Bill Item</button>
+                                <button onClick={addExtraBillItem} className="print:hidden w-full py-2 border border-dashed border-blue-300 rounded-xl text-[9.5px] font-black uppercase hover:bg-blue-50 text-blue-600 transition-all flex items-center justify-center gap-1.5 mt-1"><X className="w-2.5 h-2.5 rotate-45" /> Add Bill Item</button>
                             </div>
                         </div>
 
                         {/* Total + Signature */}
-                        <div className="relative z-10 mt-4 print:mt-3 pt-3 border-t border-white/20 print:border-slate-300 flex justify-between items-end">
+                        <div className="relative z-10 mt-4 print:mt-3 pt-3 border-t border-slate-200 flex justify-between items-end">
                             <div>
-                                <p className="text-[9px] font-black uppercase opacity-60 print:opacity-100 print:text-slate-500 tracking-widest mb-1">Grand Total Payable</p>
-                                <p className="text-2xl print:text-xl font-black tracking-tighter print:text-slate-950"><span className="text-xs mr-1 opacity-50 print:opacity-100 print:text-slate-500 font-bold">GHS</span>{totalBill.toFixed(2)}</p>
+                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Grand Total Payable</p>
+                                <p className="text-2xl print:text-xl font-black tracking-tighter text-slate-900"><span className="text-xs mr-1 text-slate-400 font-bold">GHS</span>{totalBill.toFixed(2)}</p>
                             </div>
                             {schoolConfig?.report_card_config?.show_signature !== false && (
                                 <div className="text-right relative min-w-[100px]">
                                     {(schoolConfig as any)?.report_card_config?.signature_url && (
                                         <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-12 right-0 z-10 brightness-110" alt="Signature" />
                                     )}
-                                    <div className="h-8 w-8 bg-white/20 rounded-full ml-auto mb-1.5 flex items-center justify-center print:bg-slate-100 relative z-20">
-                                        <Building2 className="w-4 h-4 opacity-60 print:text-slate-500" />
+                                    <div className="h-8 w-8 bg-slate-100 rounded-full ml-auto mb-1.5 flex items-center justify-center relative z-20">
+                                        <Building2 className="w-4 h-4 text-slate-500" />
                                     </div>
-                                    <p className="text-[8.5px] font-black uppercase opacity-60 print:opacity-100 print:text-slate-500 tracking-widest relative z-20">Principal / Verified</p>
+                                    <p className="text-[8.5px] font-black uppercase text-slate-400 tracking-widest relative z-20">Principal / Verified</p>
                                     {(schoolConfig as any)?.report_card_config?.stamp_url && (
                                         <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
                                     )}
