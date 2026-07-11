@@ -1322,17 +1322,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             <p className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Interest & Talent</p>
                             <input type="text" value={interest} onChange={e => setInterest(e.target.value)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 text-sm p-0" placeholder="—" />
                         </div>
-                        {schoolConfig?.report_card_config?.show_position !== false && (
-                            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-150 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2 col-span-2 flex justify-between items-center shadow-inner">
-                                <div>
-                                    <p className="text-[9.5px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">Overall Class Position</p>
-                                    <p className="text-[10px] text-slate-450 font-medium">Student's academic standing in the class form</p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-base font-black text-indigo-955 font-mono bg-white border border-indigo-200 px-3 py-1 rounded-xl shadow-sm leading-none">{getOverallPosition()}</span>
-                                </div>
-                            </div>
-                        )}
+
                     </div>
 
                     {/* Remarks */}
@@ -1351,16 +1341,16 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         )}
                     </div>
 
-                    {/* Extra Sections */}
+                    {/* Extra Sections - Squeezed & Compact */}
                     {schoolConfig?.report_card_config?.show_global_sections !== false && extraReportSections.length > 0 && (
-                        <div className="grid grid-cols-2 gap-3 print:gap-2">
+                        <div className={`grid gap-2 print:gap-1.5 ${extraReportSections.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                             {extraReportSections.map((section, idx) => (
-                                <div key={idx} className="bg-purple-50/60 border border-purple-100 rounded-2xl print:rounded-lg px-4 py-3 print:px-3 print:py-2 relative group">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <input type="text" value={section.title} onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} placeholder="Section Title" className="bg-transparent border-none text-[9.5px] font-black uppercase text-purple-600 outline-none w-full tracking-widest p-0" />
+                                <div key={idx} className="bg-purple-50/40 border border-purple-100/60 rounded-xl px-3 py-1.5 relative group shadow-sm flex flex-col gap-0.5">
+                                    <div className="flex items-center justify-between border-b border-purple-100/30 pb-0.5">
+                                        <input type="text" value={section.title} onChange={e => updateExtraReportSection(idx, 'title', e.target.value)} placeholder="Section Title" className="bg-transparent border-none text-[8.5px] font-black uppercase text-purple-600 outline-none w-full tracking-widest p-0 leading-none" />
                                         <button onClick={() => removeExtraReportSection(idx)} className="opacity-0 group-hover:opacity-100 p-0.5 text-red-400 rounded print:hidden shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </div>
-                                    <textarea value={section.content} onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} className="w-full bg-transparent border-none outline-none text-[11px] text-slate-700 h-10 print:h-8 resize-none italic font-medium leading-snug p-0" placeholder="..." />
+                                    <textarea value={section.content} onChange={e => updateExtraReportSection(idx, 'content', e.target.value)} className="w-full bg-transparent border-none outline-none text-[10.5px] text-slate-700 h-7 print:h-6 resize-none italic font-medium leading-tight p-0 mt-0.5" placeholder="..." />
                                 </div>
                             ))}
                         </div>
