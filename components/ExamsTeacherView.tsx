@@ -18,7 +18,8 @@ import {
     Archive,
     User,
     BookOpen,
-    Search
+    Search,
+    TrendingUp
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
 import ReportCard from './ReportCard';
@@ -88,39 +89,75 @@ export const ExamsTeacherView: React.FC = () => {
     const isNurseryLayout = getLayoutForClass(selectedClass) === 'nursery';
 
     const [searchQuery, setSearchQuery] = React.useState('');
-    const [sortBy, setSortBy] = React.useState<'name' | 'totalScore' | 'rank'>('name');
+    const [sortBy, setSortBy] = React.useState<'posAsc' | 'posDesc' | 'scoreDesc' | 'scoreAsc' | 'nameAsc'>('posAsc');
+
+    // Calculate standings/ranks from results
+    const standingsRanks = React.useMemo(() => {
+        if (!results || results.length === 0) return {};
+        
+        const totals: Record<string, number> = {};
+        results.forEach((r: any) => {
+            if (!r.studentId) return;
+            if (!totals[r.studentId]) totals[r.studentId] = 0;
+            totals[r.studentId] += Number(r.total || 0);
+        });
+
+        const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        const ranks: Record<string, { position: number, total: number }> = {};
+        const totalStudents = sorted.length;
+
+        let lastScore = -1;
+        let lastRank = 0;
+
+        sorted.forEach(([studentId, score], index) => {
+            if (score !== lastScore) {
+                lastRank = index + 1;
+                lastScore = score;
+            }
+            ranks[studentId] = { position: lastRank, total: totalStudents };
+        });
+
+        return ranks;
+    }, [results]);
 
     const processedStudents = React.useMemo(() => {
+        if (!selectedClass) return [];
         let list = [...classStudents];
         
-        // Filter by searchQuery
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase().trim();
             list = list.filter(s => s.name.toLowerCase().includes(query));
         }
 
-        // Sort
         list.sort((a, b) => {
-            if (sortBy === 'name') {
+            const aResults = results.filter(r => r.studentId === a.id);
+            const aTotal = aResults.reduce((sum, r) => sum + (r.total || 0), 0);
+            const bResults = results.filter(r => r.studentId === b.id);
+            const bTotal = bResults.reduce((sum, r) => sum + (r.total || 0), 0);
+
+            const aRank = standingsRanks[a.id]?.position ?? 99999;
+            const bRank = standingsRanks[b.id]?.position ?? 99999;
+
+            if (sortBy === 'posAsc') {
+                return aRank - bRank;
+            }
+            if (sortBy === 'posDesc') {
+                return bRank - aRank;
+            }
+            if (sortBy === 'scoreDesc') {
+                return bTotal - aTotal;
+            }
+            if (sortBy === 'scoreAsc') {
+                return aTotal - bTotal;
+            }
+            if (sortBy === 'nameAsc') {
                 return a.name.localeCompare(b.name);
-            }
-            if (sortBy === 'totalScore') {
-                const aResults = results.filter(r => r.studentId === a.id);
-                const aTotal = aResults.reduce((sum, r) => sum + r.total, 0);
-                const bResults = results.filter(r => r.studentId === b.id);
-                const bTotal = bResults.reduce((sum, r) => sum + r.total, 0);
-                return bTotal - aTotal; // descending
-            }
-            if (sortBy === 'rank') {
-                const aRank = classRanks[a.id]?.position || 9999;
-                const bRank = classRanks[b.id]?.position || 9999;
-                return aRank - bRank; // ascending
             }
             return 0;
         });
 
         return list;
-    }, [classStudents, searchQuery, sortBy, results, classRanks]);
+    }, [classStudents, searchQuery, sortBy, results, standingsRanks]);
 
     const remarkPresets = localConfig?.remark_presets || [
         "Excellent performance, keep it up.",
@@ -162,10 +199,10 @@ export const ExamsTeacherView: React.FC = () => {
                                     <MessageSquare className="w-4 h-4" /> Remarks & Conduct
                                 </button>
                                 <button
-                                    onClick={() => setTeacherTab('reports')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'reports' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    onClick={() => setTeacherTab('standings')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${teacherTab === 'standings' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}
                                 >
-                                    <FileText className="w-4 h-4" /> Class Reports
+                                    <TrendingUp className="w-4 h-4" /> Class Standings
                                 </button>
                             </>
                         )}
@@ -612,6 +649,174 @@ export const ExamsTeacherView: React.FC = () => {
                                         <Users className="w-8 h-8 text-slate-300" />
                                         <p>No students found matching "{searchQuery}"</p>
                                     </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                ) : teacherTab === 'standings' ? (
+                    (!selectedClass) ? (
+                        <div className="p-12 text-center text-slate-500 bg-white border-t border-slate-200 flex flex-col items-center justify-center gap-3">
+                            <BookOpen className="w-12 h-12 text-slate-300" />
+                            <p className="text-lg font-medium">Please select a Class to view standings.</p>
+                        </div>
+                    ) : (
+                        <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-50/50">
+                            {/* Search and Sort controls */}
+                            <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                                <div className="relative w-full sm:w-80">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search student..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl outline-none text-xs font-semibold text-slate-800 focus:border-primary-500 focus:ring-4 focus:ring-primary-50 transition-all"
+                                    />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                        <Search className="w-3.5 h-3.5" />
+                                    </span>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center w-full sm:w-auto">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Sort Position:</span>
+                                    <select 
+                                        value={sortBy} 
+                                        onChange={e => setSortBy(e.target.value as any)}
+                                        className="w-full sm:w-auto p-2.5 px-3 border border-slate-300 rounded-xl outline-none bg-white font-bold text-xs text-slate-700 cursor-pointer shadow-sm focus:ring-4 focus:ring-primary-50"
+                                    >
+                                        <option value="posAsc">Position: 1st to Last (Ascending)</option>
+                                        <option value="posDesc">Position: Last to 1st (Descending)</option>
+                                        <option value="scoreDesc">Total Score: High to Low</option>
+                                        <option value="scoreAsc">Total Score: Low to High</option>
+                                        <option value="nameAsc">Name: A-Z</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Desktop Standings Table View */}
+                            <div className="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-150 table-auto">
+                                    <thead className="bg-slate-50/80">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Position</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Student Name</th>
+                                            <th className="px-6 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Total Score</th>
+                                            <th className="px-6 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Average</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-150 bg-white">
+                                        {processedStudents.map(student => {
+                                            const studentResults = results.filter(r => r.studentId === student.id);
+                                            const totalScore = studentResults.reduce((sum, r) => sum + (r.total || 0), 0);
+                                            const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
+                                            const averageScore = subjCount > 0 ? (totalScore / subjCount).toFixed(1) : '—';
+                                            const rankObj = standingsRanks[student.id];
+
+                                            return (
+                                                <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-2.5 whitespace-nowrap">
+                                                        {rankObj?.position === 1 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">🥇 1st</span>
+                                                        ) : rankObj?.position === 2 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-200 shadow-sm">🥈 2nd</span>
+                                                        ) : rankObj?.position === 3 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
+                                                        ) : rankObj?.position ? (
+                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs font-bold">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-2.5 whitespace-nowrap">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-200/50 shadow-inner flex items-center justify-center">
+                                                                {student.photo ? (
+                                                                    <img src={student.photo} className="h-full w-full object-cover" />
+                                                                ) : (
+                                                                    <User className="h-4.5 w-4.5 text-slate-450" />
+                                                                )}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <h4 className="font-bold text-slate-800 text-sm truncate uppercase tracking-tight">{student.name}</h4>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">ID: {student.id.substring(0, 6)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-2.5 whitespace-nowrap text-center text-sm font-black text-slate-800">
+                                                        {totalScore}
+                                                    </td>
+                                                    <td className="px-6 py-2.5 whitespace-nowrap text-center">
+                                                        {averageScore !== '—' ? (
+                                                            <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-100">{averageScore}%</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Standings Grid/List View */}
+                            <div className="md:hidden space-y-3.5">
+                                {processedStudents.map((student, idx) => {
+                                    const studentResults = results.filter(r => r.studentId === student.id);
+                                    const totalScore = studentResults.reduce((sum, r) => sum + (r.total || 0), 0);
+                                    const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
+                                    const averageScore = subjCount > 0 ? (totalScore / subjCount).toFixed(1) : '—';
+                                    const rankObj = standingsRanks[student.id];
+
+                                    return (
+                                        <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                                            {/* Rank Indicator */}
+                                            <div className="absolute top-0 right-0">
+                                                {rankObj?.position === 1 ? (
+                                                    <div className="bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-amber-200 shadow-sm">🥇 1st Place</div>
+                                                ) : rankObj?.position === 2 ? (
+                                                    <div className="bg-slate-100 text-slate-800 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-slate-200 shadow-sm">🥈 2nd Place</div>
+                                                ) : rankObj?.position === 3 ? (
+                                                    <div className="bg-orange-100 text-orange-850 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-orange-200 shadow-sm">🥉 3rd Place</div>
+                                                ) : rankObj?.position ? (
+                                                    <div className="bg-slate-50 text-slate-500 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-slate-200 shadow-sm">{rankObj.position}th Place</div>
+                                                ) : null}
+                                            </div>
+
+                                            <div className="flex items-center gap-3 pt-2">
+                                                <div className="h-10 w-10 rounded-xl bg-slate-50 overflow-hidden shrink-0 border border-slate-200/50 shadow-inner flex items-center justify-center">
+                                                    {student.photo ? (
+                                                        <img src={student.photo} className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <User className="h-5 w-5 text-slate-400" />
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 pr-16">
+                                                    <h4 className="font-bold text-slate-800 text-sm truncate uppercase tracking-tight">{student.name}</h4>
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">ID: {student.id.substring(0, 6)}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">
+                                                <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Score</span>
+                                                    <span className="text-xl font-black text-slate-800 leading-none">{totalScore}</span>
+                                                </div>
+                                                <div className="flex flex-col items-center justify-center p-2 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Average</span>
+                                                    {averageScore !== '—' ? (
+                                                        <span className="text-xl font-black text-primary-700 leading-none">{averageScore}%</span>
+                                                    ) : (
+                                                        <span className="text-slate-350 text-xl font-bold leading-none">—</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {processedStudents.length === 0 && (
+                                <div className="p-12 text-center text-slate-455 font-bold border border-dashed border-slate-200 bg-white rounded-2xl mt-4">
+                                    <p>No matching student records found</p>
                                 </div>
                             )}
                         </div>

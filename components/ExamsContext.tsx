@@ -66,8 +66,8 @@ export interface ExamsContextValue {
     setPendingChanges: (c: any) => void;
     pendingRemarks: Record<string, Record<string, any>>;
     setPendingRemarks: (r: any) => void;
-    teacherTab: 'marks' | 'remarks';
-    setTeacherTab: (t: 'marks' | 'remarks') => void;
+    teacherTab: 'marks' | 'remarks' | 'standings';
+    setTeacherTab: (t: 'marks' | 'remarks' | 'standings') => void;
     activeTool: string;
     setActiveTool: (t: any) => void;
     paintBrush: string;

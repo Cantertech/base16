@@ -318,7 +318,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [reportStudent, setReportStudent] = useState<Student | null>(null);
     const [pendingChanges, setPendingChanges] = useState<Record<string, { classScore: number; examScore: number; competencyStatus?: string }>>({});
     const isAdmin = (currentUser?.role || '').toLowerCase().includes('admin');
-    const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks'>('marks');
+    const [teacherTab, setTeacherTab] = useState<'marks' | 'remarks' | 'standings'>('marks');
     const [activeTool, setActiveTool] = useState<'teacher_remark' | 'conduct' | 'interest' | 'performance_status'>('teacher_remark');
     const [paintBrush, setPaintBrush] = useState<string>('');
     const [userPresets, setUserPresets] = useState<string[]>([]);
@@ -683,7 +683,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     // Auto-switch away from protected tabs if access is lost (e.g. switched to a class where only a subject teacher)
     useEffect(() => {
-        if (!isClassTeacher && (teacherTab === 'remarks' || teacherTab === 'reports')) {
+        if (!isClassTeacher && (teacherTab === 'remarks' || teacherTab === 'standings')) {
             setTeacherTab('marks');
         }
     }, [isClassTeacher, teacherTab]);

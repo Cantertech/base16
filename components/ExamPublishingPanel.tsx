@@ -11,13 +11,17 @@ import {
     ChevronDown,
     Trash2,
     ShieldAlert,
-    ClipboardCheck
+    ClipboardCheck,
+    Search
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
 import ReportCard from './ReportCard';
 import { Student } from './ExamsTypes';
 
 export const ExamPublishingPanel: React.FC = () => {
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [sortBy, setSortBy] = React.useState<'posAsc' | 'posDesc' | 'scoreDesc' | 'scoreAsc' | 'nameAsc'>('posAsc');
+
     const {
         activeTab,
         availableClasses,
@@ -42,6 +46,8 @@ export const ExamPublishingPanel: React.FC = () => {
         schoolId,
         activeModules,
         studentRank,
+        classRanks,
+        classResultsRaw,
         handleConfirmRelease,
         allReportCards,
         allAssignments,
@@ -53,6 +59,45 @@ export const ExamPublishingPanel: React.FC = () => {
         classStudents,
         getExistingScore
     } = useExamsContext();
+
+    const processedStudents = React.useMemo(() => {
+        if (!viewingClassList) return [];
+        let list = (students as Student[]).filter(s => s.class?.trim().toLowerCase() === viewingClassList?.trim().toLowerCase());
+        
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            list = list.filter(s => s.name.toLowerCase().includes(query));
+        }
+
+        list.sort((a, b) => {
+            const aResults = getPrefilledResults(a, classResultsRaw);
+            const aTotal = aResults.reduce((sum, r) => sum + (r.total || 0), 0);
+            const bResults = getPrefilledResults(b, classResultsRaw);
+            const bTotal = bResults.reduce((sum, r) => sum + (r.total || 0), 0);
+
+            const aRank = classRanks[a.id]?.position ?? 99999;
+            const bRank = classRanks[b.id]?.position ?? 99999;
+
+            if (sortBy === 'posAsc') {
+                return aRank - bRank;
+            }
+            if (sortBy === 'posDesc') {
+                return bRank - aRank;
+            }
+            if (sortBy === 'scoreDesc') {
+                return bTotal - aTotal;
+            }
+            if (sortBy === 'scoreAsc') {
+                return aTotal - bTotal;
+            }
+            if (sortBy === 'nameAsc') {
+                return a.name.localeCompare(b.name);
+            }
+            return 0;
+        });
+
+        return list;
+    }, [students, viewingClassList, searchQuery, sortBy, classResultsRaw, classRanks, getPrefilledResults]);
 
     if (activeTab !== 'publishing') return null;
 
@@ -321,36 +366,146 @@ export const ExamPublishingPanel: React.FC = () => {
             {viewingClassList && (
                 <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div><h3 className="font-bold text-lg text-slate-800">Students in {viewingClassList}</h3></div>
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={triggerBulkPrint}
-                                    disabled={isBulkPrinting}
-                                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
-                                >
-                                    {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                                    {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
-                                </button>
-                                <button onClick={() => setViewingClassList(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-6 h-6" /></button>
+                        <div className="p-4 border-b border-slate-100 flex flex-col gap-4 bg-slate-50">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-800">Class Performance & Reports</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Viewing {viewingClassList} ({processedStudents.length} Students)</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={triggerBulkPrint}
+                                        disabled={isBulkPrinting}
+                                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
+                                    >
+                                        {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                                        {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
+                                    </button>
+                                    <button 
+                                        onClick={() => { setViewingClassList(null); setSearchQuery(''); }} 
+                                        className="p-2 hover:bg-slate-200 rounded-full text-slate-500"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Filters Bar */}
+                            <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+                                <div className="relative w-full sm:w-72">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search student..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl outline-none text-xs font-semibold text-slate-800 focus:border-primary-500 focus:ring-4 focus:ring-primary-50 transition-all"
+                                    />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                        <Search className="w-3.5 h-3.5" />
+                                    </span>
+                                </div>
+
+                                <div className="flex gap-2 items-center w-full sm:w-auto justify-end">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sort by position:</span>
+                                    <select 
+                                        value={sortBy} 
+                                        onChange={e => setSortBy(e.target.value as any)}
+                                        className="p-2 border border-slate-300 rounded-xl outline-none bg-white font-bold text-xs text-slate-700 cursor-pointer shadow-sm focus:ring-4 focus:ring-primary-50"
+                                    >
+                                        <option value="posAsc">Position: 1st to Last (Ascending)</option>
+                                        <option value="posDesc">Position: Last to 1st (Descending)</option>
+                                        <option value="scoreDesc">Total Score: High to Low</option>
+                                        <option value="scoreAsc">Total Score: Low to High</option>
+                                        <option value="nameAsc">Name: A-Z</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div className="p-6 overflow-y-auto bg-slate-50/50">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {(students as Student[]).filter(s => s.class?.trim().toLowerCase() === viewingClassList?.trim().toLowerCase()).map((student) => (
-                                    <div key={student.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:border-primary-300 cursor-pointer" onClick={() => setReportStudent(student)}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-12 w-12 rounded-full bg-slate-100 overflow-hidden">{student.photo ? <img src={student.photo} className="h-full w-full object-cover" /> : <User className="h-6 w-6 text-slate-400 m-auto mt-3" />}</div>
-                                            <div><h4 className="font-bold text-slate-800">{student.name}</h4></div>
-                                        </div>
-                                    </div>
-                                ))}
+
+                        <div className="p-6 overflow-y-auto bg-slate-50/50 flex-1">
+                            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                                <table className="min-w-full divide-y divide-slate-150">
+                                    <thead className="bg-slate-50/80">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Position</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student Name</th>
+                                            <th className="px-6 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Score</th>
+                                            <th className="px-6 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Average</th>
+                                            <th className="px-6 py-3 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-150 bg-white">
+                                        {processedStudents.map(student => {
+                                            const studentResults = getPrefilledResults(student, classResultsRaw);
+                                            const totalScore = studentResults.reduce((sum, r) => sum + (r.total || 0), 0);
+                                            const subjCount = studentResults.filter(r => (r.total || 0) > 0 || (r as any).competency_status).length;
+                                            const averageScore = subjCount > 0 ? (totalScore / subjCount).toFixed(1) : '—';
+                                            const rankObj = classRanks[student.id];
+
+                                            return (
+                                                <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-3.5 whitespace-nowrap">
+                                                        {rankObj?.position === 1 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">🥇 1st</span>
+                                                        ) : rankObj?.position === 2 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-200 shadow-sm">🥈 2nd</span>
+                                                        ) : rankObj?.position === 3 ? (
+                                                            <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
+                                                        ) : rankObj?.position ? (
+                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs font-bold">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-3.5 whitespace-nowrap">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-200/50 shadow-inner flex items-center justify-center">
+                                                                {student.photo ? (
+                                                                    <img src={student.photo} className="h-full w-full object-cover" />
+                                                                ) : (
+                                                                    <User className="h-4 w-4 text-slate-400" />
+                                                                )}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <h4 className="font-bold text-slate-800 text-sm truncate uppercase tracking-tight">{student.name}</h4>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">ID: {student.id.substring(0, 6)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3.5 whitespace-nowrap text-center text-sm font-black text-slate-800">
+                                                        {totalScore}
+                                                    </td>
+                                                    <td className="px-6 py-3.5 whitespace-nowrap text-center">
+                                                        {averageScore !== '—' ? (
+                                                            <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-100">{averageScore}%</span>
+                                                        ) : (
+                                                            <span className="text-slate-350 text-xs">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-3.5 whitespace-nowrap text-center">
+                                                        <button
+                                                            onClick={() => setReportStudent(student)}
+                                                            className="inline-flex items-center gap-1 bg-slate-900 hover:bg-primary-600 text-white font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm border-none"
+                                                        >
+                                                            <FileText className="w-3.5 h-3.5" /> View Report
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
+
+                            {processedStudents.length === 0 && (
+                                <div className="p-12 text-center text-slate-450 font-bold border border-dashed border-slate-200 bg-white rounded-2xl mt-4">
+                                    <p>No matching student records found</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
-
             {reportStudent && (
                 <ReportCard
                     student={students.find(s => s.id === reportStudent.id)!}
