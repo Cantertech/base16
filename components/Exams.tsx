@@ -810,6 +810,9 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 };
             });
 
+            // Set localConfig state directly to reflect it instantly in UI without requiring refresh
+            setLocalConfig(newConfig);
+
             queryClient.invalidateQueries({ queryKey: ['examConfig', schoolId] });
             queryClient.invalidateQueries({ queryKey: ['schoolInfo', schoolId] });
             queryClient.invalidateQueries({ queryKey: ['examResults'] });
