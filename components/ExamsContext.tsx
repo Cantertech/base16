@@ -118,6 +118,8 @@ export interface ExamsContextValue {
     classRanks: Record<string, any>;
     currentTerm: string;
     currentYear: string;
+    autoRefreshEnabled: boolean;
+    setAutoRefreshEnabled: (enabled: boolean) => void;
 }
 
 // ─── Context ───────────────────────────────────────────────────────────────────

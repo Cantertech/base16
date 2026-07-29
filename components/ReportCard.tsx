@@ -272,9 +272,35 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         initFees();
     }, [schoolConfig, student.class, schoolId]);
 
-    // Fetch Saved Report Data
+    // Fetch Saved Report Data or merge global sections if preloaded
     useEffect(() => {
-        if (savedReportData) return;
+        const mergeSections = (data: any) => {
+            const savedSections = (data?.extra_report_sections && Array.isArray(data.extra_report_sections)) ? data.extra_report_sections : [];
+            const globalSections = (schoolConfig as any)?.global_report_sections || [];
+            
+            let finalSections = [...savedSections];
+            
+            // Legacy migration for items_to_bring
+            if (finalSections.length === 0 && data?.items_to_bring && data.items_to_bring.trim() !== '') {
+                finalSections = [{ title: 'Items to Bring Next Term', content: data.items_to_bring }];
+            }
+
+            // Merge global sections that don't exist in saved data
+            globalSections.forEach((gs: any) => {
+                const exists = finalSections.some(s => s.title.toLowerCase() === gs.title.toLowerCase());
+                if (!exists && gs.title.trim() !== '') {
+                    finalSections.push({ title: gs.title, content: gs.content || '' });
+                }
+            });
+            return finalSections;
+        };
+
+        if (savedReportData) {
+            const merged = mergeSections(savedReportData);
+            setExtraReportSections(merged);
+            return;
+        }
+
         const term = schoolConfig?.current_term || schoolConfig?.term;
         const year = schoolConfig?.academic_year;
 
@@ -304,25 +330,8 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         setExtraBillItems(Array.isArray(data.extra_bill_items) ? data.extra_bill_items : []);
                     }
                     
-                    const savedSections = (data.extra_report_sections && Array.isArray(data.extra_report_sections)) ? data.extra_report_sections : [];
-                    const globalSections = (schoolConfig as any)?.global_report_sections || [];
-                    
-                    let finalSections = [...savedSections];
-                    
-                    // Legacy migration for items_to_bring
-                    if (finalSections.length === 0 && data.items_to_bring && data.items_to_bring.trim() !== '') {
-                        finalSections = [{ title: 'Items to Bring Next Term', content: data.items_to_bring }];
-                    }
-
-                    // Merge global sections that don't exist in saved data
-                    globalSections.forEach((gs: any) => {
-                        const exists = finalSections.some(s => s.title.toLowerCase() === gs.title.toLowerCase());
-                        if (!exists && gs.title.trim() !== '') {
-                            finalSections.push({ title: gs.title, content: gs.content || '' });
-                        }
-                    });
-
-                    setExtraReportSections(finalSections);
+                    const merged = mergeSections(data);
+                    setExtraReportSections(merged);
                 } else {
                     // No saved data yet, initialize from global sections
                     const globalSections = (schoolConfig as any)?.global_report_sections || [];
@@ -330,8 +339,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                 }
             };
             loadSaved();
+        } else {
+            // No schoolId/studentId or preview mode - initialize from global sections
+            const globalSections = (schoolConfig as any)?.global_report_sections || [];
+            setExtraReportSections(globalSections.map((gs: any) => ({ title: gs.title, content: gs.content || '' })));
         }
-    }, [schoolId, student.id, schoolConfig]);
+    }, [schoolId, student.id, schoolConfig, savedReportData]);
 
     const handleSave = async () => {
         if (!schoolId) {
@@ -942,7 +955,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
                     <div>
                         <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Next Class</p>
-                        <p className="text-[13.5px] print:text-[13px] font-black uppercase text-slate-900 border-b border-slate-400 pb-0.5 mt-0.5">{nextClass || '—'}</p>
+                        <input
+                            type="text"
+                            value={nextClass}
+                            onChange={e => setNextClass(e.target.value)}
+                            className="w-full bg-transparent border-b border-slate-400 outline-none text-[13.5px] print:text-[13px] font-black text-slate-900 uppercase pb-0.5 mt-0.5"
+                            placeholder="Next Class"
+                        />
                     </div>
                 </div>
             </div>
@@ -1256,11 +1275,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         { label: 'Student ID', value: student.id.substring(0, 8).toUpperCase(), mono: true },
                         { label: 'Class', value: student.class },
                         ...(schoolConfig?.report_card_config?.show_position !== false ? [{ label: 'Term Rank', value: position?.position ? `${position.position} / ${position.total}` : '—', accent: true }] : []),
-                        { label: 'Next Class', value: nextClass || '—' },
+                        { label: 'Next Class', value: nextClass, isInput: true },
                     ].map((item: any) => (
                         <div key={item.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-2.5 print:px-3 print:py-2 text-center min-w-[70px]">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{item.label}</p>
-                            <p className={`text-sm font-black leading-tight ${item.accent ? 'text-blue-600' : 'text-slate-800'} ${item.mono ? 'font-mono text-xs' : ''}`}>{item.value}</p>
+                            {item.isInput ? (
+                                <input
+                                    type="text"
+                                    value={item.value || ''}
+                                    onChange={e => setNextClass(e.target.value)}
+                                    className="text-sm font-black leading-tight text-center text-slate-800 bg-transparent border-b border-dashed border-slate-300 outline-none w-full max-w-[120px] uppercase mt-0.5"
+                                    placeholder="Next Class"
+                                />
+                            ) : (
+                                <p className={`text-sm font-black leading-tight ${item.accent ? 'text-blue-600' : 'text-slate-800'} ${item.mono ? 'font-mono text-xs' : ''}`}>{item.value}</p>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -1603,7 +1632,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     ) : (
                         <div>
                             <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
-                            <p className="font-bold text-slate-900 uppercase text-[12px] mt-0.5">{nextClass || '—'}</p>
+                            <input
+                                type="text"
+                                value={nextClass}
+                                onChange={e => setNextClass(e.target.value)}
+                                className="w-full bg-transparent border-b border-dashed border-slate-300 outline-none font-bold text-slate-900 uppercase text-[12px] mt-0.5 pb-0.5"
+                                placeholder="Next Class"
+                            />
                         </div>
                     )}
                     <div>
@@ -1613,7 +1648,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     {schoolConfig?.report_card_config?.show_position !== false && (
                         <div>
                             <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
-                            <p className="font-bold text-slate-900 uppercase text-[12px] mt-0.5">{nextClass || '—'}</p>
+                            <input
+                                type="text"
+                                value={nextClass}
+                                onChange={e => setNextClass(e.target.value)}
+                                className="w-full bg-transparent border-b border-dashed border-slate-300 outline-none font-bold text-slate-900 uppercase text-[12px] mt-0.5 pb-0.5"
+                                placeholder="Next Class"
+                            />
                         </div>
                     )}
                 </div>

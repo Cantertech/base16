@@ -306,6 +306,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     // Admin Tabs: 'setup', 'publishing'
     const [activeTab, setActiveTab] = useState<'setup' | 'publishing'>('setup');
+    const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
 
 
     // UI/Filter State
