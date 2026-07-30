@@ -270,7 +270,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         };
 
         initFees();
-    }, [schoolConfig, student.class, schoolId]);
+    }, [
+        schoolConfig?.report_card_config?.billing_mode,
+        JSON.stringify((schoolConfig as any)?.class_fees),
+        schoolConfig?.current_term,
+        schoolConfig?.term,
+        schoolConfig?.academic_year,
+        student.class,
+        schoolId
+    ]);
 
     // Fetch Saved Report Data or merge global sections if preloaded
     useEffect(() => {
@@ -344,7 +352,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             const globalSections = (schoolConfig as any)?.global_report_sections || [];
             setExtraReportSections(globalSections.map((gs: any) => ({ title: gs.title, content: gs.content || '' })));
         }
-    }, [schoolId, student.id, schoolConfig, savedReportData]);
+    }, [
+        schoolId, 
+        student.id, 
+        schoolConfig?.current_term, 
+        schoolConfig?.term, 
+        schoolConfig?.academic_year, 
+        JSON.stringify(schoolConfig?.global_report_sections), 
+        savedReportData
+    ]);
 
     const handleSave = async () => {
         if (!schoolId) {

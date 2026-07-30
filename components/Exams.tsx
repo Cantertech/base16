@@ -299,6 +299,8 @@ const fetchStudentRank = async (schoolId: string, studentId: string, term: strin
 };
 
 
+const EMPTY_ARRAY: any[] = [];
+
 // --- Main Component ---
 const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const queryClient = useQueryClient();
@@ -345,7 +347,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId
     });
 
-    const { data: subjectAssignments = [] } = useQuery({
+    const { data: subjectAssignmentsData } = useQuery({
         queryKey: ['subjectAssignments', schoolId],
         queryFn: async () => {
             const { data } = await supabase
@@ -356,6 +358,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         },
         enabled: !!schoolId
     });
+    const subjectAssignments = subjectAssignmentsData || EMPTY_ARRAY;
 
     const { data: examConfig, isLoading: isConfigLoading } = useQuery({
         queryKey: ['examConfig', schoolId],
@@ -363,20 +366,22 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId && !!schoolInfo
     });
 
-    const { data: allClassesData = [] } = useQuery({
+    const { data: allClassesDataRaw } = useQuery({
         queryKey: ['classNames', schoolId],
         queryFn: () => fetchClasses(schoolId!),
         enabled: !!schoolId
     });
+    const allClassesData = allClassesDataRaw || EMPTY_ARRAY;
 
-    const { data: allSubjects = [] } = useQuery({
+    const { data: allSubjectsData } = useQuery({
         queryKey: ['subjectNames', schoolId],
         queryFn: () => fetchSubjects(schoolId!),
         enabled: !!schoolId
     });
+    const allSubjects = allSubjectsData || EMPTY_ARRAY;
 
     // Fetch Class/Subject assignments for teachers (Robustness improvement)
-    const { data: myAssignments = [] } = useQuery({
+    const { data: myAssignmentsData } = useQuery({
         queryKey: ['teacherAssignments', currentUser?.id, schoolId],
         queryFn: async () => {
             if (!currentUser?.id || !schoolId) return [];
@@ -463,8 +468,9 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!currentUser?.id && !!schoolId,
         staleTime: 60 * 1000
     });
+    const myAssignments = myAssignmentsData || EMPTY_ARRAY;
 
-    const { data: students = [], isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery<Student[]>({
+    const { data: studentsDataRaw, isLoading: isLoadingStudents, isError: isStudentError, refetch: refetchStudents } = useQuery<Student[]>({
         queryKey: ['students', schoolId, myAssignments.map(a => a.className).join('|')],
         queryFn: async () => {
             const assignedClassList = [...new Set(myAssignments.map((a: any) => a.className).filter(Boolean))] as string[];
@@ -490,6 +496,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         staleTime: 5 * 60 * 1000,
         retry: 3
     });
+    const students = studentsDataRaw || EMPTY_ARRAY;
 
     // Fetches dependent on Config
     const currentTerm = examConfig?.current_term || 'First Term';
@@ -505,7 +512,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         });
     }, [schoolId, currentTerm, currentYear, examConfig]);
 
-    const { data: results = [] } = useQuery({
+    const { data: resultsData } = useQuery({
         queryKey: ['examResults', schoolId, currentTerm?.toUpperCase(), currentYear?.toUpperCase(), selectedClass?.toUpperCase()],
         queryFn: () => fetchResults(
             schoolId!, 
@@ -517,19 +524,21 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId && !!examConfig && !!selectedClass,
         staleTime: 5 * 60 * 1000
     });
+    const results = resultsData || EMPTY_ARRAY;
 
     if (results.length > 0 && selectedClass && selectedSubject) {
         console.log(`DEBUG Results: Found ${results.length} records for ${selectedClass}. Checking for ${selectedSubject}...`);
     }
 
-    const { data: reportResultsRaw = [] } = useQuery({
+    const { data: reportResultsRawData } = useQuery({
         queryKey: ['reportResults', schoolId, reportStudent?.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
         queryFn: () => fetchResultsByStudent(schoolId!, reportStudent!.id, currentTerm?.toUpperCase(), currentYear?.toUpperCase()),
         enabled: !!schoolId && !!reportStudent && !!currentTerm && !!currentYear
     });
+    const reportResultsRaw = reportResultsRawData || EMPTY_ARRAY;
 
     // Dedicated query for Class-wide results (used for bulk printing/class reports)
-    const { data: classResultsRaw = [] } = useQuery({
+    const { data: classResultsRawData } = useQuery({
         queryKey: ['classResults', schoolId, viewingClassList, currentTerm?.toUpperCase(), currentYear?.toUpperCase()],
         queryFn: () => fetchResults(
             schoolId!, 
@@ -540,16 +549,18 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         ),
         enabled: !!schoolId && !!viewingClassList && !!currentTerm && !!currentYear
     });
+    const classResultsRaw = classResultsRawData || EMPTY_ARRAY;
 
-    const { data: submissionOverview = [] } = useQuery({
+    const { data: submissionOverviewData } = useQuery({
         queryKey: ['submissionOverview', schoolId, currentTerm, currentYear],
         queryFn: () => fetchSubmissionOverview(schoolId!, currentTerm, currentYear),
         enabled: !!schoolId && !!examConfig && ((currentUser?.role || '').toLowerCase().includes('admin')),
         refetchInterval: 30 * 1000, // Poll every 30s so admin sees teacher submissions without a reload
         staleTime: 0,
     });
+    const submissionOverview = submissionOverviewData || EMPTY_ARRAY;
 
-    const { data: allAssignments = [] } = useQuery({
+    const { data: allAssignmentsDataRaw } = useQuery({
         queryKey: ['allAssignments', schoolId],
         queryFn: async () => {
             if (!schoolId) return [];
@@ -612,12 +623,14 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         },
         enabled: !!schoolId && ((currentUser?.role || '').toLowerCase().includes('admin'))
     });
+    const allAssignments = allAssignmentsDataRaw || EMPTY_ARRAY;
 
-    const { data: releasedClasses = [] } = useQuery({
+    const { data: releasedClassesData } = useQuery({
         queryKey: ['releasedClasses', schoolId, currentTerm],
         queryFn: () => fetchReleasedClasses(schoolId!, currentTerm),
         enabled: !!schoolId && !!examConfig && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')
     });
+    const releasedClasses = releasedClassesData || EMPTY_ARRAY;
 
     // Calculate class-wide ranks for bulk printing
     const classRanks = React.useMemo(() => {
@@ -1038,7 +1051,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }
     });
 
-    const { data: allReportCards = [] } = useQuery({
+    const { data: allReportCardsData } = useQuery({
         queryKey: ['reportCards', schoolId, currentTerm, currentYear],
         queryFn: async () => {
             if (!schoolId || !currentTerm || !currentYear) return [];
@@ -1057,6 +1070,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         enabled: !!schoolId && !!examConfig,
         staleTime: 1 * 60 * 1000
     });
+    const allReportCards = allReportCardsData || EMPTY_ARRAY;
 
     const saveBulkRemarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
@@ -1688,23 +1702,38 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             {isBulkPrinting && viewingClassList && (
                 <div style={{ display: 'none' }}>
                     <div ref={bulkPrintRef} className="print:block">
+                        <style dangerouslySetInnerHTML={{__html: `
+                            @media print {
+                                .print-page-wrapper {
+                                    page-break-after: always !important;
+                                    break-after: page !important;
+                                    display: block !important;
+                                    width: 100% !important;
+                                }
+                                .print-page-wrapper:last-child {
+                                    page-break-after: avoid !important;
+                                    break-after: avoid !important;
+                                }
+                            }
+                        `}} />
                         {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => (
-                            <ReportCard
-                                key={student.id}
-                                student={student}
-                                results={getPrefilledResults(student, classResultsRaw)}
-                                schoolConfig={{
-                                    ...schoolInfo,
-                                    ...localConfig,
-                                    term_total_days: localConfig?.term_total_days
-                                }}
-                                onClose={() => { }}
-                                position={classRanks[student.id] || null}
-                                schoolId={schoolId}
-                                activeModules={activeModules}
-                                printMode={true}
-                                savedReportData={allReportCards.find((rc: any) => rc.student_id === student.id)}
-                            />
+                            <div key={student.id} className="print-page-wrapper">
+                                <ReportCard
+                                    student={student}
+                                    results={getPrefilledResults(student, classResultsRaw)}
+                                    schoolConfig={{
+                                        ...schoolInfo,
+                                        ...localConfig,
+                                        term_total_days: localConfig?.term_total_days
+                                    }}
+                                    onClose={() => { }}
+                                    position={classRanks[student.id] || null}
+                                    schoolId={schoolId}
+                                    activeModules={activeModules}
+                                    printMode={true}
+                                    savedReportData={allReportCards.find((rc: any) => rc.student_id === student.id)}
+                                />
+                            </div>
                         ))}
                     </div>
                 </div>
