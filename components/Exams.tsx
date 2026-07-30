@@ -1705,8 +1705,8 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         <style dangerouslySetInnerHTML={{__html: `
                             @media print {
                                 .print-page-wrapper {
-                                    page-break-after: always !important;
-                                    break-after: page !important;
+                                    page-break-after: right !important;
+                                    break-after: right !important;
                                     display: block !important;
                                     width: 100% !important;
                                 }
