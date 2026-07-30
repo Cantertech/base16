@@ -112,6 +112,9 @@ export interface ExamsContextValue {
     getPrefilledResults: (student: Student, rawResults: any[]) => any[];
     triggerBulkPrint: () => void;
     bulkPrintRef: React.RefObject<HTMLDivElement | null>;
+    triggerPrintAll: () => void;
+    printAllRef: React.RefObject<HTMLDivElement | null>;
+    isPrintingAll: boolean;
     reportResultsRaw: any[];
     classResultsRaw: any[];
     studentRank: any;
