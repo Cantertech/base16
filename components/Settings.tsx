@@ -391,6 +391,21 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         onError: (err: any) => alert("Activation error: " + err.message)
     });
 
+    const toggleAutoRenewMutation = useMutation({
+        mutationFn: async ({ moduleId, autoRenew }: { moduleId: string; autoRenew: boolean }) => {
+            const { error } = await supabase
+                .from('school_subscriptions')
+                .update({ auto_renew: autoRenew })
+                .eq('school_id', schoolId)
+                .eq('module_id', moduleId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['subscriptions', schoolId] });
+        },
+        onError: (err: any) => alert("Error updating auto-renew status: " + err.message)
+    });
+
     // -- Handlers --
 
     // PWA Install Prompt Listener
@@ -875,7 +890,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                                             {isActive && <span className="text-[10px] font-bold uppercase tracking-widest bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">Active</span>}
                                                             {!isActive && isFree && <span className="text-[10px] font-bold uppercase tracking-widest bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Free Always</span>}
                                                         </div>
-                                                        <p className="text-xs text-slate-500 mb-4">{module.description}</p>
+                                        <p className="text-xs text-slate-500 mb-4">{module.description}</p>
                                                     </div>
                                                     <div>
                                                         <div className="flex items-end justify-between mb-4">
@@ -883,9 +898,27 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                                         </div>
 
                                                         {isActive && sub.expires_at ? (
-                                                            <div className="text-xs text-slate-500 mb-3 bg-slate-50 px-3 py-2 rounded-lg">
-                                                                Expires: <span className="font-bold text-slate-700">{new Date(sub.expires_at).toLocaleDateString()}</span>
-                                                                {module.price_ghs > 0 && <div className="text-[10px] text-slate-400 mt-1">Will auto-renew if balance is sufficient.</div>}
+                                                            <div className="text-xs text-slate-500 mb-3 bg-slate-50 px-3 py-2.5 rounded-lg space-y-2">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span>Expires:</span>
+                                                                    <span className="font-bold text-slate-700">{new Date(sub.expires_at).toLocaleDateString()}</span>
+                                                                </div>
+                                                                {module.price_ghs > 0 && (
+                                                                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-150">
+                                                                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Auto-Renew</span>
+                                                                        <button
+                                                                            onClick={() => toggleAutoRenewMutation.mutate({ moduleId: module.id, autoRenew: !sub.auto_renew })}
+                                                                            disabled={toggleAutoRenewMutation.isPending}
+                                                                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition-all border ${
+                                                                                sub.auto_renew 
+                                                                                    ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' 
+                                                                                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                                                            }`}
+                                                                        >
+                                                                            {sub.auto_renew ? 'Enabled' : 'Disabled (Click to Turn On)'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ) : null}
 

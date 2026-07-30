@@ -574,13 +574,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </table>
                 </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-4 mt-3 print:mt-2">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Key:</span>
-                    {[['Mastered','bg-emerald-100 text-emerald-800'],['Developing','bg-blue-100 text-blue-800'],['Emerging','bg-amber-100 text-amber-800']].map(([label, cls]) => (
-                        <span key={label} className={`text-[9px] font-black uppercase px-3 py-1 ${cls} print:bg-transparent print:text-slate-600`}>{label}</span>
-                    ))}
-                </div>
+
             </div>
 
             {/* ══ REMARKS + FINANCIALS ══ */}
