@@ -926,6 +926,7 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
     const [students, setStudents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [repeatedStudents, setRepeatedStudents] = useState<Set<string>>(new Set());
 
     // studentId -> selected action/class
     const [actions, setActions] = useState<Record<string, string>>({});
@@ -934,25 +935,50 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
         if (!sourceClass) {
             setStudents([]);
             setActions({});
+            setRepeatedStudents(new Set());
             return;
         }
 
         const fetchStudents = async () => {
             setIsLoading(true);
-            const { data } = await supabase
+            const { data: studentsData } = await supabase
                 .from('students')
                 .select('id, name, admission_no, class')
                 .eq('school_id', schoolId)
                 .eq('class', sourceClass)
                 .order('name');
-            setStudents(data || []);
+            setStudents(studentsData || []);
 
-            // Auto-assign to targetClass if it exists
-            if (targetClass) {
-                const newActions: Record<string, string> = {};
-                (data || []).forEach(s => newActions[s.id] = targetClass);
-                setActions(newActions);
+            // Check if any students are marked to repeat based on saved report cards
+            const studentIds = (studentsData || []).map(s => s.id);
+            const repeatedSet = new Set<string>();
+
+            if (studentIds.length > 0) {
+                const { data: reports } = await supabase
+                    .from('student_report_cards')
+                    .select('student_id, next_class')
+                    .in('student_id', studentIds);
+
+                if (reports) {
+                    reports.forEach(r => {
+                        if (r.next_class && r.next_class.trim().toUpperCase() === sourceClass.trim().toUpperCase()) {
+                            repeatedSet.add(r.student_id);
+                        }
+                    });
+                }
             }
+
+            setRepeatedStudents(repeatedSet);
+
+            const newActions: Record<string, string> = {};
+            (studentsData || []).forEach(s => {
+                if (repeatedSet.has(s.id)) {
+                    newActions[s.id] = sourceClass; // Default to Repeat
+                } else if (targetClass) {
+                    newActions[s.id] = targetClass; // Default to promote target
+                }
+            });
+            setActions(newActions);
             setIsLoading(false);
         };
         fetchStudents();
@@ -964,6 +990,7 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
         setActions(prev => {
             const next = { ...prev };
             students.forEach(s => {
+                if (repeatedStudents.has(s.id)) return; // Keep repeated students repeated!
                 // If they haven't been manually set to something else, point to new target
                 if (!next[s.id] || next[s.id] === prev['__lastTarget']) {
                     next[s.id] = targetClass;
@@ -972,7 +999,7 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
             next['__lastTarget'] = targetClass; // secret key to track what we bulk updated to
             return next;
         });
-    }, [targetClass]);
+    }, [targetClass, students, repeatedStudents]);
 
     const handleActionChange = (id: string, newClass: string) => {
         setActions(prev => ({ ...prev, [id]: newClass }));

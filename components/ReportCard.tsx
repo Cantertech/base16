@@ -954,7 +954,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         />
                     </div>
                     <div>
-                        <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Next Class</p>
+                        <div className="flex justify-between items-center">
+                            <p className="text-[9.5px] print:text-[8.5px] font-black uppercase tracking-[0.25em] text-slate-500">Next Class</p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (nextClass === student.class) {
+                                        setNextClass(getNextClass(student.class));
+                                    } else {
+                                        setNextClass(student.class);
+                                    }
+                                }}
+                                className={`print:hidden text-[9px] font-bold px-2 py-0.5 rounded transition-all ${
+                                    nextClass === student.class
+                                        ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                }`}
+                            >
+                                {nextClass === student.class ? '⚠️ Repeating' : '↻ Repeat'}
+                            </button>
+                        </div>
                         <input
                             type="text"
                             value={nextClass}
@@ -1280,13 +1299,32 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         <div key={item.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-2.5 print:px-3 print:py-2 text-center min-w-[70px]">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{item.label}</p>
                             {item.isInput ? (
-                                <input
-                                    type="text"
-                                    value={item.value || ''}
-                                    onChange={e => setNextClass(e.target.value)}
-                                    className="text-sm font-black leading-tight text-center text-slate-800 bg-transparent border-b border-dashed border-slate-300 outline-none w-full max-w-[120px] uppercase mt-0.5"
-                                    placeholder="Next Class"
-                                />
+                                <div className="flex flex-col items-center gap-1.5 w-full">
+                                    <input
+                                        type="text"
+                                        value={item.value || ''}
+                                        onChange={e => setNextClass(e.target.value)}
+                                        className="text-xs font-black leading-tight text-center text-slate-800 bg-transparent border-b border-dashed border-slate-300 outline-none w-full max-w-[100px] uppercase mt-0.5"
+                                        placeholder="Next Class"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (nextClass === student.class) {
+                                                setNextClass(getNextClass(student.class));
+                                            } else {
+                                                setNextClass(student.class);
+                                            }
+                                        }}
+                                        className={`print:hidden text-[8px] font-bold px-1.5 py-0.5 rounded transition-all ${
+                                            nextClass === student.class
+                                                ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                                                : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        {nextClass === student.class ? '⚠️ Repeating' : '↻ Repeat'}
+                                    </button>
+                                </div>
                             ) : (
                                 <p className={`text-sm font-black leading-tight ${item.accent ? 'text-blue-600' : 'text-slate-800'} ${item.mono ? 'font-mono text-xs' : ''}`}>{item.value}</p>
                             )}
@@ -1631,7 +1669,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                         </div>
                     ) : (
                         <div>
-                            <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (nextClass === student.class) {
+                                            setNextClass(getNextClass(student.class));
+                                        } else {
+                                            setNextClass(student.class);
+                                        }
+                                    }}
+                                    className={`print:hidden text-[8px] font-bold px-1.5 py-0.5 rounded transition-all ${
+                                        nextClass === student.class
+                                            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                                            : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {nextClass === student.class ? '⚠️ Repeating' : '↻ Repeat'}
+                                </button>
+                            </div>
                             <input
                                 type="text"
                                 value={nextClass}
@@ -1647,7 +1704,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     </div>
                     {schoolConfig?.report_card_config?.show_position !== false && (
                         <div>
-                            <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest block">Next Class</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (nextClass === student.class) {
+                                            setNextClass(getNextClass(student.class));
+                                        } else {
+                                            setNextClass(student.class);
+                                        }
+                                    }}
+                                    className={`print:hidden text-[8px] font-bold px-1.5 py-0.5 rounded transition-all ${
+                                        nextClass === student.class
+                                            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                                            : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {nextClass === student.class ? '⚠️ Repeating' : '↻ Repeat'}
+                                </button>
+                            </div>
                             <input
                                 type="text"
                                 value={nextClass}
