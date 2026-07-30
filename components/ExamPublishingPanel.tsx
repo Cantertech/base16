@@ -57,9 +57,7 @@ export const ExamPublishingPanel: React.FC = () => {
         setSelectedSubject,
         handleResetSubjectMarks,
         classStudents,
-        getExistingScore,
-        triggerPrintAll,
-        isPrintingAll
+        getExistingScore
     } = useExamsContext();
 
     const processedStudents = React.useMemo(() => {
@@ -376,20 +374,12 @@ export const ExamPublishingPanel: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={triggerPrintAll}
-                                        disabled={isPrintingAll || isBulkPrinting}
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
-                                    >
-                                        {isPrintingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                                        {isPrintingAll ? "Generating..." : "Print All Classes"}
-                                    </button>
-                                    <button
                                         onClick={triggerBulkPrint}
-                                        disabled={isBulkPrinting || isPrintingAll}
+                                        disabled={isBulkPrinting}
                                         className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50"
                                     >
                                         {isBulkPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                                        {isBulkPrinting ? "Generating..." : "Bulk Print Reports"}
+                                        {isBulkPrinting ? "Generating..." : "Print All Reports"}
                                     </button>
                                     <button 
                                         onClick={() => { setViewingClassList(null); setSearchQuery(''); }} 

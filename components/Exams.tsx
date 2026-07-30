@@ -332,11 +332,9 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
     const [releaseModalData, setReleaseModalData] = useState<{ className: string, studentCount: number, validPhones: number } | null>(null);
     const [isBulkPrinting, setIsBulkPrinting] = useState(false);
-    const [isPrintingAll, setIsPrintingAll] = useState(false);
     const [isLevelArchiveOpen, setIsLevelArchiveOpen] = useState(false);
     const [newLevelName, setNewLevelName] = useState("");
     const bulkPrintRef = useRef<HTMLDivElement>(null);
-    const printAllRef = useRef<HTMLDivElement>(null);
 
 
 
@@ -1480,19 +1478,6 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         setTimeout(() => handleBulkPrintTrigger(), 500);
     };
 
-    const handlePrintAllTrigger = useReactToPrint({
-        contentRef: printAllRef,
-        documentTitle: `All_Class_Reports`,
-        onAfterPrint: () => {
-            setIsPrintingAll(false);
-        }
-    } as any);
-
-    const triggerPrintAll = () => {
-        setIsPrintingAll(true);
-        setTimeout(() => handlePrintAllTrigger(), 800);
-    };
-
     // --- Loading State ---
     if (isSchoolInfoLoading || isConfigLoading) {
         return (
@@ -1667,9 +1652,6 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         getPrefilledResults,
         triggerBulkPrint,
         bulkPrintRef,
-        triggerPrintAll,
-        printAllRef,
-        isPrintingAll,
         reportResultsRaw,
         classResultsRaw,
         studentRank,
@@ -1716,12 +1698,20 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 <div style={{ display: 'none' }}>
                     <div ref={bulkPrintRef} className="print:block">
                         <style dangerouslySetInnerHTML={{__html: `
+                            @page {
+                                size: A4 portrait;
+                                margin: 0;
+                            }
                             @media print {
                                 .print-page-wrapper {
-                                    page-break-after: right !important;
-                                    break-after: right !important;
                                     display: block !important;
-                                    width: 100% !important;
+                                    width: 210mm !important;
+                                    height: 297mm !important;
+                                    overflow: hidden !important;
+                                    page-break-after: always !important;
+                                    break-after: always !important;
+                                    page-break-inside: avoid !important;
+                                    break-inside: avoid !important;
                                 }
                                 .print-page-wrapper:last-child {
                                     page-break-after: avoid !important;
@@ -1731,47 +1721,6 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         `}} />
                         {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => (
                             <div key={student.id} className="print-page-wrapper">
-                                <ReportCard
-                                    student={student}
-                                    results={getPrefilledResults(student, classResultsRaw)}
-                                    schoolConfig={{
-                                        ...schoolInfo,
-                                        ...localConfig,
-                                        term_total_days: localConfig?.term_total_days
-                                    }}
-                                    onClose={() => { }}
-                                    position={classRanks[student.id] || null}
-                                    schoolId={schoolId}
-                                    activeModules={activeModules}
-                                    printMode={true}
-                                    savedReportData={allReportCards.find((rc: any) => rc.student_id === student.id)}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Hidden Print All Container – renders every student in every class */}
-            {isPrintingAll && (
-                <div style={{ display: 'none' }}>
-                    <div ref={printAllRef} className="print:block">
-                        <style dangerouslySetInnerHTML={{__html: `
-                            @media print {
-                                .print-page-wrapper {
-                                    page-break-after: right !important;
-                                    break-after: right !important;
-                                    display: block !important;
-                                    width: 100% !important;
-                                }
-                                .print-page-wrapper:last-child {
-                                    page-break-after: avoid !important;
-                                    break-after: avoid !important;
-                                }
-                            }
-                        `}} />
-                        {(students as Student[]).map((student) => (
-                            <div key={`all-${student.id}`} className="print-page-wrapper">
                                 <ReportCard
                                     student={student}
                                     results={getPrefilledResults(student, classResultsRaw)}
