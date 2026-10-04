@@ -15,6 +15,7 @@ import {
     Sparkles
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { sendHubtelSms, formatGhanaPhone } from '../utils/sms';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Loading from './Loading';
@@ -51,20 +52,36 @@ const fetchSMSBalance = async (schoolId: string) => {
 };
 
 const fetchNotices = async (schoolId: string, currentUser: any) => {
-    // Rely on RLS policies for security, but we fetch all valid notices for this user
+    // 1. Fetch from app_notifications (master_schema_v1.sql standard)
     const { data } = await supabase
-        .from('notices')
+        .from('app_notifications')
         .select(`
-            *,
-            author:author_id (full_name)
+            id,
+            school_id,
+            sender_id,
+            title,
+            message,
+            category,
+            target_audience,
+            target_class,
+            created_at,
+            author:sender_id (full_name)
         `)
         .eq('school_id', schoolId)
         .order('created_at', { ascending: false });
 
     return data?.map((n: any) => ({
-        ...n,
-        priority: n.priority || 'Normal',
-        audience: n.audience || 'All Staff'
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        priority: n.category === 'Urgent' ? 'Urgent' : 'Normal',
+        audience: n.target_audience === 'Teachers Only' ? 'Teaching Staff'
+            : n.target_audience === 'Parents Only' ? 'All Students'
+            : n.target_audience || 'All Staff',
+        date: n.created_at ? n.created_at.split('T')[0] : '',
+        created_at: n.created_at,
+        author_id: n.sender_id,
+        author: n.author
     })) || [];
 };
 
@@ -294,15 +311,16 @@ const ComposeSMS = ({ balance, currentUser }: { balance: number, currentUser: an
                 }
             } else if (recipient === 'Teachers') {
                 const { data } = await supabase
-                    .from('teachers')
-                    .select('phone, name')
+                    .from('profiles')
+                    .select('phone_number, full_name')
                     .eq('school_id', schoolId)
-                    .neq('phone', null);
+                    .eq('role', 'teacher')
+                    .not('phone_number', 'is', null);
 
                 recipientsData = data?.map((d: any) => ({
-                    phone: cleanPhone(d.phone),
+                    phone: cleanPhone(d.phone_number),
                     vars: {
-                        '{Parent Name}': d.name,
+                        '{Parent Name}': d.full_name,
                         '{Student Name}': 'N/A',
                         '{Student ID}': 'N/A',
                         '{PIN}': 'N/A',
@@ -318,24 +336,12 @@ const ComposeSMS = ({ balance, currentUser }: { balance: number, currentUser: an
             const actualCost = recipientsData.length;
             if (balance < actualCost) throw new Error(`Insufficient balance. You need ${actualCost} units but have ${balance}.`);
 
-            // Send SMS
-            const finalMessage = schoolName ? `${schoolName}\n${message}` : message;
-
-            const { data, error } = await supabase.functions.invoke('send-sms', {
-                body: {
-                    recipients: recipientsData,
-                    message: finalMessage,
-                    hubtelKeys: {
-                        clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
-                        clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
-                        senderId: import.meta.env.VITE_HUBTEL_SENDER_ID
-                    }
-                }
+            // Send SMS via Hubtel Gateway
+            await sendHubtelSms({
+                recipients: recipientsData,
+                message,
+                schoolName
             });
-
-            if (error) throw error;
-
-            console.log('SMS Sent Response:', data);
 
             // Deduct credits RPC
             await supabase.rpc('deduct_sms_credits', { p_school_id: schoolId, p_count: recipientsData.length });
@@ -713,21 +719,26 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
 
     const postNoticeMutation = useMutation({
         mutationFn: async (noticeData: any) => {
-            const { error } = await supabase.from('notices').insert({
+            const category = noticeData.priority === 'Urgent' ? 'Urgent' : 'General';
+            const audience = noticeData.audience === 'Teaching Staff' ? 'Teachers Only'
+                : noticeData.audience === 'All Students' ? 'Parents Only'
+                : 'All';
+
+            const { error } = await supabase.from('app_notifications').insert({
                 school_id: schoolId,
+                sender_id: currentUser.id,
                 title: noticeData.title,
                 message: noticeData.message,
-                priority: noticeData.priority,
-                audience: noticeData.audience,
-                target_user_id: noticeData.target_user_id || null,
-                date: noticeData.date,
-                author_id: currentUser.id
+                category: category,
+                target_audience: audience,
+                target_class: noticeData.target_class || null
             });
             if (error) throw error;
         },
         onSuccess: () => {
             setIsModalOpen(false);
             queryClient.invalidateQueries({ queryKey: ['notices', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['recentNotices', schoolId] });
             alert(isTeacher ? 'Message sent to school administration.' : 'Notice posted successfully.');
         },
         onError: (err: any) => alert('Failed to post: ' + err.message)
@@ -735,11 +746,12 @@ const NoticeBoard = ({ isTeacher, currentUser }: { isTeacher: boolean, currentUs
 
     const deleteNoticeMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.from('notices').delete().eq('id', id);
+            const { error } = await supabase.from('app_notifications').delete().eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notices', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['recentNotices', schoolId] });
         }
     });
 

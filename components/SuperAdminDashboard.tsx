@@ -36,9 +36,10 @@ interface SchoolDetailModalProps {
     onDelete: (id: string) => void;
     onUpdate: (data: any) => void;
     onActivateCustomSubscriptions: (schoolId: string, moduleIds: string[], durationMonths: number) => Promise<any>;
+    onTopUpSms: (schoolId: string, quantity: number, amount: number) => Promise<any>;
 }
 
-const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete, onUpdate, onActivateCustomSubscriptions }) => {
+const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, onRenew, onToggleStatus, onImpersonate, onResetPassword, onDelete, onUpdate, onActivateCustomSubscriptions, onTopUpSms }) => {
     // --- State for Editing ---
     const [editData, setEditData] = useState({
         id: school.id,
@@ -49,6 +50,8 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
         admin_email: school.profiles?.email || ''
     });
 
+    const [smsTopUpUnits, setSmsTopUpUnits] = useState<number>(500);
+    const [isToppingUpSms, setIsToppingUpSms] = useState(false);
     const [selectedModules, setSelectedModules] = useState<string[]>([]);
     const [durationVal, setDurationVal] = useState<number>(1);
     const [durationUnit, setDurationUnit] = useState<'months' | 'years'>('months');
@@ -312,6 +315,44 @@ const SchoolDetailModal: React.FC<SchoolDetailModalProps> = ({ school, onClose, 
                             </button>
                         </div>
 
+                        {/* DIRECT SMS TOP-UP SECTION */}
+                        <div className="border-t border-slate-200 pt-6 mt-6 space-y-4">
+                            <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase text-sm tracking-widest">
+                                <Smartphone className="h-5 w-5 text-orange-500" /> Direct SMS Credit Allocation
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Credits Amount</label>
+                                    <input
+                                        type="number"
+                                        min="100"
+                                        step="100"
+                                        value={smsTopUpUnits}
+                                        onChange={e => setSmsTopUpUnits(Math.max(100, parseInt(e.target.value) || 100))}
+                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
+                                    />
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (confirm(`Directly credit ${smsTopUpUnits.toLocaleString()} SMS to ${school.name}?`)) {
+                                            setIsToppingUpSms(true);
+                                            try {
+                                                await onTopUpSms(school.id, smsTopUpUnits, smsTopUpUnits * 0.035);
+                                            } finally {
+                                                setIsToppingUpSms(false);
+                                            }
+                                        }
+                                    }}
+                                    disabled={isToppingUpSms}
+                                    className="self-end bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <Smartphone className="h-4 w-4" />
+                                    {isToppingUpSms ? 'Crediting...' : 'Add Credits'}
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">Estimated cost at standard wholesale rate: GH¢ {(smsTopUpUnits * 0.035).toFixed(2)}</p>
+                        </div>
+
                         <div className="pt-2 border-t border-slate-200 mt-6">
                             <button
                                 onClick={() => onDelete(school.id)}
@@ -343,34 +384,77 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     const { data: schoolsData = { pending: [], active: [], global: { schools: 0, students: 0, revenue: 0, totalWallet: 0, totalSms: 0, avgModules: 0 } }, isLoading: schoolsLoading } = useQuery({
         queryKey: ['adminSchools'],
         queryFn: async () => {
-            const { data, error } = await supabase.rpc('get_admin_school_stats');
-            if (error) throw error;
+            let list: any[] = [];
 
-            if (!data) return { pending: [], active: [], global: { schools: 0, students: 0, revenue: 0, totalWallet: 0, totalSms: 0, avgModules: 0 } };
-
-            const formattedSchools = data.map((s: any) => ({
-                id: s.id,
-                name: s.name,
-                school_phone: s.school_phone,
-                school_email: s.school_email,
-                status: s.status,
-                created_at: s.created_at,
-                next_payment_due: s.next_payment_due,
-                last_payment_date: s.last_payment_date,
-                student_count: Number(s.student_count) || 0,
-                teacher_count: Number(s.teacher_count) || 0,
-                sms_balance: Number(s.sms_balance) || 0,
-                wallet_balance: Number(s.wallet_balance) || 0,
-                active_modules_count: Number(s.active_modules_count) || 0,
-                profiles: {
-                    full_name: s.admin_name,
-                    email: s.admin_email,
-                    role: 'admin'
+            // 1. Try get_admin_school_stats RPC
+            try {
+                const { data, error } = await supabase.rpc('get_admin_school_stats');
+                if (!error && Array.isArray(data) && data.length > 0) {
+                    list = data.map((s: any) => ({
+                        id: s.id,
+                        name: s.name,
+                        school_phone: s.school_phone,
+                        school_email: s.school_email,
+                        status: s.status,
+                        created_at: s.created_at,
+                        next_payment_due: s.next_payment_due,
+                        last_payment_date: s.last_payment_date,
+                        student_count: Number(s.student_count) || 0,
+                        teacher_count: Number(s.teacher_count) || 0,
+                        sms_balance: Number(s.sms_balance) || 0,
+                        wallet_balance: Number(s.wallet_balance) || 0,
+                        active_modules_count: Number(s.active_modules_count) || 0,
+                        profiles: {
+                            full_name: s.admin_name,
+                            email: s.admin_email,
+                            role: 'admin'
+                        }
+                    }));
                 }
-            }));
+            } catch (rpcErr) {
+                console.warn('RPC get_admin_school_stats warning, checking fallback:', rpcErr);
+            }
 
-            const pending = formattedSchools.filter((s: any) => s.status === 'pending');
-            const active = formattedSchools.filter((s: any) => s.status === 'active');
+            // 2. Direct Fallback: Query schools and profiles directly if RPC was empty or errored
+            if (list.length === 0) {
+                const { data: schoolsList } = await supabase
+                    .from('schools')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                const { data: profilesList } = await supabase
+                    .from('profiles')
+                    .select('*');
+
+                if (schoolsList && schoolsList.length > 0) {
+                    list = schoolsList.map((s: any) => {
+                        const adminProfile = (profilesList || []).find((p: any) => p.school_id === s.id && p.role === 'admin');
+                        return {
+                            id: s.id,
+                            name: s.name,
+                            school_phone: s.phone,
+                            school_email: s.email,
+                            status: s.status,
+                            created_at: s.created_at,
+                            next_payment_due: s.next_payment_due,
+                            last_payment_date: s.last_payment_date,
+                            student_count: 0,
+                            teacher_count: (profilesList || []).filter((p: any) => p.school_id === s.id && p.role === 'teacher').length,
+                            sms_balance: Number(s.sms_balance) || 0,
+                            wallet_balance: 0,
+                            active_modules_count: 0,
+                            profiles: {
+                                full_name: adminProfile?.full_name || 'Admin',
+                                email: adminProfile?.email || s.email || 'N/A',
+                                role: 'admin'
+                            }
+                        };
+                    });
+                }
+            }
+
+            const pending = list.filter((s: any) => s.status === 'pending');
+            const active = list.filter((s: any) => s.status === 'active');
 
             const totalStudents = active.reduce((sum: number, s: any) => sum + (Number(s.student_count) || 0), 0);
             const totalWallet = active.reduce((sum: number, s: any) => sum + (Number(s.wallet_balance) || 0), 0);
@@ -396,33 +480,46 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     const { data: featureRequests = [], isLoading: ticketsLoading } = useQuery({
         queryKey: ['supportTickets'],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('support_tickets')
-                .select(`
-                    *, 
-                    schools:school_id (name),
-                    profiles:user_id (full_name, email)
-                `)
-                .order('status', { ascending: false })
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
+            try {
+                const { data, error } = await supabase
+                    .from('support_tickets')
+                    .select(`
+                        *, 
+                        schools:school_id (name),
+                        profiles:user_id (full_name, email)
+                    `)
+                    .order('status', { ascending: false })
+                    .order('created_at', { ascending: false });
+                if (error) {
+                    console.warn('support_tickets query warning:', error.message);
+                    return [];
+                }
+                return data || [];
+            } catch (err) {
+                return [];
+            }
         }
     });
 
     const { data: smsRequests = [], isLoading: smsLoading } = useQuery({
         queryKey: ['pendingSmsRequests'],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('sms_transactions')
-                .select(`
-                    *,
-                    schools (name)
-                `)
-                .eq('status', 'Pending')
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
+            try {
+                const { data, error } = await supabase
+                    .from('sms_purchases')
+                    .select(`
+                        *,
+                        schools:school_id (name)
+                    `)
+                    .order('created_at', { ascending: false });
+                if (error) {
+                    console.warn('sms_purchases query warning:', error.message);
+                    return [];
+                }
+                return data || [];
+            } catch (err) {
+                return [];
+            }
         }
     });
 
@@ -435,7 +532,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                 p_school_email: updatedData.school_email,
                 p_school_phone: updatedData.school_phone,
                 p_admin_name: updatedData.admin_name,
-                p_admin_email: updatedData.admin_email
+                p_admin_phone: updatedData.school_phone || ''
             });
             if (error) throw error;
         },
@@ -467,41 +564,52 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     });
 
     const verifySmsMutation = useMutation({
-        mutationFn: async (transactionId: string) => {
-            const { data, error } = await supabase.rpc('verify_sms_transaction', {
-                p_transaction_id: transactionId
+        mutationFn: async ({ purchaseId, schoolId, quantity, amount }: { purchaseId: string, schoolId: string, quantity: number, amount: number }) => {
+            const { data, error } = await supabase.rpc('top_up_school_sms', {
+                p_school_id: schoolId,
+                p_quantity: quantity,
+                p_amount: amount,
+                p_payment_ref: `PURCHASE-${purchaseId}`,
+                p_payment_method: 'Mobile Money'
             });
             if (error) throw error;
+            await supabase.from('sms_purchases').update({ status: 'Completed' }).eq('id', purchaseId);
             return data;
         },
         onSuccess: (data) => {
-            if (data.success) {
-                alert(data.message);
-                queryClient.invalidateQueries({ queryKey: ['pendingSmsRequests'] });
-                queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
-            } else {
-                alert(data.message);
-            }
+            alert(`SMS Top-up verified! New balance: ${data?.new_sms_balance ?? 'Updated'}`);
+            queryClient.invalidateQueries({ queryKey: ['pendingSmsRequests'] });
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
         },
         onError: (err: any) => alert('Verification Error: ' + err.message)
     });
 
     const renewSubscriptionMutation = useMutation({
         mutationFn: async (schoolId: string) => {
-            const nextDue = new Date();
-            nextDue.setDate(nextDue.getDate() + 84);
-            const { error } = await supabase.from('schools')
-                .update({
-                    next_payment_due: nextDue.toISOString(),
-                    last_payment_date: new Date().toISOString(),
-                    status: 'active'
-                })
-                .eq('id', schoolId);
-            if (error) throw error;
+            const { data, error } = await supabase.rpc('activate_school_subscription', {
+                p_school_id: schoolId,
+                p_plan_code: 'termly_foundation',
+                p_billing_cycle: 'Termly',
+                p_payment_reference: `RENEW-${Date.now()}`,
+                p_payment_method: 'Super Admin Override'
+            });
+            if (error) {
+                // Fallback to manual date bump
+                const nextDue = new Date();
+                nextDue.setDate(nextDue.getDate() + 120);
+                await supabase.from('schools')
+                    .update({
+                        next_payment_due: nextDue.toISOString(),
+                        last_payment_date: new Date().toISOString(),
+                        status: 'active'
+                    })
+                    .eq('id', schoolId);
+            }
+            return data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
-            alert('Payment approved!');
+            alert('Payment approved and Termly Subscription activated!');
             setSelectedSchool(null);
         },
         onError: (err: any) => alert('Error: ' + err.message)
@@ -549,17 +657,22 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     });
 
     const activateCustomSubscriptionsMutation = useMutation({
-        mutationFn: async ({ schoolId, moduleIds, durationMonths }: { schoolId: string, moduleIds: string[], durationMonths: number }) => {
-            const { data, error } = await supabase.rpc('super_admin_activate_subscriptions', {
+        mutationFn: async ({ schoolId, planCode = 'termly_foundation', durationMonths }: { schoolId: string, planCode?: string, durationMonths: number }) => {
+            const billingCycle = durationMonths >= 12 ? 'Annual' : durationMonths >= 4 ? 'Termly' : 'Monthly';
+            const selectedPlan = durationMonths >= 12 ? 'annual_fullpack' : durationMonths >= 4 ? 'termly_foundation' : 'monthly_pro';
+            const { data, error } = await supabase.rpc('activate_school_subscription', {
                 p_school_id: schoolId,
-                p_module_ids: moduleIds,
-                p_duration_months: durationMonths
+                p_plan_code: selectedPlan,
+                p_billing_cycle: billingCycle,
+                p_payment_reference: `OVERRIDE-${Date.now()}`,
+                p_payment_method: 'Super Admin Override'
             });
             if (error) throw error;
             return data;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
+            alert('Custom subscription override activated!');
         },
         onError: (err: any) => alert('Failed to activate subscriptions: ' + err.message)
     });
@@ -578,6 +691,26 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     });
 
 
+    const topUpSmsMutation = useMutation({
+        mutationFn: async ({ schoolId, quantity, amount }: { schoolId: string, quantity: number, amount: number }) => {
+            const { data, error } = await supabase.rpc('top_up_school_sms', {
+                p_school_id: schoolId,
+                p_quantity: quantity,
+                p_amount: amount,
+                p_payment_ref: `DIRECT-CREDIT-${Date.now()}`,
+                p_payment_method: 'Super Admin Credit'
+            });
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: (data) => {
+            alert(`SMS Credits added successfully! New balance: ${data?.new_sms_balance ?? 'Updated'}`);
+            queryClient.invalidateQueries({ queryKey: ['adminSchools'] });
+            setSelectedSchool(null);
+        },
+        onError: (err: any) => alert('Failed to top up SMS: ' + err.message)
+    });
+
     // --- Handlers ---
     const approveSchool = (schoolId: string) => approveSchoolMutation.mutate(schoolId);
 
@@ -594,7 +727,11 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
     };
 
     const activateCustomSubscriptions = async (schoolId: string, moduleIds: string[], durationMonths: number) => {
-        return activateCustomSubscriptionsMutation.mutateAsync({ schoolId, moduleIds, durationMonths });
+        return activateCustomSubscriptionsMutation.mutateAsync({ schoolId, durationMonths });
+    };
+
+    const topUpSchoolSms = async (schoolId: string, quantity: number, amount: number) => {
+        return topUpSmsMutation.mutateAsync({ schoolId, quantity, amount });
     };
 
     const deleteSchool = async (schoolId: string) => {
@@ -670,18 +807,42 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                     </div>
                 </div>
 
+                {schoolsData.pending.length > 0 && (
+                    <div 
+                        onClick={() => setActiveTab('pending')}
+                        className="mb-8 p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-all shadow-md animate-pulse"
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-3 w-3 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                            </span>
+                            <p className="font-black text-amber-900 text-sm">
+                                🔔 {schoolsData.pending.length} School Registration{schoolsData.pending.length > 1 ? 's' : ''} Awaiting Approval!
+                            </p>
+                        </div>
+                        <span className="text-xs font-black text-amber-800 uppercase tracking-wider underline">Review & Grant Access &rarr;</span>
+                    </div>
+                )}
+
                 <div className="flex gap-4 mb-10 scrollbar-hide overflow-x-auto pb-2">
                     {[
                         { id: 'overview', label: 'Overview', icon: TrendingUp },
                         { id: 'active', label: `Active (${schoolsData.active.length})`, icon: CheckCircle },
-                        { id: 'pending', label: `Pending (${schoolsData.pending.length})`, icon: Calendar },
+                        { id: 'pending', label: `Pending (${schoolsData.pending.length})`, icon: Calendar, badge: schoolsData.pending.length > 0 },
                         { id: 'requests', label: `Tickets (${featureRequests.length})`, icon: AlertTriangle },
                         { id: 'sms', label: `SMS Req (${smsRequests.length})`, icon: Smartphone }
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id ? 'bg-slate-800 text-white shadow-2xl' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'}`}
+                            className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                                activeTab === tab.id 
+                                    ? 'bg-slate-800 text-white shadow-2xl' 
+                                    : (tab as any).badge 
+                                        ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 hover:bg-amber-200' 
+                                        : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'
+                            }`}
                         >
                             <tab.icon className="w-4 h-4" /> {tab.label}
                         </button>
@@ -777,13 +938,18 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                                                 <td className="px-8 py-6 font-mono text-[10px] text-slate-400">{req.id.slice(0, 8)}...</td>
                                                 <td className="px-8 py-6 font-black text-slate-800 uppercase text-xs">{req.schools?.name}</td>
                                                 <td className="px-8 py-6 font-black text-blue-600">{req.quantity.toLocaleString()} SMS</td>
-                                                <td className="px-8 py-6 font-black text-green-600">GH¢ {req.amount.toFixed(2)}</td>
+                                                <td className="px-8 py-6 font-black text-green-600">GH¢ {Number(req.amount_paid || req.amount || 0).toFixed(2)}</td>
                                                 <td className="px-8 py-6 text-[10px] text-slate-400 uppercase font-bold">{new Date(req.created_at).toLocaleString()}</td>
                                                 <td className="px-8 py-6 text-center">
                                                     <button
                                                         onClick={() => {
-                                                            if (confirm(`Approve ${req.quantity} SMS for ${req.schools?.name}? Ensure you have topped up Hubtel.`)) {
-                                                                verifySmsMutation.mutate(req.id);
+                                                            if (confirm(`Approve ${req.quantity} SMS for ${req.schools?.name || 'School'}?`)) {
+                                                                verifySmsMutation.mutate({
+                                                                    purchaseId: req.id,
+                                                                    schoolId: req.school_id,
+                                                                    quantity: req.quantity,
+                                                                    amount: Number(req.amount_paid || req.amount || 0)
+                                                                });
                                                             }
                                                         }}
                                                         disabled={verifySmsMutation.isPending}
@@ -991,6 +1157,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onLogout, onI
                     onDelete={(id) => deleteSchool(id)}
                     onUpdate={(data) => updateSchoolMutation.mutate(data)}
                     onActivateCustomSubscriptions={(schoolId, moduleIds, durationMonths) => activateCustomSubscriptions(schoolId, moduleIds, durationMonths)}
+                    onTopUpSms={(schoolId, quantity, amount) => topUpSchoolSms(schoolId, quantity, amount)}
                 />
             )}
         </div>

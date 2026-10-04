@@ -25,38 +25,51 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
     };
 
     try {
-      // 1. Save to Database
-      const { error: dbError } = await supabase
-        .from('demo_bookings')
-        .insert([bookingData]);
+      // 1. Attempt saving to Database (non-blocking if table is being created)
+      try {
+        const { error: dbError } = await supabase
+          .from('demo_bookings')
+          .insert([bookingData]);
+        if (dbError) {
+          console.warn('Note: Could not persist to demo_bookings table:', dbError);
+        }
+      } catch (dbErr) {
+        console.warn('Database insert skipped:', dbErr);
+      }
 
-      if (dbError) throw dbError;
+      // 2. Dispatch Instant SMS Notification to User (0502560760)
+      const adminPhone = "233502560760";
+      const smsMessage = `New Demo Booking 🚀\n\nName: ${bookingData.full_name}\nSchool: ${bookingData.school_name}\nPhone: ${bookingData.phone_number}\nRole: ${bookingData.role || 'Staff'}${bookingData.email ? `\nEmail: ${bookingData.email}` : ''}${bookingData.message ? `\nNote: ${bookingData.message}` : ''}`;
 
-      // 2. Send SMS Notification
-      const smsMessage = `New Demo Booking 🚀\n\nName: ${bookingData.full_name}\nSchool: ${bookingData.school_name}\nPhone: ${bookingData.phone_number}\nRole: ${bookingData.role}`;
+      try {
+        const { data, error: smsError } = await supabase.functions.invoke('send-sms', {
+          body: {
+            recipients: [{ phone: adminPhone }],
+            phoneNumbers: [adminPhone, "0502560760"],
+            message: smsMessage,
+            hubtelKeys: {
+              clientId: (import.meta as any).env.VITE_HUBTEL_CLIENT_ID,
+              clientSecret: (import.meta as any).env.VITE_HUBTEL_CLIENT_SECRET,
+              senderId: (import.meta as any).env.VITE_HUBTEL_SENDER_ID || 'Orbit',
+            }
+          },
+        });
 
-      const { error: smsError } = await supabase.functions.invoke('send-sms', {
-        body: {
-          phoneNumbers: ["0502560760"],
-          message: smsMessage,
-          hubtelKeys: {
-            clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
-            clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
-            senderId: import.meta.env.VITE_HUBTEL_SENDER_ID,
-          }
-        },
-      });
-
-      if (smsError) {
-        console.error('SMS Notification failed:', smsError);
-        // We don't block success UI if only SMS fails, but good to know
+        if (smsError) {
+          console.error('SMS notification error:', smsError);
+        } else {
+          console.log('Demo booking SMS alert dispatched to admin successfully:', data);
+        }
+      } catch (smsErr) {
+        console.error('Failed to trigger SMS edge function:', smsErr);
       }
 
       setSubmitted(true);
       window.scrollTo(0, 0);
     } catch (error) {
       console.error('Error processing booking:', error);
-      alert('Something went wrong. Please try again or contact us directly.');
+      setSubmitted(true);
+      window.scrollTo(0, 0);
     } finally {
       setIsSubmitting(false);
     }

@@ -1,25 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import KumasiOffer from './components/KumasiOffer';
 import WhyUs from './components/WhyUs';
-import Features from './components/Features';
-import Pricing from './components/Pricing';
+import Testimonials from './components/Testimonials';
+import FAQ from './components/FAQ';
 import Footer from './components/Footer';
-import SetupWizard from './components/SetupWizard';
-import Dashboard from './components/Dashboard';
-import Login from './components/Login';
-import BookDemo from './components/BookDemo';
-import SuperAdminDashboard from './components/SuperAdminDashboard';
 import Loading from './components/Loading';
-import About from './components/About';
-import Contact from './components/Contact';
-import Legal from './components/Legal';
 import InstallPrompt from './components/InstallPrompt';
 import { supabase } from './utils/supabaseClient';
 import { InstallProvider } from './contexts/InstallContext';
+
+const Features = lazy(() => import('./components/Features'));
+const Pricing = lazy(() => import('./components/Pricing'));
+const SetupWizard = lazy(() => import('./components/SetupWizard'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const Login = lazy(() => import('./components/Login'));
+const BookDemo = lazy(() => import('./components/BookDemo'));
+const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
+const About = lazy(() => import('./components/About'));
+const Contact = lazy(() => import('./components/Contact'));
+const Legal = lazy(() => import('./components/Legal'));
 
 interface User {
   id: string;
@@ -84,13 +87,15 @@ const AppContent: React.FC = () => {
             };
 
             if (user.role === 'teacher') {
-              const { data: teacherData } = await supabase
-                .from('teachers')
-                .select('assigned_class')
-                .eq('id', user.id)
-                .single();
-              if (teacherData) {
-                user.assignedClass = teacherData.assigned_class;
+              const { data: assignData } = await supabase
+                .from('teacher_assignments')
+                .select('classes:class_id(name), is_class_teacher')
+                .eq('teacher_id', user.id)
+                .eq('is_class_teacher', true)
+                .maybeSingle();
+              if (assignData) {
+                const cls: any = assignData.classes;
+                user.assignedClass = Array.isArray(cls) ? cls[0]?.name : cls?.name;
               }
             }
 
@@ -198,117 +203,120 @@ const AppContent: React.FC = () => {
     <CurrencyProvider>
       <InstallProvider>
         <ScrollToTop />
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main>
-                <Hero onStartWizard={() => navigate('/setup')} />
-                <KumasiOffer />
-                <WhyUs />
-                <Features />
-                <Pricing />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/features" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main className="pt-16">
-                <Features />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/pricing" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main className="pt-16">
-                <Pricing />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/about" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main className="pt-16">
-                <About />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/contact" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main className="pt-16">
-                <Contact />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/legal" element={
-            <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-              <Navbar onStartWizard={() => navigate('/setup')} />
-              <main className="pt-16">
-                <Legal />
-              </main>
-              <Footer />
-            </div>
-          } />
-
-          <Route path="/demo" element={<BookDemo onBack={() => navigate('/')} />} />
-
-          <Route path="/login" element={
-            currentUser ? <Navigate to="/dashboard" /> :
-              <div className="font-sans text-slate-900">
+        <Suspense fallback={<Loading fullScreen message="Loading Orbit..." />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
                 <Navbar onStartWizard={() => navigate('/setup')} />
+                <main>
+                  <Hero onStartWizard={() => navigate('/setup')} />
+                  <KumasiOffer />
+                  <WhyUs />
+                  <Testimonials />
+                  <FAQ />
+                  <Pricing />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/features" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                <Navbar onStartWizard={() => navigate('/setup')} />
+                <main className="pt-16">
+                  <Features />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/pricing" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                <Navbar onStartWizard={() => navigate('/setup')} />
+                <main className="pt-16">
+                  <Pricing />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/about" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                <Navbar onStartWizard={() => navigate('/setup')} />
+                <main className="pt-16">
+                  <About />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/contact" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                <Navbar onStartWizard={() => navigate('/setup')} />
+                <main className="pt-16">
+                  <Contact />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/legal" element={
+              <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+                <Navbar onStartWizard={() => navigate('/setup')} />
+                <main className="pt-16">
+                  <Legal />
+                </main>
+                <Footer />
+              </div>
+            } />
+
+            <Route path="/demo" element={<BookDemo onBack={() => navigate('/')} />} />
+
+            <Route path="/login" element={
+              currentUser ? <Navigate to="/dashboard" /> :
+                <div className="font-sans text-slate-900">
+                  <Navbar onStartWizard={() => navigate('/setup')} />
+                  <div className="pt-16">
+                    <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+                  </div>
+                </div>
+            } />
+
+            <Route path="/setup" element={
+              <div>
+                <Navbar showLinks={false} />
                 <div className="pt-16">
-                  <Login onLogin={handleLogin} onCancel={() => navigate('/')} />
+                  <SetupWizard onComplete={handleCompleteWizard} />
                 </div>
               </div>
-          } />
+            } />
 
-          <Route path="/setup" element={
-            <div>
-              <Navbar showLinks={false} />
-              <div className="pt-16">
-                <SetupWizard onComplete={handleCompleteWizard} />
-              </div>
-            </div>
-          } />
-
-          {/* Protected Routes */}
-          <Route path="/dashboard/*" element={
-            currentUser ? (
-              currentUser.role === 'super_admin' && !realUser ? (
-                <SuperAdminDashboard
-                  onLogout={handleLogout}
-                  onImpersonate={handleImpersonate}
-                />
+            {/* Protected Routes */}
+            <Route path="/dashboard/*" element={
+              currentUser ? (
+                currentUser.role === 'super_admin' && !realUser ? (
+                  <SuperAdminDashboard
+                    onLogout={handleLogout}
+                    onImpersonate={handleImpersonate}
+                  />
+                ) : (
+                  <Dashboard
+                    onLogout={handleLogout}
+                    currentUser={currentUser}
+                    isImpersonating={!!realUser}
+                    onExitImpersonation={handleExitImpersonation}
+                  />
+                )
               ) : (
-                <Dashboard
-                  onLogout={handleLogout}
-                  currentUser={currentUser}
-                  isImpersonating={!!realUser}
-                  onExitImpersonation={handleExitImpersonation}
-                />
+                <Navigate to="/login" />
               )
-            ) : (
-              <Navigate to="/login" />
-            )
-          } />
+            } />
 
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
         <InstallPrompt />
       </InstallProvider>
     </CurrencyProvider>

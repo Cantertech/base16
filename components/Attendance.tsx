@@ -25,7 +25,7 @@ interface AttendanceProps {
     currentUser?: {
         id: string;
         school_id: string;
-        role: 'admin' | 'teacher';
+        role: string;
         assignedClass?: string | null;
     };
     theme?: any;
@@ -162,6 +162,9 @@ const fetchViewResults = async (schoolId: string, className: string, date: strin
 const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     const queryClient = useQueryClient();
     const schoolId = currentUser?.school_id;
+    const role = (currentUser?.role || '').toLowerCase();
+    const isAdmin = role.includes('admin') || role.includes('director') || role.includes('head') || role.includes('principal');
+    const isTeacher = !isAdmin;
 
     // Default theme fallback if not provided
     const activeTheme = theme || {
@@ -207,7 +210,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     const { data: adminStats, isLoading: statsLoading } = useQuery({
         queryKey: ['adminAttendanceStats', schoolId, selectedDate],
         queryFn: () => fetchAdminStats(schoolId!, selectedDate),
-        enabled: !!schoolId && currentUser?.role === 'admin'
+        enabled: !!schoolId && isAdmin
     });
     const dailyStats = adminStats?.dailyStats || [];
     const classStats = adminStats?.classStats || [];
@@ -245,22 +248,42 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
         queryFn: async () => {
             if (!currentUser?.id) return [];
 
-            const { data: assignments } = await supabase
-                .from('teacher_assignments')
-                .select('is_class_teacher, classes(name)')
-                .eq('teacher_id', currentUser.id)
-                .eq('is_class_teacher', true); // Only Class Teachers
+            try {
+                const { data: assignments, error } = await supabase
+                    .from('teacher_assignments')
+                    .select('is_class_teacher, class_id, classes(name)')
+                    .eq('teacher_id', currentUser.id)
+                    .eq('is_class_teacher', true); // Only Class Teachers
 
-            const assigned = assignments?.map((a: any) => a.classes?.name).filter(Boolean) || [];
-            
-            // If they have a primary class set in their profile, that usually counts too (unless we want to be strict)
-            // But let's assume if it's in their profile, they have marking power for that class.
-            if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
-                assigned.push(currentUser.assignedClass);
+                let assigned: string[] = [];
+                if (!error && assignments) {
+                    assigned = assignments.map((a: any) => a.classes?.name).filter(Boolean);
+                }
+
+                // If relational join was empty or errored, try matching class_id to classes
+                if (assigned.length === 0 && assignments && assignments.length > 0) {
+                    const classIds = assignments.map((a: any) => a.class_id).filter(Boolean);
+                    if (classIds.length > 0) {
+                        const { data: clsData } = await supabase
+                            .from('classes')
+                            .select('name')
+                            .in('id', classIds);
+                        if (clsData) {
+                            assigned = clsData.map(c => c.name).filter(Boolean);
+                        }
+                    }
+                }
+
+                if (assigned.length === 0 && currentUser.assignedClass) {
+                    assigned.push(currentUser.assignedClass);
+                }
+                return assigned;
+            } catch (e) {
+                console.warn('Notice loading teacher classes:', e);
+                return currentUser.assignedClass ? [currentUser.assignedClass] : [];
             }
-            return assigned;
         },
-        enabled: !!currentUser?.id && currentUser?.role === 'teacher'
+        enabled: !!currentUser?.id && isTeacher
     });
 
 
@@ -279,13 +302,13 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
         if (!selectedClass) {
             if (currentUser?.assignedClass) {
                 setSelectedClass(currentUser.assignedClass);
-            } else if (currentUser?.role === 'teacher' && teacherClasses.length > 0) {
+            } else if (isTeacher && teacherClasses.length > 0) {
                 setSelectedClass(teacherClasses[0]);
-            } else if (currentUser?.role === 'admin' && classes.length > 0) {
+            } else if (isAdmin && classes.length > 0) {
                 setSelectedClass(classes[0]);
             }
         }
-    }, [classes, teacherClasses, currentUser, selectedClass]);
+    }, [classes, teacherClasses, currentUser, selectedClass, isAdmin, isTeacher]);
 
     useEffect(() => {
         if (!viewClass && classes.length > 0) {
@@ -303,23 +326,35 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                 date: selectedDate,
                 class: selectedClass,
                 status: status,
-                term: schoolConfig?.current_term,
-                academic_year: schoolConfig?.academic_year
+                term: schoolConfig?.current_term || null,
+                academic_year: schoolConfig?.academic_year || null
             }));
             if (upsertData.length === 0) return;
 
-            const { error } = await supabase
+            let { error } = await supabase
                 .from('attendance')
                 .upsert(upsertData, { onConflict: 'student_id,date' });
-            if (error) throw error;
+
+            if (error) {
+                if (error.message?.includes('term') || error.message?.includes('academic_year') || error.message?.includes('column')) {
+                    const fallbackData = upsertData.map(({ term, academic_year, ...rest }) => rest);
+                    const retry = await supabase
+                        .from('attendance')
+                        .upsert(fallbackData, { onConflict: 'student_id,date' });
+                    if (retry.error) throw retry.error;
+                } else {
+                    throw error;
+                }
+            }
         },
         onSuccess: () => {
             alert('Attendance saved successfully!');
             queryClient.invalidateQueries({ queryKey: ['adminAttendanceStats', schoolId, selectedDate] });
             queryClient.invalidateQueries({ queryKey: ['attendanceMonthly', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['attendanceMarking', schoolId, selectedClass, selectedDate] });
         },
         onError: (error: any) => {
-            alert('Failed to save attendance.');
+            alert(`Failed to save attendance: ${error?.message || 'Please check your connection'}`);
         }
     });
 
@@ -352,7 +387,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     const totalMarked = dailyStats.reduce((sum: number, item: any) => sum + item.value, 0);
 
     // --- RENDER: ADMIN VIEW ---
-    if (currentUser?.role === 'admin') {
+    if (isAdmin) {
         return (
             <div className="p-4 md:p-8 space-y-6 h-full overflow-y-auto pb-20 md:pb-0">
                 <div className="flex justify-between items-center">
@@ -518,7 +553,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
     }
 
     // --- RENDER: TEACHER VIEW (Marking) ---
-    if (currentUser?.role === 'teacher' && teacherClasses.length === 0) {
+    if (isTeacher && teacherClasses.length === 0) {
         return (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200 m-8">
                 <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 transform -rotate-6">
@@ -575,7 +610,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                            {(currentUser?.role === 'admin' || (currentUser?.role === 'teacher' && teacherClasses.length > 0)) && (
+                            {(isAdmin || (isTeacher && teacherClasses.length > 0)) && (
                                 <div className="relative group flex-1 sm:w-48 lg:w-auto">
                                     <select
                                         value={selectedClass}
@@ -583,7 +618,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                                         className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8 font-bold transition-all hover:bg-slate-200 cursor-pointer"
                                     >
                                         <option value="">Select Class</option>
-                                        {currentUser?.role === 'teacher' ? (
+                                        {isTeacher ? (
                                             teacherClasses.map((c: string) => <option key={c} value={c}>{c}</option>)
                                         ) : (
                                             classes.map((c: string) => <option key={c} value={c}>{c}</option>)
@@ -826,7 +861,7 @@ const Attendance: React.FC<AttendanceProps> = ({ currentUser, theme }) => {
                         </div>
                     )}
 
-                    {viewMode === 'mark' && currentUser?.role !== 'teacher' && (
+                    {viewMode === 'mark' && isAdmin && (
                         <div className="pt-8 border-t border-slate-200/50">
                             <button
                                 onClick={() => {

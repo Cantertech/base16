@@ -15,7 +15,7 @@ import {
     Search
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
-import ReportCard from './ReportCard';
+import ReportCard, { toOrdinal } from './ReportCard';
 import { Student } from './ExamsTypes';
 
 export const ExamPublishingPanel: React.FC = () => {
@@ -57,7 +57,8 @@ export const ExamPublishingPanel: React.FC = () => {
         setSelectedSubject,
         handleResetSubjectMarks,
         classStudents,
-        getExistingScore
+        getExistingScore,
+        getLayoutForClass
     } = useExamsContext();
 
     const processedStudents = React.useMemo(() => {
@@ -452,7 +453,7 @@ export const ExamPublishingPanel: React.FC = () => {
                                                         ) : rankObj?.position === 3 ? (
                                                             <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
                                                         ) : rankObj?.position ? (
-                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                            <span className="text-xs font-black text-slate-550">{toOrdinal(rankObj.position)}</span>
                                                         ) : (
                                                             <span className="text-slate-350 text-xs font-bold">—</span>
                                                         )}
@@ -510,13 +511,18 @@ export const ExamPublishingPanel: React.FC = () => {
                 <ReportCard
                     student={students.find(s => s.id === reportStudent.id)!}
                     results={getPrefilledResults(reportStudent, reportResultsRaw)}
+                    layout={getLayoutForClass(reportStudent.class)}
                     schoolConfig={{
                         ...schoolInfo,
                         ...localConfig,
+                        report_card_config: {
+                            ...(schoolInfo?.report_card_config || {}),
+                            ...(localConfig?.report_card_config || {})
+                        },
                         term_total_days: localConfig?.term_total_days
                     }}
                     onClose={() => setReportStudent(null)}
-                    position={studentRank}
+                    position={studentRank || classRanks[reportStudent.id] || null}
                     schoolId={schoolId}
                     activeModules={activeModules}
                     printMode={false}

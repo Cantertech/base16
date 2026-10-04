@@ -22,7 +22,7 @@ import {
     TrendingUp
 } from 'lucide-react';
 import { useExamsContext } from './ExamsContext';
-import ReportCard from './ReportCard';
+import ReportCard, { toOrdinal } from './ReportCard';
 import { Student } from './ExamsTypes';
 
 export const ExamsTeacherView: React.FC = () => {
@@ -64,6 +64,7 @@ export const ExamsTeacherView: React.FC = () => {
         schoolId,
         activeModules,
         allReportCards,
+        systemAttendanceMap,
         reportStudent,
         setReportStudent,
         getLayoutForClass,
@@ -86,6 +87,7 @@ export const ExamsTeacherView: React.FC = () => {
         handleScoreChange
     } = useExamsContext();
 
+    const isSystemAttendance = (examConfig?.attendance_mode || localConfig?.attendance_mode) === 'system';
     const isNurseryLayout = getLayoutForClass(selectedClass) === 'nursery';
 
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -213,26 +215,52 @@ export const ExamsTeacherView: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[600px]">
                 {/* Toolbar */}
                 <div className="p-6 border-b border-slate-100 flex flex-col lg:flex-row gap-4 justify-between items-end lg:items-center bg-slate-50">
-                    <div className="flex flex-wrap gap-4 w-full lg:w-auto">
+                    <div className="flex flex-wrap gap-4 w-full lg:w-auto items-end">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Class</label>
-                            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
+                            <select 
+                                value={selectedClass} 
+                                onChange={e => { setSelectedClass(e.target.value); setSelectedSubject(''); }} 
+                                className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-64 cursor-pointer font-bold shadow-sm focus:ring-4 focus:ring-primary-50 text-sm"
+                            >
                                 <option value="">-- Select Class --</option>
                                 {((currentUser?.role || '').toLowerCase() === 'teacher'
-                                    ? [...new Set(myAssignments
-                                        .filter((a: any) => (teacherTab === 'marks') || a.isClassTeacher)
-                                        .map((a: any) => a.className).filter(Boolean))]
-                                    : availableClasses).map((className: any, i: number) => (
+                                    ? (() => {
+                                        const distinctClassNames = [...new Set(myAssignments
+                                            .filter((a: any) => (teacherTab === 'marks') || a.isClassTeacher)
+                                            .map((a: any) => a.className).filter(Boolean))];
+                                        return distinctClassNames.map((className: string, i: number) => {
+                                            const isLead = myAssignments.some((a: any) => a.isClassTeacher && a.className?.trim().toLowerCase() === className.trim().toLowerCase()) ||
+                                                (myAssignments.length === 0 && currentUser?.assignedClass?.trim().toLowerCase() === className.trim().toLowerCase());
+                                            return (
+                                                <option key={i} value={className}>
+                                                    {className} {isLead ? '★ (Class Teacher)' : '(Subject Teacher)'}
+                                                </option>
+                                            );
+                                        });
+                                    })()
+                                    : availableClasses.map((className: any, i: number) => (
                                         <option key={i} value={className}>{className}</option>
-                                    ))}
+                                    )))}
                             </select>
                         </div>
                         {teacherTab === 'marks' && (
-                            <div className="flex gap-4 items-end">
+                            <div className="flex flex-wrap gap-4 items-end">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Subject</label>
-                                    <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-56 cursor-pointer disabled:opacity-50 font-bold shadow-sm focus:ring-4 focus:ring-primary-50">
-                                        <option value="">-- Select Subject --</option>
+                                    <select 
+                                        value={selectedSubject} 
+                                        onChange={e => setSelectedSubject(e.target.value)} 
+                                        disabled={!selectedClass || availableSubjects.length === 0} 
+                                        className="p-3 border border-slate-300 rounded-xl outline-none bg-white w-60 cursor-pointer disabled:opacity-50 font-bold shadow-sm focus:ring-4 focus:ring-primary-50 text-sm"
+                                    >
+                                        <option value="">
+                                            {!selectedClass 
+                                                ? '-- Select Class First --' 
+                                                : availableSubjects.length === 0 
+                                                    ? '-- No Subjects Assigned --' 
+                                                    : '-- Select Subject --'}
+                                        </option>
                                         {availableSubjects.map((s: any) => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
@@ -240,10 +268,29 @@ export const ExamsTeacherView: React.FC = () => {
                                 {isNurseryLayout && (
                                     <button
                                         onClick={() => setIsLevelArchiveOpen(true)}
-                                        className="p-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200 h-[42px]"
+                                        className="p-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200 h-[46px]"
                                     >
                                         <Archive className="w-3.5 h-3.5" /> Levels
                                     </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Visual Role Indicator */}
+                        {!!selectedClass && (
+                            <div className="pb-1">
+                                {isClassTeacher ? (
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold shadow-xs">
+                                        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                        <span>★ Class Teacher</span>
+                                        <span className="text-[11px] font-normal text-emerald-700 hidden xl:inline">• All Subjects, Remarks & Standings</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold shadow-xs">
+                                        <span className="flex h-2 w-2 rounded-full bg-blue-500 shrink-0"></span>
+                                        <span>Subject Teacher</span>
+                                        <span className="text-[11px] font-normal text-blue-700 hidden xl:inline">• Assigned subjects only</span>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -324,7 +371,7 @@ export const ExamsTeacherView: React.FC = () => {
                                         { id: 'teacher_remark', label: 'Remarks' },
                                         { id: 'conduct', label: 'Conduct' },
                                         { id: 'interest', label: 'Interest' },
-                                        ...(examConfig.attendance_mode === 'manual' ? [{ id: 'attendance_present', label: 'Attendance' }] : [])
+                                        { id: 'attendance_present', label: isSystemAttendance ? 'Attendance ⚡' : 'Attendance' }
                                     ].map(t => (
                                         <button
                                             key={t.id}
@@ -344,62 +391,123 @@ export const ExamsTeacherView: React.FC = () => {
 
                         {/* Main Content: Student Grid */}
                         <div className="flex-1 p-4 md:p-6 overflow-y-auto">
-                            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                <div>
-                                    <h4 className="font-black text-slate-800 tracking-tight uppercase text-[10px] mb-1">2. Tap a Student to Assign</h4>
-                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-2">
-                                        Current Brush: <span className="text-primary-600 border border-primary-100 bg-primary-50 px-2 py-1 rounded max-w-[200px] truncate block">{paintBrush || 'None'}</span>
+                            {activeTool === 'attendance_present' && isSystemAttendance ? (
+                                <div className="mb-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 rounded-xl border border-emerald-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold text-lg shrink-0">
+                                            ⚡
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-slate-800 tracking-tight text-xs uppercase flex items-center gap-2">
+                                                Attendance Rule: System Sync Active
+                                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-200">
+                                                    Live Register Feed
+                                                </span>
+                                            </h4>
+                                            <p className="text-xs text-slate-600 mt-0.5">
+                                                Student attendance days are automatically tallied from the Daily Attendance Register. Manual typing is locked.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-white/90 px-3.5 py-2 rounded-lg border border-emerald-200 shadow-xs shrink-0">
+                                        <CheckCircle className="w-4 h-4 text-emerald-600" /> Auto-Synced to Report Cards
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        if (!paintBrush) return;
-                                        classStudents.forEach(s => handleRemarkChange(s.id, activeTool, paintBrush));
-                                    }}
-                                    disabled={!paintBrush || classStudents.length === 0}
-                                    className="text-[10px] font-black uppercase bg-slate-800 text-white px-4 py-2.5 rounded shadow-sm hover:bg-slate-900 transition-colors disabled:opacity-50"
-                                >
-                                    Assign to All Students
-                                </button>
-                            </div>
+                            ) : (
+                                <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                    <div>
+                                        <h4 className="font-black text-slate-800 tracking-tight uppercase text-[10px] mb-1">2. Tap a Student to Assign</h4>
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-2">
+                                            Current Brush: <span className="text-primary-600 border border-primary-100 bg-primary-50 px-2 py-1 rounded max-w-[200px] truncate block">{paintBrush || 'None'}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            if (!paintBrush) return;
+                                            classStudents.forEach(s => handleRemarkChange(s.id, activeTool, paintBrush));
+                                        }}
+                                        disabled={!paintBrush || classStudents.length === 0}
+                                        className="text-[10px] font-black uppercase bg-slate-800 text-white px-4 py-2.5 rounded shadow-sm hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                    >
+                                        Assign to All Students
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                                 {classStudents.map(student => {
                                     const saved = allReportCards.find((r: any) => r.student_id === student.id);
                                     const pending = pendingRemarks[student.id] || {};
+                                    const sysAtt = systemAttendanceMap?.[student.id];
 
                                     const currentVal = pending[activeTool] ?? saved?.[activeTool] ?? '';
-                                    const termTotal = examConfig?.term_total_days || 0;
+                                    const termTotal = examConfig?.term_total_days || localConfig?.term_total_days || 0;
+
+                                    const studentResults = results.filter(r => r.studentId === student.id);
+                                    const totalScore = studentResults.reduce((sum, r) => sum + (r.total || 0), 0);
+                                    const rankObj = standingsRanks[student.id] || classRanks[student.id];
 
                                     return (
                                         <div
                                             key={student.id}
-                                            className={`text-left p-4 rounded-xl border-2 transition-all flex flex-col justify-between group ${paintBrush && currentVal !== paintBrush ? 'hover:border-primary-400 hover:shadow-md cursor-pointer' : ''} ${currentVal ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-200 border-dashed'}`}
+                                            className={`text-left p-4 rounded-xl border-2 transition-all flex flex-col justify-between group ${paintBrush && currentVal !== paintBrush && !(activeTool === 'attendance_present' && isSystemAttendance) ? 'hover:border-primary-400 hover:shadow-md cursor-pointer' : ''} ${currentVal || (activeTool === 'attendance_present' && isSystemAttendance) ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-slate-200 border-dashed'}`}
                                             onClick={(e) => {
+                                                if (activeTool === 'attendance_present' && isSystemAttendance) return;
                                                 if (paintBrush && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
                                                     handleRemarkChange(student.id, activeTool, paintBrush);
                                                 }
                                             }}
                                         >
                                             <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h5 className="font-black text-slate-800 text-sm">{student.name}</h5>
-                                                    <span className="text-[9px] uppercase font-black text-slate-400 tracking-widest block">{student.id.substring(0, 8)}</span>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <h5 className="font-black text-slate-800 text-sm truncate">{student.name}</h5>
+                                                        {rankObj?.position ? (
+                                                            <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0 ${rankObj.position === 1 ? 'bg-amber-100 text-amber-900 border-amber-300' : rankObj.position === 2 ? 'bg-slate-100 text-slate-800 border-slate-300' : rankObj.position === 3 ? 'bg-orange-100 text-orange-900 border-orange-300' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                                {rankObj.position === 1 ? '🥇 1st' : rankObj.position === 2 ? '🥈 2nd' : rankObj.position === 3 ? '🥉 3rd' : toOrdinal(rankObj.position)}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2 mt-1">
+                                                        <span className="text-[9px] uppercase font-bold text-slate-400 font-mono tracking-widest">{student.id.substring(0, 8)}</span>
+                                                        {studentResults.length > 0 && (
+                                                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80 font-mono">
+                                                                Total: <strong className="text-slate-900 font-black">{totalScore}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="w-full bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[44px] flex items-center justify-between group-hover:bg-primary-50/30 transition-colors mt-2">
                                                 {activeTool === 'attendance_present' ? (
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        <input
-                                                            type="number"
-                                                            value={currentVal || ''}
-                                                            max={termTotal}
-                                                            onChange={(e) => handleRemarkChange(student.id, 'attendance_present', e.target.value)}
-                                                            className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-800 outline-none focus:border-primary-500"
-                                                            placeholder="Present"
-                                                        />
-                                                        <span className="text-xs font-black text-slate-400">/ {termTotal || '--'}</span>
-                                                    </div>
+                                                    isSystemAttendance ? (
+                                                        <div className="flex items-center justify-between w-full bg-emerald-50/80 border border-emerald-200/90 rounded-lg px-3 py-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                <span className="text-xs font-black text-emerald-950">
+                                                                    {sysAtt?.present ?? 0}
+                                                                    <span className="text-emerald-700 font-bold"> / {termTotal || sysAtt?.total || '--'} Days</span>
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                                                                {termTotal > 0
+                                                                    ? `${Math.round(((sysAtt?.present || 0) / termTotal) * 100)}%`
+                                                                    : 'Auto-Synced'}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <input
+                                                                type="number"
+                                                                value={currentVal || ''}
+                                                                max={termTotal || 365}
+                                                                onChange={(e) => handleRemarkChange(student.id, 'attendance_present', e.target.value)}
+                                                                className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 text-sm font-bold text-slate-800 outline-none focus:border-primary-500"
+                                                                placeholder="Present"
+                                                            />
+                                                            <span className="text-xs font-black text-slate-400">/ {termTotal || '--'}</span>
+                                                        </div>
+                                                    )
                                                 ) : activeTool === 'teacher_remark' ? (
                                                     <textarea
                                                         value={currentVal || ''}
@@ -508,9 +616,17 @@ export const ExamsTeacherView: React.FC = () => {
                                             const averageScore = subjCount > 0 ? (totalScore / subjCount).toFixed(1) : '—';
                                             const rankObj = classRanks[student.id];
                                             const savedData = allReportCards.find((r: any) => r.student_id === student.id);
-                                            const attendanceStr = savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
-                                                ? `${savedData.attendance_present} / ${savedData.attendance_total || localConfig?.term_total_days || '—'}`
-                                                : '—';
+                                            const sysAtt = systemAttendanceMap?.[student.id];
+                                            const termTotal = examConfig?.term_total_days || localConfig?.term_total_days;
+                                            const attendanceStr = isSystemAttendance
+                                                ? (sysAtt !== undefined
+                                                    ? `${sysAtt.present} / ${termTotal || sysAtt.total || '—'}`
+                                                    : (savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
+                                                        ? `${savedData.attendance_present} / ${savedData.attendance_total || termTotal || '—'}`
+                                                        : `0 / ${termTotal || '—'}`))
+                                                : (savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
+                                                    ? `${savedData.attendance_present} / ${savedData.attendance_total || termTotal || '—'}`
+                                                    : '—');
 
                                             return (
                                                 <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
@@ -522,7 +638,7 @@ export const ExamsTeacherView: React.FC = () => {
                                                         ) : rankObj?.position === 3 ? (
                                                             <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
                                                         ) : rankObj?.position ? (
-                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                            <span className="text-xs font-black text-slate-550">{toOrdinal(rankObj.position)}</span>
                                                         ) : (
                                                             <span className="text-slate-350 text-xs font-bold">—</span>
                                                         )}
@@ -557,7 +673,10 @@ export const ExamsTeacherView: React.FC = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center text-xs font-bold text-slate-650">
                                                         {attendanceStr !== '—' ? (
-                                                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-mono">{attendanceStr}</span>
+                                                            <span className={`px-2 py-0.5 rounded-md font-mono ${isSystemAttendance ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold' : 'bg-slate-100 text-slate-700'}`}>
+                                                                {attendanceStr}
+                                                                {isSystemAttendance && <span className="ml-1 text-[9px]">⚡</span>}
+                                                            </span>
                                                         ) : (
                                                             <span className="text-slate-350">—</span>
                                                         )}
@@ -589,6 +708,17 @@ export const ExamsTeacherView: React.FC = () => {
                                     const totalScore = studentResults.reduce((sum, r) => sum + r.total, 0);
                                     const rankObj = classRanks[student.id];
                                     const savedData = allReportCards.find((r: any) => r.student_id === student.id);
+                                    const sysAtt = systemAttendanceMap?.[student.id];
+                                    const termTotal = examConfig?.term_total_days || localConfig?.term_total_days;
+                                    const attendanceStr = isSystemAttendance
+                                        ? (sysAtt !== undefined
+                                            ? `${sysAtt.present} / ${termTotal || sysAtt.total || '—'}`
+                                            : (savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
+                                                ? `${savedData.attendance_present} / ${savedData.attendance_total || termTotal || '—'}`
+                                                : `0 / ${termTotal || '—'}`))
+                                        : (savedData?.attendance_present !== undefined && savedData?.attendance_present !== null 
+                                            ? `${savedData.attendance_present} / ${savedData.attendance_total || termTotal || '—'}`
+                                            : '—');
 
                                     return (
                                         <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
@@ -614,7 +744,7 @@ export const ExamsTeacherView: React.FC = () => {
                                                     ) : rankObj?.position === 3 ? (
                                                         <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
                                                     ) : rankObj?.position ? (
-                                                        <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                        <span className="text-xs font-black text-slate-550">{toOrdinal(rankObj.position)}</span>
                                                     ) : (
                                                         <span className="text-slate-350 text-xs font-bold">—</span>
                                                     )}
@@ -628,7 +758,10 @@ export const ExamsTeacherView: React.FC = () => {
                                                 </div>
                                                 <div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Attendance</span>
-                                                    <span className="text-xs font-bold text-slate-700">{savedData?.attendance_present !== undefined && savedData?.attendance_present !== null ? `${savedData.attendance_present}/${savedData.attendance_total || localConfig?.term_total_days || '—'}` : '—'}</span>
+                                                    <span className={`text-xs font-bold ${isSystemAttendance ? 'text-emerald-700' : 'text-slate-700'}`}>
+                                                        {attendanceStr}
+                                                        {isSystemAttendance && attendanceStr !== '—' && <span className="ml-1 text-[9px]">⚡</span>}
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -720,7 +853,7 @@ export const ExamsTeacherView: React.FC = () => {
                                                         ) : rankObj?.position === 3 ? (
                                                             <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-850 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">🥉 3rd</span>
                                                         ) : rankObj?.position ? (
-                                                            <span className="text-xs font-black text-slate-550">{rankObj.position}th</span>
+                                                            <span className="text-xs font-black text-slate-550">{toOrdinal(rankObj.position)}</span>
                                                         ) : (
                                                             <span className="text-slate-350 text-xs font-bold">—</span>
                                                         )}
@@ -777,7 +910,7 @@ export const ExamsTeacherView: React.FC = () => {
                                                 ) : rankObj?.position === 3 ? (
                                                     <div className="bg-orange-100 text-orange-850 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-orange-200 shadow-sm">🥉 3rd Place</div>
                                                 ) : rankObj?.position ? (
-                                                    <div className="bg-slate-50 text-slate-500 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-slate-200 shadow-sm">{rankObj.position}th Place</div>
+                                                    <div className="bg-slate-50 text-slate-500 text-[10px] font-black px-3 py-1 rounded-bl-xl border-l border-b border-slate-200 shadow-sm">{toOrdinal(rankObj.position)} Place</div>
                                                 ) : null}
                                             </div>
 
@@ -825,7 +958,16 @@ export const ExamsTeacherView: React.FC = () => {
                     (!selectedClass || !selectedSubject) ? (
                         <div className="p-12 text-center text-slate-500 bg-white border-t border-slate-200 flex flex-col items-center justify-center gap-3">
                             <BookOpen className="w-12 h-12 text-slate-300" />
-                            <p className="text-lg font-medium">Please select a Class and Subject to start entering marks.</p>
+                            {!selectedClass ? (
+                                <p className="text-lg font-medium text-slate-600">Please select a Class to view or enter marks.</p>
+                            ) : availableSubjects.length === 0 ? (
+                                <div className="max-w-md">
+                                    <p className="text-lg font-bold text-slate-700">No subjects assigned for you in this class.</p>
+                                    <p className="text-sm text-slate-400 mt-1">If you teach this class, please ask your school administrator to assign your subject(s) in Courses & Classes.</p>
+                                </div>
+                            ) : (
+                                <p className="text-lg font-medium text-slate-600">Please select a Subject from the dropdown above to start entering marks.</p>
+                            )}
                         </div>
                     ) : (
                         <>
@@ -1214,25 +1356,43 @@ export const ExamsTeacherView: React.FC = () => {
 
                                 <div className="space-y-3 pb-4">
                                     <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest pl-1 mb-3">Available Presets</h4>
-                                    {(activeTool === 'performance_status' ?
-                                        (reportConfig?.class_settings?.[selectedClass]?.qualitative_levels?.length > 0 ?
-                                            reportConfig.class_settings[selectedClass].qualitative_levels :
-                                            ['Mastered', 'Developing', 'Emerging']
-                                        ) :
-                                        (activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets)
-                                    ).map((preset: string, idx: number) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => {
-                                                setPaintBrush(preset);
-                                                setIsPresetModalOpen(false);
-                                            }}
-                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all group hover:-translate-y-0.5 ${paintBrush === preset ? 'border-primary-500 bg-primary-50 shadow-sm relative' : 'border-slate-100 hover:border-primary-300 hover:shadow-md bg-white'}`}
-                                        >
-                                            <span className={`text-sm font-bold leading-tight block pr-8 ${paintBrush === preset ? 'text-primary-800' : 'text-slate-600 group-hover:text-slate-900'}`}>{preset}</span>
-                                            {paintBrush === preset && <CheckCircle className="w-5 h-5 text-primary-500 absolute right-4 top-1/2 -translate-y-1/2" />}
-                                        </button>
-                                    ))}
+                                    {activeTool === 'attendance_present' && isSystemAttendance ? (
+                                        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 leading-relaxed">
+                                            <strong className="block font-bold text-sm mb-1 text-emerald-900 flex items-center gap-1.5">
+                                                <span>⚡</span> System Sync Mode Active
+                                            </strong>
+                                            Attendance days are automatically calculated from the school's Daily Attendance Register. Presets and manual brush assignments are disabled in this mode.
+                                        </div>
+                                    ) : (
+                                        (activeTool === 'performance_status' ?
+                                            (reportConfig?.class_settings?.[selectedClass]?.qualitative_levels?.length > 0 ?
+                                                reportConfig.class_settings[selectedClass].qualitative_levels :
+                                                ['Mastered', 'Developing', 'Emerging']
+                                            ) :
+                                            activeTool === 'attendance_present' ?
+                                                [
+                                                    String(examConfig?.term_total_days || localConfig?.term_total_days || 60),
+                                                    String(Math.max(1, (examConfig?.term_total_days || localConfig?.term_total_days || 60) - 1)),
+                                                    String(Math.max(1, (examConfig?.term_total_days || localConfig?.term_total_days || 60) - 2)),
+                                                    String(Math.max(1, (examConfig?.term_total_days || localConfig?.term_total_days || 60) - 3)),
+                                                    String(Math.max(1, (examConfig?.term_total_days || localConfig?.term_total_days || 60) - 5)),
+                                                    String(Math.max(1, Math.round((examConfig?.term_total_days || localConfig?.term_total_days || 60) * 0.9)))
+                                                ].filter((v, i, a) => a.indexOf(v) === i) :
+                                                (activeTool === 'teacher_remark' ? allPresets : activeTool === 'conduct' ? conductPresets : interestPresets)
+                                        ).map((preset: string, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setPaintBrush(preset);
+                                                    setIsPresetModalOpen(false);
+                                                }}
+                                                className={`w-full text-left p-4 rounded-xl border-2 transition-all group hover:-translate-y-0.5 ${paintBrush === preset ? 'border-primary-500 bg-primary-50 shadow-sm relative' : 'border-slate-100 hover:border-primary-300 hover:shadow-md bg-white'}`}
+                                            >
+                                                <span className={`text-sm font-bold leading-tight block pr-8 ${paintBrush === preset ? 'text-primary-800' : 'text-slate-600 group-hover:text-slate-900'}`}>{preset}</span>
+                                                {paintBrush === preset && <CheckCircle className="w-5 h-5 text-primary-500 absolute right-4 top-1/2 -translate-y-1/2" />}
+                                            </button>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1244,13 +1404,18 @@ export const ExamsTeacherView: React.FC = () => {
                 <ReportCard
                     student={students.find(s => s.id === reportStudent.id)!}
                     results={getPrefilledResults(reportStudent, reportResultsRaw)}
+                    layout={getLayoutForClass(reportStudent.class)}
                     schoolConfig={{
                         ...schoolInfo,
                         ...localConfig,
+                        report_card_config: {
+                            ...(schoolInfo?.report_card_config || {}),
+                            ...(localConfig?.report_card_config || {})
+                        },
                         term_total_days: localConfig?.term_total_days
                     }}
                     onClose={() => setReportStudent(null)}
-                    position={studentRank}
+                    position={studentRank || standingsRanks[reportStudent.id] || classRanks[reportStudent.id] || null}
                     schoolId={schoolId}
                     activeModules={activeModules}
                     printMode={false}

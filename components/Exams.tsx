@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
+import { sendHubtelSms } from '../utils/sms';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useReactToPrint } from 'react-to-print';
 import { ExamsProvider, ExamsContextValue } from './ExamsContext';
@@ -65,8 +66,18 @@ const fetchSchoolInfo = async (schoolId: string) => {
         email: data.email,
         motto: data.motto,
         exam_config: data.exam_config,
-        report_card_config: data.report_card_config
+        report_card_config: data.report_card_config,
     };
+};
+
+export const normalizeTerm = (term?: string): string => {
+    if (!term) return 'First Term';
+    const trimmed = term.trim();
+    const lower = trimmed.toLowerCase();
+    if (lower.includes('first') || lower.includes('1st') || lower === 'term 1' || lower === '1') return 'First Term';
+    if (lower.includes('second') || lower.includes('2nd') || lower === 'term 2' || lower === '2') return 'Second Term';
+    if (lower.includes('third') || lower.includes('3rd') || lower === 'term 3' || lower === '3') return 'Third Term';
+    return trimmed;
 };
 
 const GRADING_PRESETS = {
@@ -90,17 +101,21 @@ const GRADING_PRESETS = {
     ]
 };
 
-const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
-    const { data: configData } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).maybeSingle();
+const fetchExamConfig = async (schoolId: string, schoolDataConfig: any, schoolInfo?: any) => {
+    let configData: any = null;
+    try {
+        const { data, error } = await supabase.from('exam_config').select('*').eq('school_id', schoolId).maybeSingle();
+        if (!error && data) configData = data;
+    } catch {
+        // Fall back gracefully if table does not exist or query fails
+    }
 
     // Default Config
-
-
     let baseConfig = {
         exam_name: "End of Term 1 Exam",
-        current_term: "First Term",
+        current_term: schoolInfo?.current_term || "First Term",
         next_term_reopens: "",
-        academic_year: new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
+        academic_year: schoolInfo?.academic_year || (new Date().getFullYear() + "/" + (new Date().getFullYear() + 1)),
         status: 'SETUP',
         mark_entry_enabled: true,
         target_classes: [] as string[],
@@ -110,6 +125,12 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
         grading: GRADING_PRESETS.STANDARD,
         attendance_mode: 'manual',
         term_total_days: 0,
+        report_card_config: {
+            layout: 'modern',
+            class_layouts: {},
+            ...(schoolInfo?.report_card_config || {}),
+            ...(schoolDataConfig?.report_card_config || {})
+        },
         ...schoolDataConfig
     };
 
@@ -117,12 +138,20 @@ const fetchExamConfig = async (schoolId: string, schoolDataConfig: any) => {
         // Use spread to get all saved values, then override specific derived ones
         baseConfig = {
             ...baseConfig,
-            ...configData
+            ...configData,
+            report_card_config: {
+                ...(baseConfig.report_card_config || {}),
+                ...(configData.report_card_config || {})
+            }
         };
         if (configData.mark_entry_enabled !== undefined) baseConfig.mark_entry_enabled = configData.mark_entry_enabled;
         if (baseConfig.mark_entry_enabled) baseConfig.status = 'OPEN';
         else if (!baseConfig.mark_entry_enabled && baseConfig.status === 'OPEN') baseConfig.status = 'LOCKED';
     }
+
+    // Academic Term & Year are globally managed at the Dashboard
+    if (schoolInfo?.current_term) baseConfig.current_term = schoolInfo.current_term;
+    if (schoolInfo?.academic_year) baseConfig.academic_year = schoolInfo.academic_year;
 
     return baseConfig;
 };
@@ -232,23 +261,45 @@ const fetchResultsByStudent = async (schoolId: string, studentId: string, term: 
 };
 
 const fetchSubmissionOverview = async (schoolId: string, term: string, year: string) => {
-    const { data, error } = await supabase.rpc('get_exam_submission_overview_v3', {
-        p_school_id: schoolId,
-        p_term: term,
-        p_year: year
-    });
-    if (error) throw error;
-    return data || [];
+    try {
+        const { data, error } = await supabase
+            .from('exam_submissions')
+            .select('class, subject, status, updated_at, submitted_at')
+            .eq('school_id', schoolId)
+            .ilike('term', term?.trim())
+            .ilike('academic_year', year?.trim());
+
+        if (error) {
+            console.warn("Direct query on exam_submissions warning:", error);
+            return [];
+        }
+
+        return (data || []).map((s: any) => ({
+            class_name: s.class,
+            subject_name: s.subject,
+            teacher_name: 'Subject Teacher',
+            status: s.status || 'Pending',
+            updated_at: s.updated_at || s.submitted_at
+        }));
+    } catch (e) {
+        console.warn("fetchSubmissionOverview caught exception:", e);
+        return [];
+    }
 };
 
 const fetchReleasedClasses = async (schoolId: string, term: string) => {
-    const { data } = await supabase
-        .from('exam_report_status')
-        .select('class_name')
-        .eq('school_id', schoolId)
-        .eq('status', 'Released')
-        .eq('term', term);
-    return data ? data.map(r => r.class_name.trim().toLowerCase()) : [];
+    try {
+        const { data, error } = await supabase
+            .from('exam_report_status')
+            .select('class_name')
+            .eq('school_id', schoolId)
+            .eq('status', 'Released')
+            .eq('term', term);
+        if (error) return [];
+        return data ? data.map(r => r.class_name.trim().toLowerCase()) : [];
+    } catch {
+        return [];
+    }
 };
 
 const fetchTeacherAssignments = async (teacherId: string) => {
@@ -300,6 +351,7 @@ const fetchStudentRank = async (schoolId: string, studentId: string, term: strin
 
 
 const EMPTY_ARRAY: any[] = [];
+const EMPTY_OBJECT: any = {};
 
 // --- Main Component ---
 const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
@@ -350,19 +402,56 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const { data: subjectAssignmentsData } = useQuery({
         queryKey: ['subjectAssignments', schoolId],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('subject_assignments')
-                .select('class_id, classes(name), subject_id, subjects(name)')
-                .eq('school_id', schoolId);
-            return data || [];
+            // Fetch from subject_assignments (standard class-subject mapping) and teacher_assignments (fallback/legacy)
+            const [saRes, taRes] = await Promise.all([
+                supabase
+                    .from('subject_assignments')
+                    .select('class_id, classes:class_id(name), subject_id, subjects:subject_id(name)')
+                    .eq('school_id', schoolId),
+                supabase
+                    .from('teacher_assignments')
+                    .select('class_id, classes:class_id(name), subject_id, subjects:subject_id(name)')
+                    .eq('school_id', schoolId)
+                    .not('subject_id', 'is', null)
+            ]);
+
+            const combined: any[] = [];
+            const seen = new Set<string>();
+
+            const addEntry = (item: any) => {
+                const cls = Array.isArray(item.classes) ? item.classes[0] : item.classes;
+                const subj = Array.isArray(item.subjects) ? item.subjects[0] : item.subjects;
+                const className = (cls?.name || '').trim();
+                const subjectName = (subj?.name || '').trim();
+
+                if (className && subjectName) {
+                    const key = `${className.toLowerCase()}|${subjectName.toLowerCase()}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        combined.push({
+                            class_id: item.class_id,
+                            subject_id: item.subject_id,
+                            className,
+                            subjectName,
+                            classes: { name: className },
+                            subjects: { name: subjectName }
+                        });
+                    }
+                }
+            };
+
+            saRes.data?.forEach(addEntry);
+            taRes.data?.forEach(addEntry);
+
+            return combined;
         },
         enabled: !!schoolId
     });
     const subjectAssignments = subjectAssignmentsData || EMPTY_ARRAY;
 
     const { data: examConfig, isLoading: isConfigLoading } = useQuery({
-        queryKey: ['examConfig', schoolId],
-        queryFn: () => fetchExamConfig(schoolId!, schoolInfo?.exam_config),
+        queryKey: ['examConfig', schoolId, schoolInfo?.current_term, schoolInfo?.academic_year],
+        queryFn: () => fetchExamConfig(schoolId!, schoolInfo?.exam_config, schoolInfo),
         enabled: !!schoolId && !!schoolInfo
     });
 
@@ -390,35 +479,19 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             const { data: assignmentsData } = await supabase
                 .from('teacher_assignments')
                 .select('*')
-                .eq('teacher_id', currentUser.id);
+                .eq('teacher_id', currentUser.id)
+                .eq('school_id', schoolId);
 
-            // 2. Fetch primary record from teachers table
-            const { data: teacherRow } = await supabase
-                .from('teachers')
-                .select('assigned_class, subject')
-                .eq('id', currentUser.id)
-                .maybeSingle();
-
-            // 3. Fetch lookups for names (robust mapping)
+            // 2. Fetch lookups for names (robust mapping)
             const [{ data: lookupClasses }, { data: lookupSubjects }] = await Promise.all([
                 supabase.from('classes').select('id, name').eq('school_id', schoolId),
                 supabase.from('subjects').select('id, name').eq('school_id', schoolId)
             ]);
 
-            const classMap = new Map(lookupClasses?.map(c => [c.id, c.name]) || []);
-            const subjectMap = new Map(lookupSubjects?.map(s => [s.id, s.name]) || []);
+            const classMap = new Map(lookupClasses?.map(c => [c.id, c.name.trim()]) || []);
+            const subjectMap = new Map(lookupSubjects?.map(s => [s.id, s.name.trim()]) || []);
 
             const combined = new Map<string, any>();
-
-            // Process text assignment from teachers table (Main Class Teacher role)
-            if (teacherRow?.assigned_class) {
-                const className = teacherRow.assigned_class.trim();
-                combined.set(`${className}-null`, {
-                    className,
-                    subjectName: teacherRow.subject || null,
-                    isClassTeacher: true
-                });
-            }
 
             // Process entries from teacher_assignments (Both roles)
             assignmentsData?.forEach((a: any) => {
@@ -426,33 +499,33 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 const subjectName = (subjectMap.get(a.subject_id) || a.subject_name || '').trim();
 
                 if (className) {
-                    const key = `${className}-${subjectName || 'null'}`;
+                    const key = `${className.toLowerCase()}-${subjectName ? subjectName.toLowerCase() : 'null'}`;
                     const existing = combined.get(key);
 
                     combined.set(key, {
                         className,
                         subjectName: subjectName || null,
-                        isClassTeacher: a.is_class_teacher || existing?.isClassTeacher || false
+                        isClassTeacher: Boolean(a.is_class_teacher || existing?.isClassTeacher)
                     });
 
                     // If this assignment marks them as a class teacher, 
                     // ensure a "base" class record exists too
                     if (a.is_class_teacher) {
-                        const baseKey = `${className}-null`;
-                        const existingBase = combined.get(baseKey);
+                        const baseKey = `${className.toLowerCase()}-null`;
                         combined.set(baseKey, {
                             className,
-                            subjectName: existingBase?.subjectName || null,
+                            subjectName: null,
                             isClassTeacher: true
                         });
                     }
                 }
             });
 
-            // Process profile fallback
-            if (currentUser.assignedClass && !combined.has(`${currentUser.assignedClass.trim()}-null`)) {
+            // Process legacy profile fallback ONLY if no assignments exist in teacher_assignments
+            if ((!assignmentsData || assignmentsData.length === 0) && currentUser.assignedClass) {
                 const className = currentUser.assignedClass.trim();
-                combined.set(`${className}-null`, {
+                const baseKey = `${className.toLowerCase()}-null`;
+                combined.set(baseKey, {
                     className,
                     subjectName: null,
                     isClassTeacher: true
@@ -461,8 +534,8 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
             return Array.from(combined.values()).map(a => ({
                 ...a,
-                className: a.className.trim().toUpperCase(),
-                subjectName: a.subjectName ? a.subjectName.trim().toUpperCase() : null
+                className: a.className.trim(),
+                subjectName: a.subjectName ? a.subjectName.trim() : null
             }));
         },
         enabled: !!currentUser?.id && !!schoolId,
@@ -565,61 +638,33 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         queryFn: async () => {
             if (!schoolId) return [];
 
-            // 1. Fetch from teacher_assignments (Specific assignments)
+            // 1. Fetch from teacher_assignments (master_schema_v1.sql standard)
             const { data: q1 } = await supabase
                 .from('teacher_assignments')
-                .select('classes(name), subjects(name), teachers(name)')
-                .eq('school_id', schoolId);
-
-            // 2. Fetch from subject_assignments (Standard school config)
-            const { data: q2 } = await supabase
-                .from('subject_assignments')
-                .select('classes(name), subjects(name)')
-                .eq('school_id', schoolId);
-
-            // 3. Fetch from teachers table (Primary class teacher assignments)
-            const { data: q3 } = await supabase
-                .from('teachers')
-                .select('name, assigned_class, subject')
+                .select(`
+                    classes:class_id(name),
+                    subjects:subject_id(name),
+                    profiles:teacher_id(full_name)
+                `)
                 .eq('school_id', schoolId);
 
             const combined: any[] = [];
-
-            // Helper to handle singleton arrays from joins
             const getVal = (v: any) => (Array.isArray(v) ? v[0] : v);
 
-            // Add Specific Teacher Assignments
             q1?.forEach((d: any) => {
                 const cls = getVal(d.classes);
                 const subj = getVal(d.subjects);
-                const tObj = getVal(d.teachers);
-                combined.push({
-                    class_name: cls?.name,
-                    subject_name: subj?.name,
-                    teacher_name: tObj?.name
-                });
-            });
-
-            // Add Subject Assignments mappings
-            q2?.forEach((d: any) => {
-                const cls = getVal(d.classes);
-                const subj = getVal(d.subjects);
-                // q2 in this schema doesn't have a teacher, so we skip teacher_name assignment here
-                // or it will be filtered out as intended if we only want mapped teachers.
-            });
-
-            // Add Primary Class Teachers Mapping
-            q3?.forEach((d: any) => {
-                if (d.assigned_class) {
+                const prof = getVal(d.profiles);
+                if (prof?.full_name && cls?.name) {
                     combined.push({
-                        class_name: d.assigned_class,
-                        subject_name: d.subject || null, // Might be NULL for generic class teacher
-                        teacher_name: d.name
+                        class_name: cls.name,
+                        subject_name: subj?.name || null,
+                        teacher_name: prof.full_name
                     });
                 }
             });
 
-            return combined.filter(c => c.teacher_name);
+            return combined;
         },
         enabled: !!schoolId && ((currentUser?.role || '').toLowerCase().includes('admin'))
     });
@@ -694,8 +739,8 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     // Calculate if user has Class Teacher privileges for the current class
     const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
-        (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()) ||
-        myAssignments.some((a: any) => a.isClassTeacher && (a.className?.trim().toLowerCase() === selectedClass?.trim().toLowerCase()));
+        myAssignments.some((a: any) => a.isClassTeacher && (a.className?.trim().toLowerCase() === selectedClass.trim().toLowerCase())) ||
+        (myAssignments.length === 0 && Boolean(currentUser?.assignedClass) && (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()));
 
     // Auto-switch away from protected tabs if access is lost (e.g. switched to a class where only a subject teacher)
     useEffect(() => {
@@ -710,16 +755,16 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         if (currentUser?.role === 'teacher') {
             // Teacher: filter subjects
             if (selectedClass) {
-                const classAssignment = myAssignments.filter((a: any) => a.className?.trim().toUpperCase() === selectedClass.trim().toUpperCase());
-                const isClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
-                    (currentUser?.assignedClass?.trim().toUpperCase() === selectedClass.trim().toUpperCase()) ||
-                    classAssignment.some((a: any) => a.isClassTeacher);
+                const classAssignments = myAssignments.filter((a: any) => a.className?.trim().toLowerCase() === selectedClass.trim().toLowerCase());
+                const isCurrentClassTeacher = (currentUser?.role || '').toLowerCase().includes('admin') ||
+                    classAssignments.some((a: any) => a.isClassTeacher) ||
+                    (myAssignments.length === 0 && Boolean(currentUser?.assignedClass) && (currentUser?.assignedClass?.trim().toLowerCase() === selectedClass.trim().toLowerCase()));
 
-                if (isClassTeacher) {
+                if (isCurrentClassTeacher) {
                     // Class teacher: see ALL subjects assigned to this class specifically
                     const classSubjs = [...new Set(subjectAssignments
-                        .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
-                        .map((sa: any) => sa.subjects?.name)
+                        .filter((sa: any) => (sa.className || sa.classes?.name)?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
+                        .map((sa: any) => (sa.subjectName || sa.subjects?.name)?.trim())
                         .filter(Boolean))];
 
                     if (classSubjs.length > 0) {
@@ -730,17 +775,20 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                         setAvailableSubjects(allSubjects);
                     }
                 } else {
-                    const mySubjs = [...new Set(classAssignment.map((a: any) => a.subjectName).filter(Boolean))];
+                    // Subject teacher: ONLY see the specific subjects assigned to this teacher for this class
+                    const mySubjs = [...new Set(classAssignments.map((a: any) => a.subjectName?.trim()).filter(Boolean))];
                     setAvailableSubjects(mySubjs);
                 }
+            } else {
+                setAvailableSubjects([]);
             }
         } else if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && allSubjects.length > 0) {
             // Admin: Filter by class if selected, otherwise show all subjs in config or school
             if (selectedClass) {
-                const classAssigned = subjectAssignments
-                    .filter((sa: any) => sa.classes?.name?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
-                    .map((sa: any) => sa.subjects?.name)
-                    .filter(Boolean);
+                const classAssigned = [...new Set(subjectAssignments
+                    .filter((sa: any) => (sa.className || sa.classes?.name)?.trim().toLowerCase() === selectedClass.trim().toLowerCase())
+                    .map((sa: any) => (sa.subjectName || sa.subjects?.name)?.trim())
+                    .filter(Boolean))];
 
                 if (classAssigned.length > 0) {
                     setAvailableSubjects(classAssigned);
@@ -757,10 +805,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 }
             }
         }
-    }, [selectedClass, myAssignments, examConfig, allSubjects, currentUser]);
-
-    // Removed global reset effect to allow subject-to-subject mark entry before saving.
-    // Persistence is handled by composite keys in pendingChanges.
+    }, [selectedClass, myAssignments, subjectAssignments, examConfig, allSubjects, currentUser]);
 
     // Auto-select class for teacher if not set
     useEffect(() => {
@@ -772,20 +817,24 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }
     }, [myAssignments, availableClasses, currentUser, selectedClass]);
 
-    // FIX 1: Auto-select subject for teachers who only teach one subject in the selected class
+    // Auto-select or validate subject when availableSubjects changes
     useEffect(() => {
-        if (currentUser?.role !== 'teacher' || !selectedClass || selectedSubject) return;
-        // Find subjects this teacher is specifically assigned to for this class
-        const assignedSubjects = myAssignments
-            .filter((a: any) => a.className?.trim().toUpperCase() === selectedClass.trim().toUpperCase() && a.subjectName)
-            .map((a: any) => a.subjectName as string);
-        if (assignedSubjects.length === 1) {
-            setSelectedSubject(assignedSubjects[0]);
-        } else if (assignedSubjects.length === 0 && availableSubjects.length === 1) {
-            // Fallback: only one subject available for class
-            setSelectedSubject(availableSubjects[0]);
+        if (!selectedClass) {
+            if (selectedSubject) setSelectedSubject('');
+            return;
         }
-    }, [currentUser, selectedClass, selectedSubject, myAssignments, availableSubjects]);
+
+        if (availableSubjects.length > 0) {
+            const isCurrentValid = selectedSubject && availableSubjects.some(
+                s => s.trim().toLowerCase() === selectedSubject.trim().toLowerCase()
+            );
+            if (!isCurrentValid) {
+                setSelectedSubject(availableSubjects[0]);
+            }
+        } else if (currentUser?.role === 'teacher') {
+            if (selectedSubject) setSelectedSubject('');
+        }
+    }, [availableSubjects, selectedClass, selectedSubject, currentUser]);
 
     // FIX 2: beforeunload guard — warn if there are unsaved marks or remarks
     useEffect(() => {
@@ -804,20 +853,62 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const saveConfigMutation = useMutation({
         mutationFn: async (newConfig: any) => {
             console.log("MUTATING EXAM CONFIG - FINAL PAYLOAD:", JSON.stringify(newConfig, null, 2));
-            const { error } = await supabase.rpc('save_exam_config', {
-                p_school_id: schoolId,
-                p_config: newConfig
-            });
-            if (error) {
-                console.error("RPC ERROR:", error);
-                throw error;
+            
+            // 1. Direct update to schools table ensuring BOTH exam_config and report_card_config are updated
+            const schoolPayload: any = { exam_config: newConfig };
+            if (newConfig?.report_card_config) {
+                schoolPayload.report_card_config = newConfig.report_card_config;
             }
+            const { error: schoolError } = await supabase
+                .from('schools')
+                .update(schoolPayload)
+                .eq('id', schoolId);
+
+            if (schoolError) {
+                console.warn("Direct update to schools warning:", schoolError);
+            }
+
+            // 2. Also run RPC for sync to exam_config table
+            try {
+                const { error: rpcError } = await supabase.rpc('save_exam_config', {
+                    p_school_id: schoolId,
+                    p_config: newConfig
+                });
+                if (rpcError) {
+                    console.warn("RPC save_exam_config error (non-fatal):", rpcError);
+                }
+            } catch (err) {
+                console.warn("RPC save_exam_config call failed:", err);
+            }
+
+            // 3. Fallback sync to exam_config table
+            try {
+                await supabase.from('exam_config').upsert({
+                    school_id: schoolId,
+                    mark_entry_enabled: !!newConfig?.mark_entry_enabled,
+                    current_term: newConfig?.current_term || 'First Term',
+                    academic_year: newConfig?.academic_year || '2025/2026',
+                    updated_at: new Date().toISOString()
+                }).select().maybeSingle();
+            } catch { }
+
             return newConfig;
         },
         onSuccess: (newConfig) => {
-            // Instantly update the local query cache to trigger immediate UI reflection without reload
-            queryClient.setQueryData(['examConfig', schoolId], newConfig);
-            queryClient.setQueryData(['schoolInfo', schoolId], (old: any) => {
+            // 1. Instantly update local state so any open dialogs/views reflect without reload
+            setLocalConfig(newConfig);
+
+            // 2. Instantly update all matching query caches in React Query (matching queryKey prefixes)
+            queryClient.setQueriesData({ queryKey: ['examConfig', schoolId] }, (old: any) => ({
+                ...(old || {}),
+                ...newConfig,
+                report_card_config: {
+                    ...(old?.report_card_config || {}),
+                    ...(newConfig?.report_card_config || {})
+                }
+            }));
+
+            queryClient.setQueriesData({ queryKey: ['schoolInfo', schoolId] }, (old: any) => {
                 if (!old) return old;
                 return {
                     ...old,
@@ -826,11 +917,9 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 };
             });
 
-            // Set localConfig state directly to reflect it instantly in UI without requiring refresh
-            setLocalConfig(newConfig);
-
-            queryClient.invalidateQueries({ queryKey: ['examConfig', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['schoolInfo', schoolId] });
+            // 3. Invalidate queries to ensure background sync with database
+            queryClient.invalidateQueries({ queryKey: ['examConfig'] });
+            queryClient.invalidateQueries({ queryKey: ['schoolInfo'] });
             queryClient.invalidateQueries({ queryKey: ['examResults'] });
             queryClient.invalidateQueries({ queryKey: ['reportCards'] });
             toast('success', 'Configuration Saved', 'Exam configuration saved successfully!');
@@ -842,8 +931,27 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const toggleMarkEntryMutation = useMutation({
         mutationFn: async (enable: boolean) => {
-            const { error } = await supabase.rpc('toggle_mark_entry', { target_school_id: schoolId, enable });
-            if (error) throw error;
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('toggle_mark_entry', { target_school_id: schoolId, enable });
+                if (!error) rpcSucceeded = true;
+            } catch { }
+
+            if (!rpcSucceeded) {
+                const updatedConfig = {
+                    ...(examConfig || {}),
+                    mark_entry_enabled: enable,
+                    status: enable ? 'OPEN' : 'LOCKED'
+                };
+                await supabase.from('schools').update({ exam_config: updatedConfig }).eq('id', schoolId);
+                try {
+                    await supabase.from('exam_config').upsert({
+                        school_id: schoolId,
+                        mark_entry_enabled: enable,
+                        updated_at: new Date().toISOString()
+                    });
+                } catch { }
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['examConfig', schoolId] });
@@ -855,14 +963,36 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const submitMarksMutation = useMutation({
         mutationFn: async ({ className, subjectName }: { className: string, subjectName: string }) => {
-            const { error } = await supabase.rpc('submit_exam_marks_v3', {
-                p_school_id: schoolId,
-                p_class: className,
-                p_subject: subjectName,
-                p_term: currentTerm,
-                p_year: currentYear
-            });
-            if (error) throw error;
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('submit_exam_marks_v3', {
+                    p_school_id: schoolId,
+                    p_class: className,
+                    p_subject: subjectName,
+                    p_term: currentTerm,
+                    p_year: currentYear
+                });
+                if (!error) rpcSucceeded = true;
+            } catch (e) {
+                console.warn("submit_exam_marks_v3 RPC failed:", e);
+            }
+
+            if (!rpcSucceeded) {
+                // Direct fallback: Upsert into exam_submissions table directly
+                const { error: subErr } = await supabase
+                    .from('exam_submissions')
+                    .upsert({
+                        school_id: schoolId,
+                        class: className,
+                        subject: subjectName,
+                        term: currentTerm,
+                        academic_year: currentYear,
+                        status: 'Submitted',
+                        submitted_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'school_id,class,subject,term,academic_year' });
+                if (subErr) throw subErr;
+            }
         },
         onSuccess: () => {
             toast('success', 'Marks Submitted', 'Your marks have been submitted to the admin.');
@@ -876,14 +1006,13 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const clearMarksMutation = useMutation({
         mutationFn: async ({ className, subjectName }: { className: string, subjectName: string }) => {
             const cleanSubj = (subjectName || '').trim().toUpperCase();
-            const cleanTerm = (currentTerm || '').trim().toUpperCase();
+            const cleanTerm = normalizeTerm(currentTerm);
             const cleanYear = (currentYear || '').trim().toUpperCase();
             const studentIds = classStudents.map(s => s.id);
 
             console.log("NUCLEAR OVERWRITE & DELETE START", { subject: cleanSubj, students: studentIds.length });
 
             // 1. FORCE OVERWRITE TO ZERO (Saves even if Delete fails)
-            // This is the fallback: if we can't delete the row, we at least make it zero.
             const resetDatas = studentIds.map(sid => ({
                 school_id: schoolId,
                 student_id: sid,
@@ -896,9 +1025,17 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 competency_status: 'Reset'
             }));
 
-            const { error: upsertError } = await supabase
+            let { error: upsertError } = await supabase
                 .from('exam_results')
                 .upsert(resetDatas, { onConflict: 'student_id,class,subject,term,academic_year' });
+
+            if (upsertError && upsertError.message?.includes('ON CONFLICT')) {
+                // Fallback to student_id,subject,term,academic_year constraint
+                const retry = await supabase
+                    .from('exam_results')
+                    .upsert(resetDatas, { onConflict: 'student_id,subject,term,academic_year' });
+                upsertError = retry.error;
+            }
 
             console.log("ZERO-OVERWRITE RESULT:", { error: upsertError });
 
@@ -917,13 +1054,17 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 console.log("ID-DELETE RESULT:", { error: delErr, count });
             }
 
-            // 3. CLEAR STATUS
-            const statusTargets = ['exam_submissions', 'submission_status', 'submission_overview', 'exam_submission_overview'];
-            for (const table of statusTargets) {
-                await supabase.from(table).delete().eq('school_id', schoolId).ilike('subject_name', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
-                if (studentIds.length > 0) {
-                    await supabase.from(table).delete().eq('school_id', schoolId).in('student_id', studentIds).ilike('subject', `%${cleanSubj}%`).ilike('term', `%${cleanTerm}%`);
-                }
+            // 3. CLEAR SUBMISSION STATUS
+            try {
+                await supabase
+                    .from('exam_submissions')
+                    .delete()
+                    .eq('school_id', schoolId)
+                    .ilike('class', className.trim())
+                    .ilike('subject', cleanSubj)
+                    .ilike('term', cleanTerm);
+            } catch (delSubErr) {
+                console.warn("Could not delete exam_submissions record:", delSubErr);
             }
 
             try { await supabase.rpc('unsubmit_exam_marks', { p_school_id: schoolId, p_class: className, p_subject: cleanSubj, p_term: cleanTerm }); } catch (e) { }
@@ -968,22 +1109,13 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             if (recipientsData.length === 0) return;
 
             const message = "Good news {Parent Name}! {Student Name}'s results are out. Total Score: {Total Score}. View details here: {Link}";
-            const finalMessage = schoolInfo?.name ? `${schoolInfo.name}\n${message}` : message;
 
-            // 3. Send SMS
-            const { error } = await supabase.functions.invoke('send-sms', {
-                body: {
-                    recipients: recipientsData,
-                    message: finalMessage,
-                    hubtelKeys: {
-                        clientId: (import.meta as any).env.VITE_HUBTEL_CLIENT_ID,
-                        clientSecret: (import.meta as any).env.VITE_HUBTEL_CLIENT_SECRET,
-                        senderId: (import.meta as any).env.VITE_HUBTEL_SENDER_ID
-                    }
-                }
+            // 3. Send SMS via Hubtel Gateway
+            await sendHubtelSms({
+                recipients: recipientsData,
+                message,
+                schoolName: schoolInfo?.name
             });
-
-            if (error) throw error;
 
             // 4. Billing & Logging
             await supabase.rpc('deduct_sms_credits', { p_school_id: schoolId, p_count: recipientsData.length });
@@ -1006,12 +1138,32 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const publishResultsMutation = useMutation({
         mutationFn: async (className: string) => {
-            const { error } = await supabase.rpc('publish_class_results', {
-                target_school_id: schoolId,
-                target_class: className,
-                p_term: currentTerm
-            });
-            if (error) throw error;
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('publish_class_results', {
+                    target_school_id: schoolId,
+                    target_class: className,
+                    p_term: currentTerm
+                });
+                if (!error) rpcSucceeded = true;
+            } catch (e) {
+                console.warn("publish_class_results RPC failed:", e);
+            }
+
+            if (!rpcSucceeded) {
+                // Direct fallback: Upsert into exam_report_status
+                try {
+                    await supabase.from('exam_report_status').upsert({
+                        school_id: schoolId,
+                        class_name: className,
+                        term: currentTerm,
+                        status: 'Released',
+                        released_at: new Date().toISOString()
+                    }, { onConflict: 'school_id,class_name,term' });
+                } catch (e) {
+                    console.warn("Direct exam_report_status upsert failed:", e);
+                }
+            }
             return className;
         },
         // We'll manually update releasedClasses via cache invalidation or update
@@ -1026,18 +1178,33 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const saveMarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
-            const formattedUpdates = updates.map(u => ({
-                ...u,
-                class: u.class?.trim().toUpperCase(),
-                subject: u.subject?.trim().toUpperCase(),
-                term: u.term?.trim().toUpperCase(),
-                academic_year: u.academic_year?.trim().toUpperCase()
-            }));
+            const formattedUpdates = updates.map(u => {
+                const copy: any = {
+                    ...u,
+                    class: u.class?.trim().toUpperCase(),
+                    subject: u.subject?.trim().toUpperCase(),
+                    term: normalizeTerm(u.term),
+                    academic_year: u.academic_year?.trim().toUpperCase()
+                };
+                delete copy.total;
+                delete copy.created_at;
+                delete copy.students;
+                return copy;
+            });
 
-            const { data, error: resultError } = await supabase
+            let { data, error: resultError } = await supabase
                 .from('exam_results')
                 .upsert(formattedUpdates, { onConflict: 'student_id,class,subject,term,academic_year' })
                 .select();
+
+            if (resultError && resultError.message?.includes('ON CONFLICT')) {
+                const retry = await supabase
+                    .from('exam_results')
+                    .upsert(formattedUpdates, { onConflict: 'student_id,subject,term,academic_year' })
+                    .select();
+                resultError = retry.error;
+                data = retry.data;
+            }
 
             if (resultError) throw resultError;
             return data;
@@ -1072,12 +1239,80 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     });
     const allReportCards = allReportCardsData || EMPTY_ARRAY;
 
+    const isSystemAttendance = (examConfig?.attendance_mode || localConfig?.attendance_mode) === 'system';
+    const { data: systemAttendanceData } = useQuery({
+        queryKey: ['systemAttendance', schoolId, selectedClass],
+        queryFn: async () => {
+            if (!schoolId || !selectedClass) return {};
+            const { data, error } = await supabase
+                .from('attendance')
+                .select('student_id, status')
+                .eq('school_id', schoolId)
+                .ilike('class', selectedClass.trim());
+            if (error || !data) return {};
+
+            const map: Record<string, { present: number; total: number }> = {};
+            data.forEach((r: any) => {
+                if (!r.student_id) return;
+                if (!map[r.student_id]) {
+                    map[r.student_id] = { present: 0, total: 0 };
+                }
+                map[r.student_id].total += 1;
+                if (r.status === 'Present') {
+                    map[r.student_id].present += 1;
+                }
+            });
+            return map;
+        },
+        enabled: !!schoolId && !!selectedClass && isSystemAttendance,
+        staleTime: 60 * 1000
+    });
+    const systemAttendanceMap = systemAttendanceData || EMPTY_OBJECT;
+
     const saveBulkRemarksMutation = useMutation({
         mutationFn: async (updates: any[]) => {
-            const { error } = await supabase.rpc('save_student_reports_bulk', {
-                p_reports: updates
-            });
-            if (error) throw error;
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('save_student_reports_bulk', {
+                    p_reports: updates
+                });
+                if (!error) rpcSucceeded = true;
+            } catch (err) {
+                console.warn("save_student_reports_bulk RPC failed:", err);
+            }
+
+            if (!rpcSucceeded) {
+                // Direct fallback: Upsert into student_report_cards table
+                const rows = updates.map(u => ({
+                    school_id: u.school_id,
+                    student_id: u.student_id,
+                    class: u.class,
+                    term: u.term,
+                    academic_year: u.academic_year,
+                    teacher_remark: u.teacher_remark,
+                    principal_remark: u.principal_remark,
+                    promotion_status: u.promotion_status,
+                    position_in_class: u.position,
+                    total_students: u.total_students,
+                    attendance_present: u.attendance_present,
+                    attendance_total: u.attendance_total,
+                    conduct: u.conduct,
+                    interest: u.interest,
+                    pupil_bill: u.pupil_bill,
+                    other_fees: u.other_fees,
+                    items_to_bring: u.items_to_bring,
+                    next_term_reopens: u.next_term_reopens,
+                    extra_bill_items: u.extra_bill_items || [],
+                    extra_report_sections: u.extra_report_sections || [],
+                    updated_at: new Date().toISOString()
+                }));
+
+                const { error: upsertErr } = await supabase
+                    .from('student_report_cards')
+                    .upsert(rows, { onConflict: 'school_id,student_id,term,academic_year' });
+
+                if (upsertErr) throw upsertErr;
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['reportCards', schoolId, currentTerm, currentYear] });
@@ -1099,51 +1334,71 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         }));
     };
 
-    const reportConfig = examConfig?.report_card_config || schoolInfo?.report_card_config;
     const getLayoutForClass = (className: string) => {
-        if (!className || !reportConfig) return reportConfig?.layout || 'modern';
-        const layouts = reportConfig.class_layouts || {};
+        const activeRcConfig = localConfig?.report_card_config 
+            || examConfig?.report_card_config 
+            || schoolInfo?.report_card_config 
+            || schoolInfo?.exam_config?.report_card_config;
+
+        if (!className || typeof className !== 'string' || !activeRcConfig) return activeRcConfig?.layout || 'modern';
+        const layouts = activeRcConfig.class_layouts || {};
+
+        const cleanName = className.trim();
+        const searchTerm = cleanName.toLowerCase();
 
         // 1. Direct match (Fastest)
         if (layouts[className]) return layouts[className];
+        if (layouts[cleanName]) return layouts[cleanName];
 
-        const searchTerm = className.trim().toLowerCase();
         // 2. Case-insensitive exact trim match
         const exactKey = Object.keys(layouts).find(k => k.trim().toLowerCase() === searchTerm);
-        if (exactKey) return layouts[exactKey];
+        if (exactKey && layouts[exactKey]) return layouts[exactKey];
 
         // 3. Fuzzy match (Robust: handle "Class 6" matching "Class 6 Green")
         const fuzzyKey = Object.keys(layouts).find(k => {
             const kLow = k.trim().toLowerCase();
             return searchTerm.startsWith(kLow) || kLow.startsWith(searchTerm);
         });
-        if (fuzzyKey) return layouts[fuzzyKey];
+        if (fuzzyKey && layouts[fuzzyKey]) return layouts[fuzzyKey];
 
-        return reportConfig.layout || 'modern';
+        // 4. Check legacy nursery_classes array
+        const nurseryClasses: string[] = activeRcConfig.nursery_classes || [];
+        if (Array.isArray(nurseryClasses) && nurseryClasses.some(c => c && c.trim().toLowerCase() === searchTerm)) {
+            return 'nursery';
+        }
+
+        return activeRcConfig.layout || 'modern';
     };
     const isNurseryLayout = getLayoutForClass(selectedClass) === 'nursery';
 
     const saveBulkRemarks = () => {
         if (!selectedClass) { toast('warning', 'No Class Selected', 'Please select a class before saving remarks.'); return; }
         const cleanClass = (selectedClass || '').trim().toUpperCase();
-        const cleanTerm = (currentTerm || '').trim().toUpperCase();
+        const cleanTerm = normalizeTerm(currentTerm);
         const cleanYear = (currentYear || '').trim().toUpperCase();
+
+        const effectiveTermTotal = localConfig?.term_total_days || examConfig?.term_total_days || null;
 
         const updates = Object.entries(pendingRemarks).map(([studentId, val]: [string, any]) => {
             const sr = allReportCards.find((r: any) => r.student_id === studentId);
+            const sysAtt = systemAttendanceMap[studentId];
             return {
                 school_id: schoolId || null,
                 student_id: studentId || null,
                 class: selectedClass || '',
-                term: currentTerm || '',
+                term: cleanTerm,
                 academic_year: currentYear || '',
                 teacher_remark: val.teacher_remark ?? sr?.teacher_remark ?? null,
                 principal_remark: sr?.principal_remark ?? null,
                 promotion_status: sr?.promotion_status ?? null,
                 position: sr?.position_in_class ?? 0,
                 total_students: sr?.total_students ?? 0,
-                attendance_present: val.attendance_present ?? sr?.attendance_present ?? null,
-                attendance_total: val.attendance_total ?? sr?.attendance_total ?? (localConfig?.term_total_days || null),
+                attendance_present: isSystemAttendance
+                    ? (sysAtt?.present ?? sr?.attendance_present ?? 0)
+                    : (val.attendance_present ?? sr?.attendance_present ?? null),
+                attendance_total: isSystemAttendance
+                    ? (effectiveTermTotal || sysAtt?.total || sr?.attendance_total || null)
+                    : (val.attendance_total ?? sr?.attendance_total ?? effectiveTermTotal),
                 conduct: val.conduct ?? sr?.conduct ?? null,
                 interest: val.interest ?? sr?.interest ?? null,
                 pupil_bill: sr?.pupil_bill ?? null,
@@ -1182,55 +1437,74 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         try {
             setIsUploadingImage(fieldName);
             
-            // 1. Process Image (Resize & Minify)
+            // 1. Process Image (Resize & Minify, preserving transparency & aspect ratio)
             const base64 = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 350; 
-                        const scale = MAX_WIDTH / img.width;
-                        canvas.width = MAX_WIDTH;
-                        canvas.height = img.height * scale;
+                        const MAX_WIDTH = 450; 
+                        let width = img.width;
+                        let height = img.height;
+                        if (width > MAX_WIDTH) {
+                            height = Math.round((height * MAX_WIDTH) / width);
+                            width = MAX_WIDTH;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
                         const ctx = canvas.getContext('2d');
-                        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/png', 0.8));
+                        ctx?.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/png', 0.9));
                     };
+                    img.onerror = () => resolve(event.target?.result as string);
                     img.src = event.target?.result as string;
                 };
+                reader.onerror = () => resolve('');
                 reader.readAsDataURL(file);
             });
 
             // 2. Convert Base64 back to Blob for storage upload
-            const response = await fetch(base64);
-            const blob = await response.blob();
+            let finalImageUrl = base64;
+            try {
+                const response = await fetch(base64);
+                const blob = await response.blob();
 
-            // 3. Upload to Supabase Storage
-            const fileExt = 'png';
-            const fileName = `${schoolId}/${fieldName}_${Date.now()}.${fileExt}`;
-            
-            const { data, error } = await supabase.storage
-                .from('student-photos') // Reusing available bucket from schema
-                .upload(fileName, blob, { upsert: true, contentType: 'image/png' });
+                // 3. Upload to Supabase Storage
+                const fileExt = 'png';
+                const fileName = `${schoolId}/${fieldName}_${Date.now()}.${fileExt}`;
+                
+                const { data, error } = await supabase.storage
+                    .from('student-photos') // Reusing available bucket from schema
+                    .upload(fileName, blob, { upsert: true, contentType: 'image/png' });
 
-            if (error) throw error;
-
-            // 4. Get Public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from('student-photos')
-                .getPublicUrl(fileName);
-
-            // 5. Update Config
-            setLocalConfig((prev: any) => ({
-                ...prev,
-                report_card_config: {
-                    ...(prev?.report_card_config || {}),
-                    [fieldName]: publicUrl
+                if (!error && data?.path) {
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('student-photos')
+                        .getPublicUrl(fileName);
+                    if (publicUrl) {
+                        finalImageUrl = publicUrl;
+                    }
+                } else if (error) {
+                    console.warn("Storage upload notice (falling back to direct optimized image):", error.message);
                 }
-            }));
+            } catch (storageErr) {
+                console.warn("Storage upload exception (falling back to direct optimized image):", storageErr);
+            }
 
-            toast('success', 'Upload Successful', `${fieldName === 'signature_url' ? 'Signature' : 'Stamp'} uploaded successfully!`);
+            // 5. Update Config & Persist Instantly to Database & Cache
+            const currentConf = localConfig || examConfig || {};
+            const updatedConfig = {
+                ...currentConf,
+                report_card_config: {
+                    ...(currentConf?.report_card_config || {}),
+                    [fieldName]: finalImageUrl
+                }
+            };
+            setLocalConfig(updatedConfig);
+            saveConfigMutation.mutate(updatedConfig);
+
+            toast('success', 'Upload Successful', `${fieldName === 'signature_url' ? 'Signature' : 'Stamp'} uploaded and saved!`);
         } catch (err: any) {
             console.error("Upload error:", err);
             toast('error', 'Upload Failed', err.message);
@@ -1272,9 +1546,11 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             return;
         }
 
-        // Auto-select ALL classes and subjects
+        // Auto-select ALL classes and subjects, preserve global Dashboard term/academic year
         const finalConfig = {
             ...configToSave,
+            current_term: schoolInfo?.current_term || configToSave.current_term,
+            academic_year: schoolInfo?.academic_year || configToSave.academic_year,
             target_classes: availableClasses,
             target_subjects: allSubjects
         };
@@ -1408,7 +1684,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 student_id: studentId,
                 class: (className || '').trim().toUpperCase(),
                 subject: (subjectName || '').trim().toUpperCase(),
-                term: (currentTerm || '').trim().toUpperCase(),
+                term: normalizeTerm(currentTerm),
                 academic_year: (currentYear || '').trim().toUpperCase(),
                 class_score: val.classScore,
                 exam_score: val.examScore,
@@ -1437,7 +1713,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                     student_id: studentId,
                     class: (className || '').trim().toUpperCase(),
                     subject: (subjectName || '').trim().toUpperCase(),
-                    term: (currentTerm || '').trim().toUpperCase(),
+                    term: normalizeTerm(currentTerm),
                     academic_year: (currentYear || '').trim().toUpperCase(),
                     class_score: val.classScore,
                     exam_score: val.examScore,
@@ -1582,6 +1858,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         allAssignments,
         myAssignments,
         allReportCards,
+        systemAttendanceMap,
         availableClasses,
         availableSubjects,
         classStudents,
@@ -1724,9 +2001,14 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 <ReportCard
                                     student={student}
                                     results={getPrefilledResults(student, classResultsRaw)}
+                                    layout={getLayoutForClass(student.class)}
                                     schoolConfig={{
                                         ...schoolInfo,
                                         ...localConfig,
+                                        report_card_config: {
+                                            ...(schoolInfo?.report_card_config || {}),
+                                            ...(localConfig?.report_card_config || {})
+                                        },
                                         term_total_days: localConfig?.term_total_days
                                     }}
                                     onClose={() => { }}

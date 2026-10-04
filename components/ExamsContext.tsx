@@ -34,6 +34,7 @@ export interface ExamsContextValue {
     allAssignments: any[];
     myAssignments: any[];
     allReportCards: any[];
+    systemAttendanceMap: Record<string, { present: number; total: number }>;
 
     // Derived / computed
     availableClasses: string[];

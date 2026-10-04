@@ -25,7 +25,10 @@ const fetchClasses = async (currentUser: any) => {
     const schoolId = currentUser?.school_id;
     if (!schoolId) return [];
 
-    if (currentUser?.role === 'admin') {
+    const role = (currentUser?.role || '').toLowerCase();
+    const isAdmin = role.includes('admin') || role.includes('director') || role.includes('head');
+
+    if (isAdmin) {
         const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
         return data ? data.map(c => c.name) : [];
     }
@@ -46,7 +49,13 @@ const fetchClasses = async (currentUser: any) => {
             assignedClassNames = [currentUser.assignedClass];
         }
 
-        return assignedClassNames;
+        if (assignedClassNames.length > 0) {
+            return assignedClassNames;
+        }
+
+        // Fallback to all classes if no specific assignments
+        const { data } = await supabase.from('classes').select('name').eq('school_id', schoolId).order('name');
+        return data ? data.map(c => c.name) : [];
     }
     return [];
 };
@@ -62,15 +71,24 @@ const fetchStudents = async (schoolId: string, className: string) => {
 };
 
 const fetchFeedingLogs = async (schoolId: string, inputDate: string) => {
-    const { data } = await supabase
-        .from('feeding_logs')
-        .select('*')
-        .eq('school_id', schoolId)
-        .eq('date', inputDate);
+    try {
+        const { data, error } = await supabase
+            .from('feeding_logs')
+            .select('*')
+            .eq('school_id', schoolId)
+            .eq('date', inputDate);
 
-    const map: Record<string, any> = {};
-    data?.forEach((r: any) => map[r.student_id] = r);
-    return map;
+        if (error) {
+            console.warn("fetchFeedingLogs query warning:", error);
+            return {};
+        }
+
+        const map: Record<string, any> = {};
+        data?.forEach((r: any) => map[r.student_id] = r);
+        return map;
+    } catch {
+        return {};
+    }
 };
 
 const fetchDailyAttendance = async (schoolId: string, inputDate: string) => {
@@ -170,16 +188,50 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
     const { data: analysisData = [], isLoading: isAnalysisLoading } = useQuery({
         queryKey: ['feedingAnalysis', schoolId, analysisStartDate, analysisEndDate],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from('feeding_logs')
-                .select('date, amount, amount_paid, fee_amount, student:students(id, name, class)')
-                .eq('school_id', schoolId)
-                .gte('date', analysisStartDate)
-                .lte('date', analysisEndDate)
-                .eq('status', 'PAID');
+            try {
+                // 1. Try relational query
+                const { data, error } = await supabase
+                    .from('feeding_logs')
+                    .select('date, amount, amount_paid, fee_amount, student_id, students(id, name, class)')
+                    .eq('school_id', schoolId)
+                    .gte('date', analysisStartDate)
+                    .lte('date', analysisEndDate)
+                    .eq('status', 'PAID');
 
-            if (error) throw error;
-            return data || [];
+                if (!error && data) {
+                    return data.map((d: any) => ({
+                        ...d,
+                        student: Array.isArray(d.students) ? d.students[0] : (d.students || { id: d.student_id })
+                    }));
+                }
+
+                // 2. Fallback: flat select and map with students
+                const { data: flatLogs } = await supabase
+                    .from('feeding_logs')
+                    .select('date, amount, amount_paid, fee_amount, student_id')
+                    .eq('school_id', schoolId)
+                    .gte('date', analysisStartDate)
+                    .lte('date', analysisEndDate)
+                    .eq('status', 'PAID');
+
+                const sIds = [...new Set((flatLogs || []).map((l: any) => l.student_id))];
+                let sMap: Record<string, any> = {};
+                if (sIds.length > 0) {
+                    const { data: stList } = await supabase
+                        .from('students')
+                        .select('id, name, class')
+                        .in('id', sIds);
+                    stList?.forEach((st: any) => { sMap[st.id] = st; });
+                }
+
+                return (flatLogs || []).map((l: any) => ({
+                    ...l,
+                    student: sMap[l.student_id] || { id: l.student_id, name: 'Student', class: 'N/A' }
+                }));
+            } catch (err) {
+                console.warn("feedingAnalysis query caught error:", err);
+                return [];
+            }
         },
         enabled: !!schoolId && viewMode === 'analysis'
     });
@@ -333,13 +385,17 @@ const Feeding: React.FC<FeedingProps> = ({ currentUser }) => {
         mutationFn: async ({ student, start, end }: { student: any, start: string, end: string }) => {
             const totalDuePerDay = pricePerMeal + (configCollectFees ? configDailyFeeAmount : 0);
 
-            // Generate dates
+            // Generate school day dates (skip weekends)
             const dates = [];
             let curr = new Date(start);
             const endDateObj = new Date(end);
 
             while (curr <= endDateObj) {
-                dates.push(new Date(curr).toISOString().split('T')[0]);
+                const day = curr.getDay();
+                // 0 is Sunday, 6 is Saturday - only include school days Monday-Friday
+                if (day !== 0 && day !== 6) {
+                    dates.push(new Date(curr).toISOString().split('T')[0]);
+                }
                 curr.setDate(curr.getDate() + 1);
             }
 

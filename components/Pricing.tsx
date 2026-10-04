@@ -1,128 +1,207 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Wallet, Layers, ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck, Zap, HelpCircle, ArrowRight, Smartphone, Sparkles } from 'lucide-react';
 
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
+
   const plans = [
     {
       name: "Core Infrastructure",
+      badge: "Free Forever",
       price: "0",
-      period: "No monthly fees",
-      description: "Everything you need to digitize your fundamental school operations.",
+      cycle: "Forever Free",
+      description: "Everything you need to digitize your basic school directory and attendance with zero upfront commitment.",
       features: [
-        "Full Student & Staff Profiles",
+        "Up to 100 Student Records",
+        "Full Student & Guardian Profiles",
         "Class & Subject Architecture",
-        "Secure Cloud Data Storage",
-        "Mobile App & Tablet Access",
-        "Zero setup or hidden costs"
+        "Daily Digital Attendance Logging",
+        "Offline-Resilient Browser Storage",
+        "Zero setup fees or hidden costs"
       ],
-      isFree: true
+      ctaText: "Start Free Onboarding",
+      isPopular: false
     },
     {
-      name: "Modular Add-ons",
-      price: "Pay-as-you-go",
-      period: "Prepaid Wallet System",
-      description: "Activate only the premium modules required for your specific workflow.",
-      isPopular: true,
+      name: "Termly Full Pass",
+      badge: "Most Popular in Ghana",
+      price: "350",
+      cycle: "Per Term (4 Months)",
+      description: "Matches the Ghana academic term cycle. Unlock automated fees, report cards, and parent SMS broadcasts.",
       features: [
-        "Revenue Guard (Fee Management)",
-        "Academic Engine (Report Batching)",
-        "Daily Tracker (Attendance)",
-        "Bulk SMS Notification Suite",
-        "Cancel or switch anytime"
-      ]
+        "Unlimited Students & Teachers",
+        "Dual-Track Fee & Debt Management",
+        "Automatic Arrears Rollover Across Terms",
+        "1-Click GES Compliant Terminal Reports",
+        "Bulk SMS Dispatch Suite for Fee Collection",
+        "FREE 48-Hour White-Glove Migration",
+        "Multi-Child Guardian Family Linking"
+      ],
+      ctaText: "Activate Termly Pass",
+      isPopular: true
+    },
+    {
+      name: "Annual Prestige",
+      badge: "Best Value (Save GH¢ 150)",
+      price: "900",
+      cycle: "Full Academic Year (3 Terms)",
+      description: "Total operational peace of mind for the entire academic year with custom school branding and VIP support.",
+      features: [
+        "Everything in Termly Pass Unlocked",
+        "Covers All 3 Academic Terms (12 Months)",
+        "1,000 Free SMS Credits Included",
+        "Custom School Crest & Report Card Layouts",
+        "Dedicated Implementation Engineer",
+        "Priority WhatsApp & Phone Support Hotline",
+        "Automated Academic Data Archiving"
+      ],
+      ctaText: "Get Annual Access",
+      isPopular: false
     }
   ];
 
   return (
-    <section id="pricing" className="py-20 lg:py-24 bg-white scroll-mt-24 border-t border-slate-100">
+    <section id="pricing" className="py-24 md:py-32 bg-slate-50 scroll-mt-24 border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mb-12 lg:mb-20 text-center mx-auto px-4">
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-4 lg:mb-6 tracking-tight leading-tight">Fair & Modular Pricing.</h2>
-          <p className="text-base sm:text-lg lg:text-xl text-slate-500 font-medium leading-relaxed">No per-student taxes. No expensive yearly bundles. <br className="hidden sm:block"/> Pay only for the tools you actually use.</p>
+        
+        {/* Header */}
+        <div className="max-w-3xl mx-auto text-center mb-16 md:mb-20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-slate-700 text-[11px] font-black uppercase tracking-[0.2em] mb-4 border border-slate-200 shadow-sm">
+            <span>Fair & Predictable Investment</span>
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-[1.1] mb-6">
+            Priced for Ghanaian Schools. <br />
+            <span className="text-blue-600">No Per-Student Penalties.</span>
+          </h2>
+          <p className="text-lg text-slate-600 font-medium leading-relaxed">
+            Other systems charge you per child, penalizing you as your school grows. Base16 charges one transparent, flat termly fee with zero surprises.
+          </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-12 max-w-5xl mx-auto items-start px-2 sm:px-0">
-          {plans.map((plan, index) => (
+        {/* Pricing Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-8 max-w-7xl mx-auto items-stretch">
+          {plans.map((p, index) => (
             <div
               key={index}
-              className={`relative rounded-[2rem] lg:rounded-[2.5rem] p-8 lg:p-12 transition-all duration-300 border ${plan.isPopular
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xl lg:shadow-2xl'
-                : 'bg-white text-slate-900 border-slate-200 shadow-sm'
-                }`}
+              className={`flex flex-col rounded-3xl p-8 lg:p-10 transition-all duration-300 relative ${
+                p.isPopular
+                  ? 'bg-slate-900 text-white shadow-2xl ring-2 ring-blue-500 scale-[1.02] md:-translate-y-2'
+                  : 'bg-white text-slate-900 border border-slate-200 shadow-sm hover:shadow-md'
+              }`}
             >
-              {plan.isPopular && (
-                <div className="absolute top-6 right-6 lg:top-8 lg:right-8 bg-primary-600 text-white text-[9px] lg:text-[10px] font-black px-3 py-1 lg:px-4 lg:py-1.5 rounded-full uppercase tracking-widest leading-none">
-                  Most Flexible
+              {p.isPopular && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-md">
+                  {p.badge}
                 </div>
               )}
 
-              <h3 className={`font-bold mb-6 lg:mb-8 ${plan.isPopular ? 'text-primary-400' : 'text-slate-400'} uppercase tracking-[0.15em] text-[11px] lg:text-sm`}>
-                {plan.name}
+              {!p.isPopular && (
+                <div className="inline-block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                  {p.badge}
+                </div>
+              )}
+
+              <h3 className={`text-xl font-black uppercase tracking-tight mb-4 ${p.isPopular ? 'text-white' : 'text-slate-900'}`}>
+                {p.name}
               </h3>
 
-              <div className="flex items-baseline mb-3 lg:mb-4">
-                {plan.isFree && <span className="text-2xl lg:text-2xl font-black mr-2">GH¢</span>}
-                <span className={`font-black tracking-tighter ${plan.price === 'Pay-as-you-go' ? 'text-4xl lg:text-4xl' : 'text-6xl lg:text-6xl'}`}>
-                  {plan.price}
-                </span>
+              <div className="flex items-baseline gap-1.5 mb-2">
+                <span className="text-2xl font-black">GH¢</span>
+                <span className="text-5xl font-black tracking-tight">{p.price}</span>
               </div>
-              <p className={`text-xs lg:text-sm font-bold mb-8 lg:mb-10 uppercase tracking-widest opacity-60`}>
-                {plan.period}
+              <p className={`text-xs font-bold uppercase tracking-wider mb-6 ${p.isPopular ? 'text-slate-400' : 'text-slate-500'}`}>
+                {p.cycle}
               </p>
 
-              <div className={`h-px w-full mb-8 lg:mb-10 ${plan.isPopular ? 'bg-slate-800' : 'bg-slate-100'}`}></div>
+              <p className={`text-sm leading-relaxed mb-8 font-medium ${p.isPopular ? 'text-slate-300' : 'text-slate-600'}`}>
+                {p.description}
+              </p>
 
-              <ul className="space-y-4 lg:space-y-5 mb-10 lg:mb-12">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start">
-                    <Check className={`h-4 w-4 lg:h-5 lg:w-5 mr-3 lg:mr-4 flex-shrink-0 ${plan.isPopular ? 'text-primary-500' : 'text-green-500'}`} />
-                    <span className="font-bold text-xs lg:text-sm tracking-tight">{feature}</span>
+              <div className={`h-px w-full mb-8 ${p.isPopular ? 'bg-slate-800' : 'bg-slate-100'}`} />
+
+              <ul className="space-y-4 mb-10 flex-1">
+                {p.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <Check className={`h-4 w-4 shrink-0 mt-0.5 ${p.isPopular ? 'text-blue-400' : 'text-emerald-500'}`} />
+                    <span className={`text-xs font-bold leading-normal ${p.isPopular ? 'text-slate-200' : 'text-slate-700'}`}>
+                      {feature}
+                    </span>
                   </li>
                 ))}
               </ul>
 
               <button
-                onClick={() => navigate('/login')}
-                className={`w-full py-4 px-6 rounded-2xl font-black text-sm lg:text-base transition-all active:scale-95 shadow-md ${plan.isPopular ? 'bg-white text-slate-900 hover:bg-slate-50' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                onClick={() => navigate('/setup')}
+                className={`w-full py-4 rounded-xl font-bold text-sm tracking-wide transition-all shadow-md active:scale-95 ${
+                  p.isPopular
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/25'
+                    : 'bg-slate-900 hover:bg-black text-white'
+                }`}
               >
-                {plan.isFree ? 'Start for Free' : 'Explore Modules'}
+                {p.ctaText}
               </button>
             </div>
           ))}
         </div>
 
-        {/* How it works */}
-        <div className="mt-16 lg:mt-24 max-w-5xl mx-auto px-2 sm:px-0">
-          <div className="grid md:grid-cols-3 gap-10 lg:gap-12 bg-slate-50 p-8 lg:p-16 rounded-[2rem] lg:rounded-[3rem] border border-slate-100">
-              <div className="space-y-3 lg:space-y-4 text-center md:text-left">
-                <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mx-auto md:mx-0">
-                  <Wallet className="h-5 w-5 text-slate-900" />
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm lg:text-base">1. Top Up Wallet</h4>
-                <p className="text-[13px] lg:text-sm text-slate-500 font-medium leading-relaxed">Securely fund your school's wallet via MoMo or Bank.</p>
+        {/* Wholesale SMS Banner */}
+        <div className="mt-16 max-w-4xl mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-black shrink-0 border border-orange-100">
+              <Smartphone className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-base font-black text-slate-900 uppercase tracking-tight">Wholesale SMS Add-on</h4>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">3.5 Pesewas</span>
               </div>
-              <div className="space-y-3 lg:space-y-4 text-center md:text-left">
-                <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mx-auto md:mx-0">
-                  <Layers className="h-5 w-5 text-slate-900" />
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm lg:text-base">2. Activate Access</h4>
-                <p className="text-[13px] lg:text-sm text-slate-500 font-medium leading-relaxed">Subscribe to premium tools only when you need them.</p>
-              </div>
-              <div className="space-y-3 lg:space-y-4 text-center md:text-left">
-                <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-center mx-auto md:mx-0">
-                  <ShieldCheck className="h-5 w-5 text-slate-900" />
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm lg:text-base">3. Zero Lock-in</h4>
-                <p className="text-[13px] lg:text-sm text-slate-500 font-medium leading-relaxed">Disable modules anytime. No long-term contracts.</p>
-              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Top up your school SMS wallet instantly via Mobile Money. Zero expiry. Dispatches directly to MTN, Telecel, and AT networks.
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className="text-2xl font-black text-slate-900">GH¢ 0.035</span>
+            <span className="text-xs text-slate-400 block font-bold uppercase">per SMS unit</span>
           </div>
         </div>
+
+        {/* Final Conversion CTA Card */}
+        <div className="mt-16 max-w-5xl mx-auto rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-8 sm:p-12 border border-blue-500/30 text-white shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-8">
+          <div className="space-y-3 text-center lg:text-left max-w-xl">
+            <div className="inline-flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+              <ShieldCheck className="w-4 h-4" /> Zero-Risk School Modernization
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Ready to automate your school this term?
+            </h3>
+            <p className="text-slate-300 text-sm leading-relaxed font-medium">
+              Join progressive Ghanaian school leaders who have left manual registers behind. Start free in 15 minutes, or schedule a personalized walkthrough with our team.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto shrink-0">
+            <button
+              onClick={() => navigate('/demo')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-7 py-4 rounded-xl font-bold text-sm tracking-wide transition-all shadow-xl hover:shadow-blue-500/30 active:scale-95"
+            >
+              <span>Book 15-Min Live Demo</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => navigate('/setup')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 px-6 py-4 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95"
+            >
+              <span>Get Started Free</span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </section>
   );
 };
 
 export default Pricing;
-;

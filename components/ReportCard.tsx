@@ -48,6 +48,15 @@ interface SchoolConfig {
     global_report_sections?: { title: string; content: string }[];
 }
 
+export const toOrdinal = (n: number | string | null | undefined): string => {
+    if (n === null || n === undefined || n === '' || isNaN(Number(n))) return '—';
+    const num = Math.round(Number(n));
+    if (num <= 0) return '—';
+    const s = ["th", "st", "nd", "rd"];
+    const v = num % 100;
+    return num + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
 interface ReportCardProps {
     student: Student;
     results: Result[];
@@ -58,9 +67,10 @@ interface ReportCardProps {
     printMode?: boolean;
     savedReportData?: any;
     activeModules?: string[];
+    layout?: 'modern' | 'classic_tabular' | 'nursery' | 'adventist' | string;
 }
 
-const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, schoolConfig, position, schoolId, printMode, savedReportData, activeModules }) => {
+const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, schoolConfig, position, schoolId, printMode, savedReportData, activeModules, layout: explicitLayoutProp }) => {
     const componentRef = useRef<HTMLDivElement>(null);
     const queryClient = useQueryClient();
     const printStyles = (
@@ -144,7 +154,12 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const [nextTermReopens, setNextTermReopens] = useState(savedReportData?.next_term_reopens || (schoolConfig as any)?.next_term_reopens || '');
     const [extraBillItems, setExtraBillItems] = useState<{ label: string; value: number }[]>(Array.isArray(savedReportData?.extra_bill_items) ? savedReportData.extra_bill_items : []);
     const [extraReportSections, setExtraReportSections] = useState<{ title: string; content: string }[]>(Array.isArray(savedReportData?.extra_report_sections) ? savedReportData.extra_report_sections : []);
-    const [attendancePresentDays, setAttendancePresentDays] = useState<number>(savedReportData?.attendance_present ? Number(savedReportData.attendance_present) : (student.attendance || 0));
+    const [attendancePresentDays, setAttendancePresentDays] = useState<number>(() => {
+        if (savedReportData?.attendance_present !== undefined && savedReportData?.attendance_present !== null) {
+            return Number(savedReportData.attendance_present);
+        }
+        return 0;
+    });
     const [attendanceTotalDays, setAttendanceTotalDays] = useState<number>(() => {
         const configVal = (schoolConfig as any)?.term_total_days;
         if (configVal) return Number(configVal);
@@ -195,11 +210,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(student.id)) return;
 
-            const { data, error } = await supabase.rpc('get_student_attendance_summary', { p_student_id: student.id });
-            if (!error && data) {
-                setAttendanceStats(data);
-                // System Calculated Attendance - Always use data if available
-                setAttendancePresentDays(Number(data.present));
+            let data: { present: number, total: number } = { present: 0, total: 0 };
+            const { data: attData, error: attError } = await supabase
+                .from('attendance')
+                .select('status, date')
+                .eq('student_id', student.id);
+
+            if (!attError && attData) {
+                data = {
+                    present: attData.filter((r: any) => r.status === 'Present').length,
+                    total: attData.length
+                };
+            } else {
+                const { data: rpcData } = await supabase.rpc('get_student_attendance_summary', { p_student_id: student.id });
+                if (rpcData) {
+                    data = { present: Number(rpcData.present || 0), total: Number(rpcData.total || 0) };
+                }
+            }
+
+            setAttendanceStats(data);
+            setAttendancePresentDays(Number(data.present));
                 
                 // For Total Days, prioritize system total, fallback to config total, then student record
                 const sysTotal = Number(data.total);
@@ -221,10 +251,9 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     console.log("DECISION: Using Student Record Fallback");
                     setAttendanceTotalDays(Number(student.attendance || 0));
                 }
-            }
-        };
-        fetchAtt();
-    }, [student.id, schoolConfig?.attendance_mode]);
+            };
+            fetchAtt();
+        }, [student.id, schoolConfig?.attendance_mode]);
 
     // Initialize Defaults from Config if no saved data exists
     useEffect(() => {
@@ -370,31 +399,68 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
         setIsSaving(true);
         try {
             const term = schoolConfig?.current_term || schoolConfig?.term || '';
-            const { error } = await supabase.rpc('save_student_report', {
-                p_school_id: schoolId,
-                p_student_id: student.id,
-                p_class: student.class,
-                p_term: term,
-                p_year: schoolConfig?.academic_year || '',
-                p_teacher_remark: teacherRemark,
-                p_principal_remark: principalRemark,
-                p_promotion_status: promotionStatus,
-                p_position: position?.position || 0,
-                p_total_students: position?.total || 0,
-                p_attendance_present: attendancePresentDays,
-                p_attendance_total: attendanceTotalDays,
-                p_next_class: nextClass,
-                p_pupil_bill: pupilBill,
-                p_other_fees: otherFees,
-                p_conduct: conduct,
-                p_interest: interest,
-                p_items_to_bring: itemsToBring,
-                p_next_term_reopens: nextTermReopens,
-                p_extra_bill_items: JSON.stringify(extraBillItems),
-                p_extra_report_sections: JSON.stringify(extraReportSections)
-            });
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('save_student_report', {
+                    p_school_id: schoolId,
+                    p_student_id: student.id,
+                    p_class: student.class,
+                    p_term: term,
+                    p_year: schoolConfig?.academic_year || '',
+                    p_teacher_remark: teacherRemark,
+                    p_principal_remark: principalRemark,
+                    p_promotion_status: promotionStatus,
+                    p_position: position?.position || 0,
+                    p_total_students: position?.total || 0,
+                    p_attendance_present: attendancePresentDays,
+                    p_attendance_total: attendanceTotalDays,
+                    p_next_class: nextClass,
+                    p_pupil_bill: pupilBill,
+                    p_other_fees: otherFees,
+                    p_conduct: conduct,
+                    p_interest: interest,
+                    p_items_to_bring: itemsToBring,
+                    p_next_term_reopens: nextTermReopens,
+                    p_extra_bill_items: JSON.stringify(extraBillItems),
+                    p_extra_report_sections: JSON.stringify(extraReportSections)
+                });
+                if (!error) rpcSucceeded = true;
+            } catch (rpcErr) {
+                console.warn("save_student_report RPC failed, falling back to direct table upsert:", rpcErr);
+            }
 
-            if (error) throw error;
+            if (!rpcSucceeded) {
+                // Direct fallback: Upsert into student_report_cards table
+                const { error: upsertErr } = await supabase
+                    .from('student_report_cards')
+                    .upsert({
+                        school_id: schoolId,
+                        student_id: student.id,
+                        class: student.class,
+                        term: term,
+                        academic_year: schoolConfig?.academic_year || '',
+                        teacher_remark: teacherRemark,
+                        principal_remark: principalRemark,
+                        promotion_status: promotionStatus,
+                        position_in_class: position?.position || 0,
+                        total_students: position?.total || 0,
+                        attendance_present: attendancePresentDays,
+                        attendance_total: attendanceTotalDays,
+                        next_class: nextClass,
+                        pupil_bill: pupilBill,
+                        other_fees: otherFees,
+                        conduct: conduct,
+                        interest: interest,
+                        items_to_bring: itemsToBring,
+                        next_term_reopens: nextTermReopens,
+                        extra_bill_items: extraBillItems,
+                        extra_report_sections: extraReportSections,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'school_id,student_id,term,academic_year' });
+
+                if (upsertErr) throw upsertErr;
+            }
+
             alert("Report card details saved successfully!");
         } catch (err: any) {
             console.error('Save failed', err);
@@ -452,13 +518,66 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
     const gpa = results.length > 0 ? (totalPoints / results.length).toFixed(2) : '0.00';
     const hasPointsSystem = schoolConfig?.grading?.some(g => g.points !== undefined && g.points > 0);
 
-    const rcConfig = schoolConfig?.report_card_config;
-    const layoutPref = rcConfig?.layout;
-    const nurseryClasses = (rcConfig as any)?.nursery_classes || [];
+    const rcConfig = schoolConfig?.report_card_config 
+        || (schoolConfig as any)?.exam_config?.report_card_config 
+        || {};
+    const signatureUrl: string | null = (rcConfig as any)?.signature_url 
+        || (schoolConfig as any)?.signature_url 
+        || null;
+    const stampUrl: string | null = (rcConfig as any)?.stamp_url 
+        || (schoolConfig as any)?.stamp_url 
+        || null;
+    const showSignature: boolean = (rcConfig as any)?.show_signature !== false;
+    const layoutPref = explicitLayoutProp || rcConfig?.layout;
+    const nurseryClasses: string[] = (rcConfig as any)?.nursery_classes || (schoolConfig as any)?.nursery_classes || [];
 
-    // Direct overrides
-    const layoutAssignments = (rcConfig as any)?.class_layouts || {};
-    const classLayout = layoutAssignments[student.class] || layoutPref || 'modern';
+    // Direct overrides with case-insensitive and trim fallback
+    const layoutAssignments: Record<string, string> = 
+        (rcConfig as any)?.class_layouts 
+        || (schoolConfig as any)?.class_layouts 
+        || (schoolConfig as any)?.exam_config?.report_card_config?.class_layouts
+        || {};
+
+    // Determine the layout for this student's class
+    const classLayout = React.useMemo(() => {
+        // 1. If explicit layout prop was passed directly to ReportCard, use it
+        if (explicitLayoutProp && ['modern', 'classic_tabular', 'nursery', 'adventist'].includes(explicitLayoutProp)) {
+            return explicitLayoutProp;
+        }
+
+        const className = student.class;
+        if (className) {
+            const cleanName = className.trim();
+            const lowerName = cleanName.toLowerCase();
+
+            // Direct exact match
+            if (layoutAssignments[className]) return layoutAssignments[className];
+            if (layoutAssignments[cleanName]) return layoutAssignments[cleanName];
+
+            // Case-insensitive exact match
+            const exactKey = Object.keys(layoutAssignments).find(k => k.trim().toLowerCase() === lowerName);
+            if (exactKey && layoutAssignments[exactKey]) return layoutAssignments[exactKey];
+
+            // Substring / Prefix match (e.g. "Class 1" matches "Class 1 Gold")
+            const fuzzyKey = Object.keys(layoutAssignments).find(k => {
+                const kLow = k.trim().toLowerCase();
+                return lowerName.startsWith(kLow) || kLow.startsWith(lowerName);
+            });
+            if (fuzzyKey && layoutAssignments[fuzzyKey]) return layoutAssignments[fuzzyKey];
+
+            // Legacy nursery_classes check
+            if (Array.isArray(nurseryClasses) && nurseryClasses.some(c => c && c.trim().toLowerCase() === lowerName)) {
+                return 'nursery';
+            }
+        }
+
+        // Global default layout preference if specified
+        if (layoutPref && ['modern', 'classic_tabular', 'nursery', 'adventist'].includes(layoutPref)) {
+            return layoutPref;
+        }
+
+        return 'modern';
+    }, [explicitLayoutProp, student.class, JSON.stringify(layoutAssignments), layoutPref, JSON.stringify(nurseryClasses)]);
 
     const isNursery = classLayout === 'nursery';
     const isClassic = classLayout === 'classic_tabular';
@@ -718,7 +837,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </div>
                             </div>
 
-                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                            {showSignature && (
                                 <div className="grid grid-cols-2 gap-6 pt-4 print:pt-2">
                                     <div className="text-center">
                                         <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
@@ -726,14 +845,14 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-700">Lead Preceptor</span>
                                     </div>
                                     <div className="text-center relative">
-                                        {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                            <img src={(schoolConfig as any).report_card_config.signature_url} className="h-9 object-contain mx-auto absolute -top-10 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                        {signatureUrl && (
+                                            <img src={signatureUrl} className="h-9 object-contain mx-auto absolute -top-10 left-1/2 -translate-x-1/2 z-10 pointer-events-none" alt="Signature" />
                                         )}
                                         <div className="h-[1.5px] bg-[#0c2340] w-full mb-1 relative z-20" />
                                         <div className="h-px bg-[#0c2340]/20 w-full mb-1 relative z-20" />
                                         <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-700 relative z-20">Head of Institution</span>
-                                        {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                            <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-20 w-20 object-contain absolute -top-14 -right-4 opacity-60 rotate-12 mix-blend-multiply z-30" alt="Stamp" />
+                                        {stampUrl && (
+                                            <img src={stampUrl} className="h-20 w-20 object-contain absolute -top-14 -right-4 opacity-70 rotate-12 mix-blend-multiply z-30 pointer-events-none" alt="Stamp" />
                                         )}
                                     </div>
                                 </div>
@@ -772,15 +891,21 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 </div>
                             )}
 
-                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                            {showSignature && (
                                 <div className="grid grid-cols-2 gap-6 mt-4 print:mt-2">
                                     <div className="text-center pt-6">
                                         <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
                                         <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-600">Lead Preceptor</span>
                                     </div>
-                                    <div className="text-center pt-6">
-                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1" />
-                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-600">Head of Institution</span>
+                                    <div className="text-center pt-6 relative">
+                                        {signatureUrl && (
+                                            <img src={signatureUrl} className="h-9 object-contain mx-auto absolute -top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none" alt="Signature" />
+                                        )}
+                                        {stampUrl && (
+                                            <img src={stampUrl} className="h-20 w-20 object-contain absolute -top-8 -right-4 opacity-70 rotate-12 mix-blend-multiply z-30 pointer-events-none" alt="Stamp" />
+                                        )}
+                                        <div className="h-[1.5px] bg-[#0c2340] w-full mb-1 relative z-20" />
+                                        <span className="text-[9.5px] font-black uppercase tracking-[0.18em] text-slate-600 relative z-20">Head of Institution</span>
                                     </div>
                                 </div>
                             )}
@@ -802,26 +927,26 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
 
     // Helper to calculate deterministic subject rankings like J.A. Boateng
     const getSubjectRank = (subject: string, score: number) => {
-        const roll = position?.total || 49;
+        const roll = position?.total || (results.length > 0 ? results.length : 30);
         const charCodeSum = subject.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         // Vary the total subject roll slightly per subject (e.g. 42 to 49)
         const subjectRoll = Math.max(15, Math.min(roll, roll - (charCodeSum % 6))); 
         
-        if (score >= 95) return { pos: 1, roll: subjectRoll };
-        if (score <= 15) return { pos: subjectRoll, roll: subjectRoll };
+        if (score >= 95) return { pos: 1, roll: subjectRoll, posOrdinal: '1st' };
+        if (score <= 15) return { pos: subjectRoll, roll: subjectRoll, posOrdinal: toOrdinal(subjectRoll) };
         
         // Calculate position: higher score yields better rank (closer to 1)
         const studentHash = (student.id || 'abc').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const offset = (charCodeSum + studentHash) % 3;
         const pos = Math.max(1, Math.min(subjectRoll, Math.round(((100 - score) / 100) * subjectRoll) + offset));
         
-        return { pos, roll: subjectRoll };
+        return { pos, roll: subjectRoll, posOrdinal: toOrdinal(pos) };
     };
 
     // Helper to calculate deterministic overall class position
     const getOverallPosition = () => {
         if (!position || !position.position) return '—';
-        return `${position.position} / ${position.total}`;
+        return `${toOrdinal(position.position)} / ${position.total}`;
     };
 
     // Helper to calculate deterministic subject position
@@ -1140,13 +1265,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                             />
                             <div className="flex justify-between items-end mt-2 print:mt-1">
                                 <p className="text-[9px] print:text-[8.5px] font-bold text-slate-400 uppercase tracking-widest">Date: {new Date().toLocaleDateString('en-GB')}</p>
-                                {schoolConfig?.report_card_config?.show_signature !== false && (
-                                    <div className="text-right relative">
-                                        {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                            <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-11 right-0 z-10" alt="Signature" />
+                                {showSignature && (
+                                    <div className="text-right relative min-w-[120px]">
+                                        {signatureUrl && (
+                                            <img src={signatureUrl} className="h-10 object-contain absolute -top-11 right-0 z-10 pointer-events-none" alt="Signature" />
                                         )}
-                                        {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                            <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-60 rotate-12 mix-blend-multiply z-20" alt="Stamp" />
+                                        {stampUrl && (
+                                            <img src={stampUrl} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-75 rotate-12 mix-blend-multiply z-20 pointer-events-none" alt="Stamp" />
                                         )}
                                         <div className="h-px w-28 bg-slate-800 mb-0.5 relative z-30"></div>
                                         <p className="text-[9px] print:text-[8.5px] font-black uppercase tracking-widest text-slate-700 relative z-30">Principal / Headmaster</p>
@@ -1206,12 +1331,15 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <span className="text-[13px] mr-1 text-slate-500 font-bold">GHS</span>{totalBill.toFixed(2)}
                                     </p>
                                 </div>
-                                <div className="text-right">
-                                    {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-8 object-contain mb-0.5 ml-auto" alt="Signature" />
+                                <div className="text-right relative">
+                                    {signatureUrl && (
+                                        <img src={signatureUrl} className="h-8 object-contain mb-0.5 ml-auto pointer-events-none" alt="Signature" />
                                     )}
-                                    <div className="h-px w-24 bg-slate-800 mb-0.5"></div>
-                                    <p className="text-[9px] print:text-[8px] font-black uppercase tracking-widest text-slate-600">Authorized Stamp</p>
+                                    <div className="h-px w-24 bg-slate-800 mb-0.5 relative z-20"></div>
+                                    <p className="text-[9px] print:text-[8px] font-black uppercase tracking-widest text-slate-600 relative z-20">Authorized Stamp</p>
+                                    {stampUrl && (
+                                        <img src={stampUrl} className="h-14 w-14 object-contain absolute -top-10 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30 pointer-events-none" alt="Stamp" />
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1388,7 +1516,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         </td>
                                         {schoolConfig?.report_card_config?.show_position !== false && (
                                             <td className="px-2 py-2 print:py-1.5 text-center font-bold text-slate-500 text-[11px] border-b border-slate-100">
-                                                {getSubjectPosition(result.subject, result.total).pos}
+                                                {toOrdinal(getSubjectPosition(result.subject, result.total).pos)}
                                             </td>
                                         )}
                                         <td className="px-4 py-2 print:px-3 print:py-1.5 text-slate-500 italic text-[11.5px] border-b border-slate-100">{remark}</td>
@@ -1488,7 +1616,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     )}
 
                     {/* Standalone Signatures (when no fees) */}
-                    {!showFees && schoolConfig?.report_card_config?.show_signature !== false && (
+                    {!showFees && showSignature && (
                         <div className="grid grid-cols-2 gap-6 pt-4 border-t-2 border-dashed border-slate-200 print:pt-3 mt-auto">
                             <div>
                                 <div className="h-12 print:h-8"></div>
@@ -1497,14 +1625,14 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <p className="text-[9px] text-slate-300 mt-0.5">{new Date().toLocaleDateString('en-GB')}</p>
                             </div>
                             <div className="relative">
-                                {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-9 left-4 z-10" alt="Signature" />
+                                {signatureUrl && (
+                                    <img src={signatureUrl} className="h-10 object-contain absolute -top-9 left-4 z-10 pointer-events-none" alt="Signature" />
                                 )}
                                 <div className="h-12 print:h-8"></div>
                                 <div className="h-px bg-slate-900 w-40 mb-1 relative z-20"></div>
                                 <p className="text-[9.5px] font-black text-slate-800 uppercase tracking-widest relative z-20">Head Teacher / Principal</p>
-                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                {stampUrl && (
+                                    <img src={stampUrl} className="h-16 w-16 object-contain absolute -top-12 right-2 opacity-75 rotate-6 mix-blend-multiply z-30 pointer-events-none" alt="Stamp" />
                                 )}
                             </div>
                         </div>
@@ -1561,17 +1689,17 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                 <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Grand Total Payable</p>
                                 <p className="text-2xl print:text-xl font-black tracking-tighter text-slate-900"><span className="text-xs mr-1 text-slate-400 font-bold">GHS</span>{totalBill.toFixed(2)}</p>
                             </div>
-                            {schoolConfig?.report_card_config?.show_signature !== false && (
+                            {showSignature && (
                                 <div className="text-right relative min-w-[100px]">
-                                    {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                        <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-12 right-0 z-10 brightness-110" alt="Signature" />
+                                    {signatureUrl && (
+                                        <img src={signatureUrl} className="h-10 object-contain absolute -top-12 right-0 z-10 brightness-110 pointer-events-none" alt="Signature" />
                                     )}
                                     <div className="h-8 w-8 bg-slate-100 rounded-full ml-auto mb-1.5 flex items-center justify-center relative z-20">
                                         <Building2 className="w-4 h-4 text-slate-500" />
                                     </div>
                                     <p className="text-[8.5px] font-black uppercase text-slate-400 tracking-widest relative z-20">Principal / Verified</p>
-                                    {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                        <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-12 -right-2 opacity-70 rotate-6 mix-blend-multiply z-30" alt="Stamp" />
+                                    {stampUrl && (
+                                        <img src={stampUrl} className="h-16 w-16 object-contain absolute -top-12 -right-2 opacity-75 rotate-6 mix-blend-multiply z-30 pointer-events-none" alt="Stamp" />
                                     )}
                                 </div>
                             )}
@@ -1804,7 +1932,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                                         <td className="py-2 text-center font-black text-slate-800">{grade}</td>
                                         {schoolConfig?.report_card_config?.show_position !== false && (
                                             <>
-                                                <td className="py-2 text-center text-slate-600 font-bold">{rankInfo.pos}</td>
+                                                <td className="py-2 text-center text-slate-600 font-bold">{toOrdinal(rankInfo.pos)}</td>
                                                 <td className="py-2 text-center text-slate-400 font-medium">{rankInfo.roll}</td>
                                             </>
                                         )}
@@ -2073,13 +2201,13 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     {/* Stamp and signature footer row */}
                     <div className="flex justify-between items-end pt-2">
                         <p className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest">Issued: {new Date().toLocaleDateString('en-GB')}</p>
-                        {schoolConfig?.report_card_config?.show_signature !== false && (
+                        {showSignature && (
                             <div className="text-right relative min-w-[130px]">
-                                {(schoolConfig as any)?.report_card_config?.signature_url && (
-                                    <img src={(schoolConfig as any).report_card_config.signature_url} className="h-10 object-contain absolute -top-11 left-1/2 -translate-x-1/2 z-10" alt="Signature" />
+                                {signatureUrl && (
+                                    <img src={signatureUrl} className="h-10 object-contain absolute -top-11 left-1/2 -translate-x-1/2 z-10 pointer-events-none" alt="Signature" />
                                 )}
-                                {(schoolConfig as any)?.report_card_config?.stamp_url && (
-                                    <img src={(schoolConfig as any).report_card_config.stamp_url} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-40 rotate-12 mix-blend-multiply z-20" alt="Stamp" />
+                                {stampUrl && (
+                                    <img src={stampUrl} className="h-16 w-16 object-contain absolute -top-14 -right-2 opacity-75 rotate-12 mix-blend-multiply z-20 pointer-events-none" alt="Stamp" />
                                 )}
                                 <div className="h-px w-full bg-slate-200 mb-1 relative z-30"></div>
                                 <p className="text-[8.5px] font-black uppercase tracking-widest text-slate-400 relative z-30">Principal Signature</p>
@@ -2107,9 +2235,14 @@ const innerContent = isNursery ? nurseryContent : (isClassic ? classicContent : 
 
                 {/* Fixed Header */}
                 <div className="bg-slate-900 text-white p-3 print:py-1 print:px-2 md:p-4 print:p-2 print:p-4 print:p-2 flex justify-between items-center shrink-0 rounded-t-xl print:hidden">
-                    <h2 className="font-bold text-base md:text-lg print:text-lg flex items-center gap-2">
-                        <Building2 className="h-4 w-4 md:h-5 print:h-5 md:w-5 print:w-5 text-blue-400" /> Student Report Card
-                    </h2>
+                    <div className="flex items-center gap-2.5">
+                        <h2 className="font-bold text-base md:text-lg print:text-lg flex items-center gap-2">
+                            <Building2 className="h-4 w-4 md:h-5 print:h-5 md:w-5 print:w-5 text-blue-400" /> Student Report Card
+                        </h2>
+                        <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
+                            Template: <span className="text-primary-400">{classLayout === 'classic_tabular' ? 'Classic Tabular' : classLayout === 'nursery' ? 'Nursery Narrative' : classLayout === 'adventist' ? 'Chart-Integrated' : 'Standard Modern'}</span>
+                        </span>
+                    </div>
                     <div className="flex items-center gap-2 md:gap-3 print:py-1 print:px-2 print:gap-3 print:py-1 print:px-2">
                         <p className="text-xs text-slate-400 mr-4 hidden md:block print:block">
                             <span className="font-bold text-yellow-400">Tip:</span> You can edit the remarks below before printing.

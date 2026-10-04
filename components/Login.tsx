@@ -22,16 +22,29 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
     setError('');
     setLoading(true);
 
-    let loginEmail = email;
+    let loginEmail = email.trim();
     const loginPass = password;
 
-    // --- SUPER ADMIN AUTH HANDLING ---
-    // Instead of a fake bypass, we map 'silas' to a real email so we get a valid session token.
-    if (email.toLowerCase() === 'silas' && password === 'silas@222') {
-      loginEmail = 'silas@base16.com';
-    }
-
     try {
+      // 0. Resolve Phone number or Username to Email (handles 024XXXXXXX or 'silas')
+      if (!loginEmail.includes('@')) {
+        try {
+          const { data: resolvedEmail } = await supabase.rpc('resolve_login_identifier', {
+            p_identifier: loginEmail
+          });
+          if (resolvedEmail) {
+            loginEmail = resolvedEmail;
+          }
+        } catch (resolveErr) {
+          console.warn('Could not resolve phone number identifier:', resolveErr);
+        }
+      }
+
+      // Fallback for silas shortcut
+      if (loginEmail.toLowerCase() === 'silas' && password === 'silas@222') {
+        loginEmail = 'silas@base16.com';
+      }
+
       // 1. Authenticate with Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
@@ -85,41 +98,41 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
           throw new Error("User profile not found.");
         }
 
-        // 3. Verify Role matches the selected tab
-        // Allow super_admin to login regardless of tab selection
-        if (profileData.role !== 'super_admin' && profileData.role !== role) {
-          throw new Error(`Invalid credentials for ${role} login.`);
-        }
+        // 3. Automatically use user's actual role from profile
+        const userRole = profileData.role || role;
 
         let assignedClass = null;
-        if (profileData.role === 'teacher') {
-          const { data: teacherData } = await supabase
-            .from('teachers')
-            .select('assigned_class')
-            .eq('id', authData.user.id)
-            .single();
-          if (teacherData) {
-            assignedClass = teacherData.assigned_class;
-          }
+        if (userRole === 'teacher') {
+          try {
+            const { data: assignData } = await supabase
+              .from('teacher_assignments')
+              .select('classes:class_id(name), is_class_teacher')
+              .eq('teacher_id', authData.user.id)
+              .eq('is_class_teacher', true);
+            if (assignData && assignData.length > 0) {
+              const primary = assignData[0];
+              const cls: any = primary?.classes;
+              assignedClass = Array.isArray(cls) ? cls[0]?.name : cls?.name;
+            }
+          } catch (_) {}
         }
 
         // 4. Check School Status (for Admins and Teachers)
-        if (profileData.role === 'admin' || profileData.role === 'teacher') {
+        if (userRole === 'admin' || userRole === 'teacher') {
           if (profileData.schools?.status === 'suspended') {
             throw new Error("Your school account has been suspended. Please contact administration.");
           } else if (profileData.schools?.status === 'pending') {
-            throw new Error("Your school account is pending approval. Please complete payment.");
+            throw new Error("Your school account is pending approval. We are reviewing your registration and will activate your portal shortly.");
           }
         }
 
-        // Removed first login check to fix 400 Bad Request error
         let isFirstLogin = false;
 
         // 5. Success
         onLogin({
           id: authData.user.id,
           name: profileData.full_name,
-          role: profileData.role,
+          role: userRole,
           email: authData.user.email,
           photo: null,
           school_id: profileData.school_id,
@@ -186,7 +199,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              {role === 'admin' ? 'Email Address' : 'Teacher Email'}
+              Email or Phone Number
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -198,7 +211,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-600 focus:border-transparent outline-none transition-shadow"
-                placeholder={role === 'admin' ? 'admin@school.com' : 'teacher@school.com'}
+                placeholder="Email or Phone Number"
               />
             </div>
           </div>

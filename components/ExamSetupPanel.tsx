@@ -171,23 +171,26 @@ export const ExamSetupPanel: React.FC = () => {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Term & Academic Year</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Term & Academic Year</label>
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                            <Lock className="w-2.5 h-2.5 text-slate-400" /> Managed on Dashboard
+                                        </span>
+                                    </div>
                                     <div className="flex gap-2">
                                         <select 
+                                            disabled
                                             value={localConfig.current_term || ''} 
-                                            onChange={e => setLocalConfig({ ...localConfig, current_term: e.target.value })} 
-                                            className="flex-1 px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-800 text-sm font-semibold"
+                                            className="flex-1 px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-sm font-semibold cursor-not-allowed select-none opacity-80"
                                         >
-                                            <option>First Term</option> 
-                                            <option>Second Term</option> 
-                                            <option>Third Term</option>
+                                            <option>{localConfig.current_term || 'First Term'}</option>
                                         </select>
                                         <input 
                                             type="text" 
+                                            disabled
                                             value={localConfig.academic_year || ''} 
-                                            onChange={e => setLocalConfig({ ...localConfig, academic_year: e.target.value })} 
-                                            className="w-1/2 px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-800 text-sm font-semibold text-center" 
-                                            placeholder="e.g. 2023/2024" 
+                                            className="w-1/2 px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-sm font-semibold text-center cursor-not-allowed select-none opacity-80" 
+                                            placeholder="e.g. 2024/2025" 
                                         />
                                     </div>
                                 </div>
@@ -235,36 +238,85 @@ export const ExamSetupPanel: React.FC = () => {
                             <div className="pt-6 border-t border-slate-100 space-y-4">
                                 <div>
                                     <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Attendance Rules</h4>
-                                    <p className="text-xs text-slate-500">Determine whether attendance days are sourced from a database table or typed manually.</p>
+                                    <p className="text-xs text-slate-500">Determine whether student attendance days are automatically synced from the Daily Attendance Register or manually typed by class teachers.</p>
                                 </div>
 
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <Calendar className="w-5 h-5 text-primary-500" />
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-700">Attendance Data Feed</p>
-                                            <p className="text-xs text-slate-400">Toggle method for fetching total attendance metrics.</p>
+                                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <Calendar className="w-5 h-5 text-primary-500 shrink-0" />
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">Attendance Data Feed</p>
+                                                <p className="text-xs text-slate-500">
+                                                    {localConfig.attendance_mode === 'system'
+                                                        ? 'Automatic calculation from the Attendance Register table.'
+                                                        : 'Class teachers manually enter days present in Remarks & Standings.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex bg-slate-200/60 p-1 rounded-xl gap-1 shrink-0">
+                                            {[
+                                                { id: 'manual', label: 'Manual Input' },
+                                                { id: 'system', label: 'System Sync' }
+                                            ].map(mode => (
+                                                <button
+                                                    key={mode.id}
+                                                    type="button"
+                                                    onClick={() => setLocalConfig({ ...localConfig, attendance_mode: mode.id as any })}
+                                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                        (localConfig.attendance_mode || 'manual') === mode.id 
+                                                            ? 'bg-primary-600 text-white shadow-sm' 
+                                                            : 'text-slate-600 hover:text-slate-900'
+                                                    }`}
+                                                >
+                                                    {mode.label}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
 
-                                    <div className="flex bg-slate-200/50 p-1 rounded-xl gap-1 shrink-0">
-                                        {[
-                                            { id: 'manual', label: 'Manual Input' },
-                                            { id: 'system', label: 'System Sync' }
-                                        ].map(mode => (
-                                            <button
-                                                key={mode.id}
-                                                type="button"
-                                                onClick={() => setLocalConfig({ ...localConfig, attendance_mode: mode.id as any })}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                                    localConfig.attendance_mode === mode.id 
-                                                        ? 'bg-primary-600 text-white shadow-sm' 
-                                                        : 'text-slate-650 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                {mode.label}
-                                            </button>
-                                        ))}
+                                    {/* Total Days in Term Setting */}
+                                    <div className="pt-3 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 block">Total School Days in Term</label>
+                                            <p className="text-[11px] text-slate-400">
+                                                {localConfig.attendance_mode === 'system'
+                                                    ? 'Used as the denominator on report cards (e.g. 58 / 65 days). If left empty, system uses total recorded sessions.'
+                                                    : 'The total attendance denominator shown to teachers when entering marks and printed on report cards (e.g. / 65).'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="365"
+                                                value={localConfig.term_total_days || ''}
+                                                onChange={e => setLocalConfig({ ...localConfig, term_total_days: Number(e.target.value) || 0 })}
+                                                placeholder="e.g. 65"
+                                                className="w-24 px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-primary-500 outline-none"
+                                            />
+                                            <span className="text-xs font-bold text-slate-500">Days</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Contextual Banner */}
+                                    <div className="text-xs p-3 rounded-xl border bg-white flex items-start gap-2.5">
+                                        {localConfig.attendance_mode === 'system' ? (
+                                            <>
+                                                <span className="text-emerald-600 font-black text-sm">⚡</span>
+                                                <div className="text-slate-600 text-[11px] leading-relaxed">
+                                                    <strong className="text-slate-800">System Sync Active:</strong> Each student's attendance on report cards will be calculated automatically by counting their <em>'Present'</em> records from the Daily Attendance register. Teachers won't have to re-enter attendance manually.
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-blue-600 font-black text-sm">✍️</span>
+                                                <div className="text-slate-600 text-[11px] leading-relaxed">
+                                                    <strong className="text-slate-800">Manual Input Active:</strong> An "Attendance" field will appear in the Teacher Dashboard (Remarks & Standings tab), allowing class teachers to type or bulk-assign present days for their students.
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -423,11 +475,12 @@ export const ExamSetupPanel: React.FC = () => {
                                             type="button"
                                             onClick={() => {
                                                 const newMap: any = {};
-                                                availableClasses.forEach(c => newMap[c] = layoutId);
+                                                availableClasses.forEach(c => newMap[c.trim()] = layoutId);
                                                 setLocalConfig({
                                                     ...localConfig,
                                                     report_card_config: {
                                                         ...(localConfig.report_card_config || {}),
+                                                        layout: layoutId,
                                                         class_layouts: newMap
                                                     }
                                                 });
@@ -461,7 +514,14 @@ export const ExamSetupPanel: React.FC = () => {
                                 <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto bg-white">
                                     {filteredClasses.length > 0 ? (
                                         filteredClasses.map(className => {
-                                            const currentLayout = localConfig?.report_card_config?.class_layouts?.[className] || 'modern';
+                                            const classLayouts = localConfig?.report_card_config?.class_layouts || {};
+                                            const lowerName = className.trim().toLowerCase();
+                                            const currentLayout = classLayouts[className] 
+                                                || classLayouts[className.trim()]
+                                                || Object.entries(classLayouts).find(([k]) => k.trim().toLowerCase() === lowerName)?.[1]
+                                                || localConfig?.report_card_config?.layout 
+                                                || 'modern';
+
                                             return (
                                                 <div key={className} className="grid grid-cols-12 gap-3 px-4 py-3 items-center text-sm hover:bg-slate-50/50">
                                                     <div className="col-span-3 font-bold text-slate-800">
@@ -487,7 +547,7 @@ export const ExamSetupPanel: React.FC = () => {
                                                                                 ...(localConfig.report_card_config || {}),
                                                                                 class_layouts: {
                                                                                     ...currentMap,
-                                                                                    [className]: layout.id
+                                                                                    [className.trim()]: layout.id
                                                                                 }
                                                                             }
                                                                         });
@@ -761,25 +821,40 @@ export const ExamSetupPanel: React.FC = () => {
                                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Headmaster Signature</label>
                                         {localConfig.report_card_config?.signature_url && (
                                             <button 
-                                                onClick={() => setLocalConfig({...localConfig, report_card_config: {...localConfig.report_card_config, signature_url: null}})}
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = {
+                                                        ...localConfig,
+                                                        report_card_config: {
+                                                            ...(localConfig.report_card_config || {}),
+                                                            signature_url: null
+                                                        }
+                                                    };
+                                                    setLocalConfig(updated);
+                                                    saveConfigMutation.mutate(updated);
+                                                }}
                                                 className="text-xs font-semibold text-red-500 hover:underline"
                                             >
-                                                Remove
+                                                Remove Signature
                                             </button>
                                         )}
                                     </div>
-                                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 hover:border-primary-450 hover:bg-slate-50/50 rounded-2xl cursor-pointer transition-all overflow-hidden relative">
+                                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 hover:border-primary-500 hover:bg-slate-50/50 rounded-2xl cursor-pointer transition-all overflow-hidden relative group">
                                         {isUploadingImage === 'signature_url' ? (
                                             <div className="flex flex-col items-center">
                                                 <Loader2 className="w-6 h-6 animate-spin text-primary-500 mb-2" />
-                                                <span className="text-xs font-semibold text-slate-400">Uploading...</span>
+                                                <span className="text-xs font-semibold text-slate-400">Uploading & Saving...</span>
                                             </div>
                                         ) : localConfig.report_card_config?.signature_url ? (
-                                            <img src={localConfig.report_card_config.signature_url} alt="Signature" className="h-full w-full object-contain p-4 contrast-125" />
+                                            <div className="relative h-full w-full flex items-center justify-center p-3 bg-slate-50/60">
+                                                <img src={localConfig.report_card_config.signature_url} alt="Signature" className="max-h-full max-w-full object-contain contrast-125" />
+                                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/90 text-slate-600 px-2 py-0.5 rounded shadow-xs opacity-0 group-hover:opacity-100 transition-opacity">Click to Change</span>
+                                            </div>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center">
-                                                <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                                                <p className="text-xs font-semibold text-slate-500">Upload Signature Image</p>
+                                            <div className="flex flex-col items-center justify-center p-4 text-center">
+                                                <Upload className="w-6 h-6 text-slate-400 mb-1.5" />
+                                                <p className="text-xs font-bold text-slate-700">Upload Signature Image</p>
+                                                <p className="text-[10px] text-slate-400 mt-0.5">PNG or JPG (transparent recommended)</p>
                                             </div>
                                         )}
                                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'signature_url')} />
@@ -792,25 +867,40 @@ export const ExamSetupPanel: React.FC = () => {
                                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">School Stamp or Seal</label>
                                         {localConfig.report_card_config?.stamp_url && (
                                             <button 
-                                                onClick={() => setLocalConfig({...localConfig, report_card_config: {...localConfig.report_card_config, stamp_url: null}})}
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = {
+                                                        ...localConfig,
+                                                        report_card_config: {
+                                                            ...(localConfig.report_card_config || {}),
+                                                            stamp_url: null
+                                                        }
+                                                    };
+                                                    setLocalConfig(updated);
+                                                    saveConfigMutation.mutate(updated);
+                                                }}
                                                 className="text-xs font-semibold text-red-500 hover:underline"
                                             >
-                                                Remove
+                                                Remove Stamp
                                             </button>
                                         )}
                                     </div>
-                                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 hover:border-indigo-450 hover:bg-slate-50/50 rounded-2xl cursor-pointer transition-all overflow-hidden relative">
+                                    <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-slate-50/50 rounded-2xl cursor-pointer transition-all overflow-hidden relative group">
                                         {isUploadingImage === 'stamp_url' ? (
                                             <div className="flex flex-col items-center">
                                                 <Loader2 className="w-6 h-6 animate-spin text-primary-500 mb-2" />
-                                                <span className="text-xs font-semibold text-slate-400">Uploading...</span>
+                                                <span className="text-xs font-semibold text-slate-400">Uploading & Saving...</span>
                                             </div>
                                         ) : localConfig.report_card_config?.stamp_url ? (
-                                            <img src={localConfig.report_card_config.stamp_url} alt="School Stamp" className="h-full w-full object-contain p-4 grayscale contrast-150" />
+                                            <div className="relative h-full w-full flex items-center justify-center p-3 bg-slate-50/60">
+                                                <img src={localConfig.report_card_config.stamp_url} alt="School Stamp" className="max-h-full max-w-full object-contain" />
+                                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/90 text-slate-600 px-2 py-0.5 rounded shadow-xs opacity-0 group-hover:opacity-100 transition-opacity">Click to Change</span>
+                                            </div>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center">
-                                                <CheckCircle className="w-6 h-6 text-slate-400 mb-2" />
-                                                <p className="text-xs font-semibold text-slate-500">Upload Stamp Image</p>
+                                            <div className="flex flex-col items-center justify-center p-4 text-center">
+                                                <CheckCircle className="w-6 h-6 text-slate-400 mb-1.5" />
+                                                <p className="text-xs font-bold text-slate-700">Upload Stamp Image</p>
+                                                <p className="text-[10px] text-slate-400 mt-0.5">PNG or JPG (transparent recommended)</p>
                                             </div>
                                         )}
                                         <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'stamp_url')} />

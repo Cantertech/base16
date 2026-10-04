@@ -33,10 +33,12 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
     const queryClient = useQueryClient();
     const schoolId = currentUser?.school_id;
+    const role = (currentUser?.role || '').toLowerCase();
+    const isAdmin = role.includes('admin') || role.includes('director') || role.includes('head') || role.includes('principal');
 
     // View State
     const [viewMode, setViewMode] = useState<'class' | 'teacher'>(
-        currentUser.role === 'admin' ? 'class' : 'teacher'
+        isAdmin ? 'class' : 'teacher'
     );
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [activeDay, setActiveDay] = useState(
@@ -97,45 +99,97 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
     });
 
     const { data: timetableData = [], isLoading: timetableLoading } = useQuery({
-        queryKey: ['timetable', viewMode, viewMode === 'class' ? selectedClassId : currentUser.id, schoolConfig?.current_term, schoolConfig?.academic_year],
+        queryKey: ['timetable', viewMode, viewMode === 'class' ? selectedClassId : currentUser?.id, schoolConfig?.current_term, schoolConfig?.academic_year],
         queryFn: async () => {
-            let query = supabase.from('timetable_entries').select(`
-                *,
-                classes(name),
-                subjects(name),
-                teachers:teacher_id(name:full_name)
-            `);
+            // First attempt: relational query with joins
+            try {
+                let query = supabase.from('timetable_entries').select(`
+                    *,
+                    classes(name),
+                    subjects(name),
+                    teachers:teacher_id(name:full_name)
+                `);
 
-            if (viewMode === 'class') {
-                if (!selectedClassId) return [];
-                query = query.eq('class_id', selectedClassId);
-            } else {
-                if (!currentUser.id) return [];
-                query = query.eq('teacher_id', currentUser.id);
+                if (viewMode === 'class') {
+                    if (!selectedClassId) return [];
+                    query = query.eq('class_id', selectedClassId);
+                } else {
+                    if (!currentUser?.id) return [];
+                    query = query.eq('teacher_id', currentUser.id);
+                }
+
+                if (schoolConfig?.current_term) query = query.eq('term', schoolConfig.current_term);
+                if (schoolConfig?.academic_year) query = query.eq('academic_year', schoolConfig.academic_year);
+
+                const { data, error } = await query.order('start_time');
+                if (!error && data) {
+                    return data as TimetableEntry[];
+                }
+                if (error) throw error;
+            } catch (err: any) {
+                console.warn('Timetable relational query notice, using robust fallback:', err?.message);
             }
 
-            if (schoolConfig?.current_term) query = query.eq('term', schoolConfig.current_term);
-            if (schoolConfig?.academic_year) query = query.eq('academic_year', schoolConfig.academic_year);
+            // Fallback: Query flat timetable_entries and map relations using cached lookups
+            try {
+                let fallbackQuery = supabase.from('timetable_entries').select('*');
+                if (viewMode === 'class') {
+                    fallbackQuery = fallbackQuery.eq('class_id', selectedClassId);
+                } else {
+                    fallbackQuery = fallbackQuery.eq('teacher_id', currentUser?.id);
+                }
+                const { data: flatData, error: flatError } = await fallbackQuery.order('start_time');
+                if (flatError) throw flatError;
 
-            const { data, error } = await query.order('start_time');
-            if (error) throw error;
-            return data as TimetableEntry[] || [];
+                const classMap: Record<string, string> = {};
+                classes.forEach((c: any) => { classMap[c.id] = c.name; });
+                const subjectMap: Record<string, string> = {};
+                subjects.forEach((s: any) => { subjectMap[s.id] = s.name; });
+                const teacherMap: Record<string, string> = {};
+                teachersList.forEach((t: any) => { teacherMap[t.id] = t.name; });
+
+                return (flatData || []).map((entry: any) => ({
+                    ...entry,
+                    classes: entry.classes || (entry.class_id ? { name: classMap[entry.class_id] } : undefined),
+                    subjects: entry.subjects || (entry.subject_id ? { name: subjectMap[entry.subject_id] } : undefined),
+                    teachers: entry.teachers || (entry.teacher_id ? { name: teacherMap[entry.teacher_id] } : undefined)
+                })) as TimetableEntry[];
+            } catch (finalErr) {
+                console.error('Final timetable query error:', finalErr);
+                return [];
+            }
         },
-        enabled: (viewMode === 'class' ? !!selectedClassId : !!currentUser.id) && !!schoolConfig
+        enabled: (viewMode === 'class' ? !!selectedClassId : !!currentUser?.id)
     });
 
     const { data: allSchoolEntries = [] } = useQuery({
         queryKey: ['allSchoolTimetable', schoolId, schoolConfig?.current_term, schoolConfig?.academic_year],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('timetable_entries')
-                .select('*, classes(name), teachers:teacher_id(name:full_name)')
-                .eq('school_id', schoolId)
-                .eq('term', schoolConfig?.current_term)
-                .eq('academic_year', schoolConfig?.academic_year);
-            return data || [];
+            try {
+                let query = supabase
+                    .from('timetable_entries')
+                    .select('*, classes(name), teachers:teacher_id(name:full_name)')
+                    .eq('school_id', schoolId);
+                if (schoolConfig?.current_term) query = query.eq('term', schoolConfig?.current_term);
+                if (schoolConfig?.academic_year) query = query.eq('academic_year', schoolConfig?.academic_year);
+                const { data, error } = await query;
+                if (!error && data) return data;
+            } catch (e) {
+                console.warn('All-school timetable query notice, falling back:', e);
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('timetable_entries')
+                    .select('*')
+                    .eq('school_id', schoolId);
+                if (error) throw error;
+                return data || [];
+            } catch (err) {
+                return [];
+            }
         },
-        enabled: !!schoolId && !!schoolConfig
+        enabled: !!schoolId
     });
 
     const checkConflicts = (newEntry: any) => {
@@ -193,26 +247,42 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
     // Auto-select first class for admin
     useEffect(() => {
-        if (currentUser.role === 'admin' && classes.length > 0 && !selectedClassId) {
+        if (isAdmin && classes.length > 0 && !selectedClassId) {
             setSelectedClassId(classes[0].id);
         }
-    }, [classes, currentUser, selectedClassId]);
+    }, [classes, isAdmin, selectedClassId]);
 
     // --- Mutations ---
     const saveMutation = useMutation({
         mutationFn: async (payload: any) => {
             if (editingEntry) {
-                const { error } = await supabase.from('timetable_entries').update(payload).eq('id', editingEntry.id);
-                if (error) throw error;
+                let { error } = await supabase.from('timetable_entries').update(payload).eq('id', editingEntry.id);
+                if (error && (error.message?.includes('term') || error.message?.includes('academic_year') || error.message?.includes('column'))) {
+                    const { term, academic_year, ...safePayload } = payload;
+                    const retry = await supabase.from('timetable_entries').update(safePayload).eq('id', editingEntry.id);
+                    if (retry.error) throw retry.error;
+                } else if (error) {
+                    throw error;
+                }
             } else {
-                const { error } = await supabase.from('timetable_entries').insert([payload]);
-                if (error) throw error;
+                let { error } = await supabase.from('timetable_entries').insert([payload]);
+                if (error && (error.message?.includes('term') || error.message?.includes('academic_year') || error.message?.includes('column'))) {
+                    const { term, academic_year, ...safePayload } = payload;
+                    const retry = await supabase.from('timetable_entries').insert([safePayload]);
+                    if (retry.error) throw retry.error;
+                } else if (error) {
+                    throw error;
+                }
             }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['timetable'] });
+            queryClient.invalidateQueries({ queryKey: ['allSchoolTimetable'] });
             setIsModalOpen(false);
             setEditingEntry(null);
+        },
+        onError: (err: any) => {
+            alert(`Failed to save session: ${err?.message || 'Please check your inputs'}`);
         }
     });
 
@@ -221,7 +291,13 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
             const { error } = await supabase.from('timetable_entries').delete().eq('id', id);
             if (error) throw error;
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['timetable'] })
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['timetable'] });
+            queryClient.invalidateQueries({ queryKey: ['allSchoolTimetable'] });
+        },
+        onError: (err: any) => {
+            alert(`Failed to delete session: ${err?.message || 'Please retry'}`);
+        }
     });
 
     return (
@@ -249,7 +325,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                         </button>
                     </div>
 
-                    {(currentUser.role === 'admin' || viewMode === 'class') && (
+                    {(isAdmin || viewMode === 'class') && (
                         <select
                             value={selectedClassId}
                             onChange={(e) => setSelectedClassId(e.target.value)}
@@ -260,7 +336,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                         </select>
                     )}
 
-                    {currentUser.role === 'admin' && (
+                    {isAdmin && (
                         <button
                             onClick={() => {
                                 setEditingEntry(null);
@@ -300,7 +376,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                     <div
                                         key={entry.id}
                                         onClick={() => {
-                                            if (currentUser.role === 'admin') {
+                                            if (isAdmin) {
                                                 setEditingEntry(entry);
                                                 setFormData({
                                                     day_of_week: entry.day_of_week,
@@ -323,7 +399,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                         <div className="flex flex-col gap-1">
                                             <div className="flex justify-between items-start">
                                                 <span className="text-[9px] font-bold text-slate-400 font-mono tracking-tighter">{entry.start_time.slice(0, 5)} - {entry.end_time.slice(0, 5)}</span>
-                                                {currentUser.role === 'admin' && (
+                                                {isAdmin && (
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -394,7 +470,7 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
                                             <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{entry.subjects?.name || entry.activity_name}</h4>
                                             <p className="text-[10px] text-slate-400 font-bold">{entry.teachers?.name || entry.classes?.name}</p>
                                         </div>
-                                        {currentUser.role === 'admin' && (
+                                        {isAdmin && (
                                             <button onClick={() => {
                                                 setEditingEntry(entry);
                                                 setFormData({ day_of_week: entry.day_of_week, start_time: entry.start_time, end_time: entry.end_time, type: entry.type as any, subject_id: entry.subject_id || '', teacher_id: entry.teacher_id || '', room_number: entry.room_number || '', activity_name: entry.activity_name || '' });
@@ -421,7 +497,20 @@ const Timetable: React.FC<TimetableProps> = ({ currentUser }) => {
 
                         <form onSubmit={(e) => {
                             e.preventDefault();
-                            const payload = { school_id: currentUser.school_id, class_id: selectedClassId, day_of_week: formData.day_of_week, start_time: formData.start_time, end_time: formData.end_time, type: formData.type, subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null, teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null, room_number: formData.room_number, activity_name: formData.type === 'Other' ? formData.activity_name : null, term: schoolConfig?.current_term, academic_year: schoolConfig?.academic_year };
+                            const payload = {
+                                school_id: schoolId || currentUser?.school_id,
+                                class_id: selectedClassId,
+                                day_of_week: formData.day_of_week,
+                                start_time: formData.start_time,
+                                end_time: formData.end_time,
+                                type: formData.type,
+                                subject_id: formData.type === 'Lesson' ? formData.subject_id || null : null,
+                                teacher_id: formData.type === 'Lesson' ? formData.teacher_id || null : null,
+                                room_number: formData.room_number || null,
+                                activity_name: formData.type === 'Other' ? formData.activity_name || null : null,
+                                term: schoolConfig?.current_term || null,
+                                academic_year: schoolConfig?.academic_year || null
+                            };
                             const conflictError = checkConflicts(payload);
                             if (conflictError) { alert(conflictError); return; }
                             saveMutation.mutate(payload);

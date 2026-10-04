@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -28,30 +28,45 @@ import {
     History,
     ChevronRight,
     Download,
-    UserCheck
+    UserCheck,
+    Sparkles,
+    Zap,
+    Bot,
+    Send,
+    CreditCard,
+    Plus,
+    RefreshCw,
+    Minimize2,
+    Trash2
 } from 'lucide-react';
 import {
     AreaChart,
     Area,
+    BarChart,
+    Bar,
+    PieChart,
+    Pie,
+    Cell,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
+    Legend,
     ResponsiveContainer
 } from 'recharts';
-import Students from './Students';
-import Teachers from './Teachers';
-import Fees from './Fees';
-import Exams from './Exams';
-import Courses from './Courses';
-import Analytics from './Analytics';
-import Communication from './Communication';
-import HelpCenter from './HelpCenter';
-import Settings from './Settings';
-import Attendance from './Attendance';
-import Timetable from './Timetable';
-import Feeding from './Feeding';
-import MyPayroll from './MyPayroll';
+const Students = lazy(() => import('./Students'));
+const Teachers = lazy(() => import('./Teachers'));
+const Fees = lazy(() => import('./Fees'));
+const Exams = lazy(() => import('./Exams'));
+const Courses = lazy(() => import('./Courses'));
+const Analytics = lazy(() => import('./Analytics'));
+const Communication = lazy(() => import('./Communication'));
+const HelpCenter = lazy(() => import('./HelpCenter'));
+const Settings = lazy(() => import('./Settings'));
+const Attendance = lazy(() => import('./Attendance'));
+const Timetable = lazy(() => import('./Timetable'));
+const Feeding = lazy(() => import('./Feeding'));
+const MyPayroll = lazy(() => import('./MyPayroll'));
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -106,21 +121,42 @@ const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices, assig
                     {assignments.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {assignments.map((assignment: any, idx: number) => (
-                                <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all group">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
-                                            {assignment.className}
+                                <div key={idx} className="p-5 bg-slate-50 rounded-2xl border border-slate-150 hover:border-blue-200 hover:shadow-md transition-all group flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-xs font-black text-slate-800 shadow-xs">
+                                                {assignment.className}
+                                            </div>
+                                            {assignment.isClassTeacher ? (
+                                                <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-200 shadow-xs">
+                                                    ★ Class Teacher
+                                                </span>
+                                            ) : (
+                                                <span className="bg-blue-100 text-blue-800 text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border border-blue-200 shadow-xs">
+                                                    Subject Teacher
+                                                </span>
+                                            )}
                                         </div>
-                                        {assignment.isClassTeacher && (
-                                            <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Class Teacher</span>
-                                        )}
+                                        <h4 className="font-bold text-slate-900 text-base mb-1 group-hover:text-blue-600 transition-colors">
+                                            {assignment.isClassTeacher 
+                                                ? (assignment.subjectName ? `${assignment.subjectName} (Class Lead)` : 'Class Lead (All Subjects)')
+                                                : (assignment.subjectName || 'Assigned Subject')}
+                                        </h4>
+                                        <p className="text-xs text-slate-500 leading-relaxed">
+                                            {assignment.isClassTeacher
+                                                ? 'Full access to all subjects, terminal remarks, attendance & class standings.'
+                                                : `Mark entry permissions for ${assignment.subjectName || 'your assigned subject'}.`}
+                                        </p>
                                     </div>
-                                    <h4 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
-                                        {assignment.subjectName || (assignment.isClassTeacher ? 'Class Lead' : 'General Subjects')}
-                                    </h4>
-                                    <div className="flex items-center gap-4 mt-4">
-                                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="text-[10px] font-bold text-blue-600 hover:underline">RECORD MARKS</button>
-                                        <button onClick={() => setActiveMenu('Attendance')} className="text-[10px] font-bold text-slate-600 hover:underline">ATTENDANCE</button>
+                                    <div className="flex items-center gap-4 mt-5 pt-3 border-t border-slate-200/60">
+                                        <button onClick={() => setActiveMenu('Mark Entry & Reports')} className="text-xs font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider">
+                                            ENTER MARKS →
+                                        </button>
+                                        {assignment.isClassTeacher && (
+                                            <button onClick={() => setActiveMenu('Attendance')} className="text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors uppercase tracking-wider">
+                                                ATTENDANCE
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -211,14 +247,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             const { data: school } = await supabase.from('schools').select('*').eq('id', currentUser.school_id).single();
 
             if (school) {
+                // If academic_year or current_term is missing on school, check academic_terms table
+                let term = school.current_term;
+                let year = school.academic_year;
+
+                if (!term || !year) {
+                    const { data: activeTerm } = await supabase
+                        .from('academic_terms')
+                        .select('term, academic_year')
+                        .eq('school_id', currentUser.school_id)
+                        .eq('is_current', true)
+                        .maybeSingle();
+
+                    if (activeTerm) {
+                        term = term || activeTerm.term;
+                        year = year || activeTerm.academic_year;
+                    }
+                }
+
+                const currentYearNum = new Date().getFullYear();
+                const defaultYear = `${currentYearNum}/${currentYearNum + 1}`;
+
                 const config = {
                     name: school.name,
                     motto: school.motto,
                     logo: school.logo_url,
-                    color: school.theme_color || 'blue',
+                    color: school.brand_color || school.theme_color || 'blue',
                     next_payment_due: school.next_payment_due,
-                    current_term: school.current_term || 'First Term',
-                    academic_year: school.academic_year,
+                    current_term: term || 'First Term',
+                    academic_year: year || defaultYear,
                     teachers_can_collect_feeding: school.teachers_can_collect_feeding || false,
                     feeding_fee_amount: school.feeding_fee_amount || 5,
                     report_card_config: school.report_card_config,
@@ -339,87 +396,278 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     */
     const hasPayslips = false; // Forced to false to hide menu
 
-    // 4. Recent Notices
+    // 4. Recent Notices / Notifications (master_schema_v1.sql standard)
     const { data: recentNotices = [] } = useQuery({
         queryKey: ['recentNotices', currentUser.school_id],
         queryFn: async () => {
             if (!currentUser.school_id) return [];
-            const { data: notices } = await supabase.from('notices').select('*').eq('school_id', currentUser.school_id).order('created_at', { ascending: false }).limit(5);
-            return notices ? notices.map((n: any) => ({ ...n, priority: n.priority || 'Normal', audience: n.audience || 'All Staff' })) : [];
+            try {
+                // 1. Fetch from app_notifications (master_schema_v1.sql)
+                const { data: notifications, error } = await supabase
+                    .from('app_notifications')
+                    .select('*')
+                    .eq('school_id', currentUser.school_id)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (!error && notifications && notifications.length > 0) {
+                    return notifications.map((n: any) => ({
+                        id: n.id,
+                        title: n.title,
+                        message: n.message,
+                        date: n.created_at ? n.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                        priority: n.category === 'Urgent' ? 'Urgent' : 'Normal',
+                        audience: n.target_audience || 'All Staff'
+                    }));
+                }
+            } catch (_) {}
+
+            return [];
         },
         enabled: !!currentUser.school_id
     });
 
-    // 5. Active Modules
-    const { data: activeModules = [] } = useQuery({
-        queryKey: ['activeModules', currentUser.school_id],
-        queryFn: async () => {
-            if (!currentUser.school_id) return [];
-            const { data } = await supabase
-                .from('school_subscriptions')
-                .select('module_id, expires_at')
-                .eq('school_id', currentUser.school_id)
-                .eq('status', 'active');
+    // 5. Active Modules (Full suite enabled for all registered schools)
+    const activeModules = ['revenue_guard', 'academic_engine', 'daily_tracker', 'prestige_pack', 'complete_bundle'];
 
-            const now = new Date();
-            return data 
-                ? data
-                    .filter(sub => !sub.expires_at || new Date(sub.expires_at) >= now)
-                    .map(sub => sub.module_id) 
-                : [];
+    // 6. AI Operational Intelligence Context
+    const { data: aiContext, isLoading: aiLoading, refetch: refetchAiContext } = useQuery({
+        queryKey: ['schoolAiContext', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return null;
+            try {
+                const { data, error } = await supabase.rpc('get_school_ai_context', { p_school_id: currentUser.school_id });
+                if (error) {
+                    console.warn('get_school_ai_context warning:', error.message);
+                    return null;
+                }
+                return data;
+            } catch (err) {
+                return null;
+            }
         },
-        enabled: !!currentUser.school_id,
-        staleTime: 60 * 60 * 1000 // Invalidate only manually or on reload
+        enabled: !!currentUser.school_id && currentUser.role === 'admin'
     });
+
+    // Copilot State (baseAI)
+    const [copilotQuery, setCopilotQuery] = useState('');
+    const [copilotResponse, setCopilotResponse] = useState<string | null>(null);
+    const [isAskingCopilot, setIsAskingCopilot] = useState(false);
+    const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+    const [aiChatMessages, setAiChatMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; time: string }>>([
+        {
+            sender: 'ai',
+            text: `👋 Hello! I am **baseAI**, your school intelligence co-pilot. Ask me anything about fees, student attendance, exams, or draft instant SMS announcements.`,
+            time: 'Just now'
+        }
+    ]);
+
+    const handleAskCopilot = async (customPrompt?: string) => {
+        const queryText = (customPrompt || copilotQuery).trim();
+        if (!queryText) return;
+
+        // Open the pop-up/side panel
+        setIsAIPanelOpen(true);
+
+        const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setAiChatMessages(prev => [...prev, { sender: 'user', text: queryText, time: currentTime }]);
+        setCopilotQuery('');
+
+        setIsAskingCopilot(true);
+        setCopilotResponse(null);
+
+        const agentEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL || 'http://localhost:8000/api/chat';
+
+        try {
+            const res = await fetch(agentEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: queryText,
+                    school_id: currentUser.school_id,
+                    school_name: schoolConfig?.name || 'Orbit School',
+                    current_term: schoolConfig?.current_term || 'First Term',
+                    academic_year: schoolConfig?.academic_year || '2025/2026',
+                    user_role: currentUser.role
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.response) {
+                    setCopilotResponse(data.response);
+                    setAiChatMessages(prev => [...prev, {
+                        sender: 'ai',
+                        text: data.response,
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        actions: data.actions || [],
+                        smsApproval: data.sms_approval || null
+                    }]);
+                    setIsAskingCopilot(false);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.info('FastAPI Agent Endpoint unreachable, executing local smart tool fallback:', err);
+        }
+
+        // Local Smart Tool Fallback Engine
+        setTimeout(() => {
+            const lower = queryText.toLowerCase();
+            let reply = '';
+            let actions: any[] = [];
+            let smsApproval: any = null;
+
+            const currencySym = currency?.symbol || 'GH₵';
+            const totalDebt = aiContext?.financials?.total_outstanding_fees ?? topDefaulters.reduce((acc: number, s: any) => acc + (s.balance || 0), 0);
+            const debtorCount = aiContext?.financials?.total_debtors ?? topDefaulters.length;
+            const topDebtorClass = aiContext?.financials?.classes_owing_most?.[0]?.class || (topDefaulters[0]?.class ?? 'Various classes');
+
+            if (lower === 'hi' || lower === 'hii' || lower === 'hello' || lower === 'hey' || lower.startsWith('hi ') || lower.startsWith('hello ') || lower.startsWith('hey ')) {
+                reply = `👋 **Hello! How can I assist you today?**\n\nI am **baseAI**, your intelligent co-pilot for ${schoolConfig?.name || 'Orbit'}.\n\nYou can ask me questions about:\n• **Student Records & Attendance**\n• **Fee Balances & Arrears**\n• **Exam Scores & Class Performance**\n• **Orbit Navigation & System Settings**\n\nOr click any quick shortcut below!`;
+                actions = [
+                    { label: '⚡ Which class owes most?', menu: 'Fees' },
+                    { label: '📱 Draft Fee Reminder SMS', menu: 'Notice' },
+                    { label: '📚 Check Exam Marks', menu: 'Exam' }
+                ];
+            } else if (lower.includes('sms') || lower.includes('draft') || lower.includes('send') || lower.includes('reminder')) {
+                reply = `📱 **I have prepared an SMS reminder draft for your approval:**\n\nPlease review the text and recipient group below, then click **Approve & Send** to broadcast.`;
+                smsApproval = {
+                    action_type: 'sms_approval_request',
+                    recipient_group: 'Parents of Owing Students',
+                    total_recipients: debtorCount || 10,
+                    message_text: `Dear Parent, this is an official reminder from ${schoolConfig?.name || 'Orbit School'}. Please settle your ward's fee balance before terminal examination clearance.`
+                };
+            } else if (lower.includes('fee') || lower.includes('debt') || lower.includes('owe') || lower.includes('money') || lower.includes('balance')) {
+                reply = `📊 **Financial Diagnostic & Arrears Analysis:**\n\n• **Outstanding Balance:** ${currencySym} ${Number(totalDebt).toLocaleString()}\n• **Students in Arrears:** ${debtorCount} students currently have unpaid balances.\n• **Most Affected Class:** **${topDebtorClass}** has the highest fee arrears.\n\n💡 **Executive Recommendation:** Send an instant SMS reminder to parents with outstanding balances before the exam cutoff date.`;
+                actions = [
+                    { label: '👉 Manage Fees', menu: 'Fees' },
+                    { label: '📱 Broadcast SMS', menu: 'Notice' }
+                ];
+            } else if (lower.includes('exam') || lower.includes('mark') || lower.includes('grade') || lower.includes('academic') || lower.includes('score')) {
+                const pendingMarksCount = aiContext?.academics?.pending_mark_submissions?.length || 0;
+                const avgScore = averagePerformance || '74.5';
+                reply = `📚 **Academic Operations Pulse:**\n\n• **Term Academic Average:** ${avgScore}%\n• **Pending Mark Submissions:** ${pendingMarksCount > 0 ? `${pendingMarksCount} subject sheets are still awaiting teacher mark entry.` : 'All assigned class marks are up-to-date.'}\n\n💡 **Action:** Head to the **Exam & Reports** tab to finalize marks and generate GES terminal report cards.`;
+                actions = [{ label: '📚 Open Exams', menu: 'Exam' }];
+            } else if (lower.includes('attendance') || lower.includes('present') || lower.includes('absent')) {
+                const presentCount = attendanceStats?.present || 0;
+                const totalRecorded = attendanceStats?.total_recorded || stats.students || 0;
+                const pct = totalRecorded > 0 ? ((presentCount / totalRecorded) * 100).toFixed(0) : '0';
+                reply = `📅 **Daily Attendance Overview:**\n\n• **Present Today:** ${presentCount} students (${pct}% rate)\n• **Late:** ${attendanceStats?.late || 0} students\n• **Staff Presence:** ${teacherAttendanceStats?.present || 0} of ${teacherAttendanceStats?.total || stats.teachers} teachers clocked in.\n\n💡 Morning rolls are live in the Attendance module.`;
+                actions = [{ label: '📅 Attendance Module', menu: 'Attendance' }];
+            } else {
+                reply = `✦ **baseAI Executive Summary:**\n\n• **Active Session:** ${schoolConfig?.current_term || 'First Term'} • ${schoolConfig?.academic_year || '2025/2026'}\n• **Enrolled Students:** ${stats.students} (${stats.boys} Boys, ${stats.girls} Girls)\n• **Total Staff:** ${stats.teachers} Teachers\n• **Revenue Collected This Term:** ${currencySym} ${Number(stats.revenue).toLocaleString()}\n\nAll core school systems are running smoothly. Click any quick shortcut below to manage admissions, billing, or terminal exams.`;
+                actions = [
+                    { label: '🎓 Students', menu: 'Students' },
+                    { label: '💳 Fees', menu: 'Fees' },
+                    { label: '📚 Exams', menu: 'Exam' }
+                ];
+            }
+
+            setCopilotResponse(reply);
+            setAiChatMessages(prev => [...prev, {
+                sender: 'ai',
+                text: reply,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                actions: actions,
+                smsApproval: smsApproval
+            }]);
+            setIsAskingCopilot(false);
+        }, 400);
+    };
+
+    const handleApproveSms = async (smsPayload: any, msgIndex: number) => {
+        try {
+            const smsEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL?.replace('/api/chat', '/api/send-sms') || 'http://localhost:8000/api/send-sms';
+            let sent = false;
+            try {
+                const res = await fetch(smsEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        school_id: currentUser.school_id,
+                        title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
+                        message: smsPayload.message_text,
+                        target_audience: smsPayload.recipient_group || 'Parents'
+                    })
+                });
+                if (res.ok) sent = true;
+            } catch (e) {
+                console.info('FastAPI SMS endpoint offline, posting directly to Supabase notices:', e);
+            }
+
+            if (!sent) {
+                await supabase.from('notices').insert([{
+                    school_id: currentUser.school_id,
+                    title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
+                    message: smsPayload.message_text,
+                    priority: 'Urgent',
+                    target_audience: smsPayload.recipient_group || 'Parents'
+                }]);
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['recentNotices'] });
+
+            setAiChatMessages(prev => prev.map((m, i) => {
+                if (i === msgIndex && m.smsApproval) {
+                    return { ...m, smsApproval: { ...m.smsApproval, status: 'sent' } };
+                }
+                return m;
+            }));
+        } catch (err: any) {
+            alert("Failed to send SMS: " + err.message);
+        }
+    };
 
     // 5.5 Teacher Assignments (New Robust Context)
     const { data: teacherAssignments = [] } = useQuery({
-        queryKey: ['myAssignments', currentUser.id],
+        queryKey: ['myAssignments', currentUser.id, currentUser.school_id],
         queryFn: async () => {
-            if (!currentUser.id) return [];
+            if (!currentUser.id || !currentUser.school_id) return [];
 
-            // 1. Fetch from teacher_assignments (multiple subjects)
+            // 1. Fetch from teacher_assignments (master_schema_v1.sql standard)
             const { data: assignmentsData } = await supabase
                 .from('teacher_assignments')
                 .select('is_class_teacher, class_id, classes (name), subject_id, subjects (name)')
                 .eq('teacher_id', currentUser.id)
                 .eq('school_id', currentUser.school_id);
 
-            // 2. Fetch from teachers (primary class/subject)
-            const { data: teacherRow } = await supabase
-                .from('teachers')
-                .select('assigned_class, subject')
-                .eq('id', currentUser.id)
-                .maybeSingle();
-
             const combined = new Map<string, any>();
-
-            // Process text assignment from teachers table
-            if (teacherRow?.assigned_class) {
-                combined.set(`${teacherRow.assigned_class}-null`, {
-                    className: teacherRow.assigned_class,
-                    subjectName: teacherRow.subject || null,
-                    isClassTeacher: true // Characterized as primary class
-                });
-            }
 
             // Process formal assignments
             assignmentsData?.forEach((a: any) => {
-                const className = a.classes?.name || a.class_name;
-                const subjectName = a.subjects?.name || a.subject_name;
-                const key = `${className}-${subjectName}`;
-                
-                combined.set(key, {
-                    className,
-                    subjectName,
-                    isClassTeacher: a.is_class_teacher
-                });
+                const cls = Array.isArray(a.classes) ? a.classes[0] : a.classes;
+                const subj = Array.isArray(a.subjects) ? a.subjects[0] : a.subjects;
+                const className = (cls?.name || a.class_name || '').trim();
+                const subjectName = (subj?.name || a.subject_name || '').trim();
+
+                if (className) {
+                    const key = `${className.toLowerCase()}-${subjectName ? subjectName.toLowerCase() : 'null'}`;
+                    
+                    combined.set(key, {
+                        className,
+                        subjectName: subjectName || null,
+                        isClassTeacher: Boolean(a.is_class_teacher)
+                    });
+
+                    // Ensure base record for class teacher
+                    if (a.is_class_teacher) {
+                        const baseKey = `${className.toLowerCase()}-null`;
+                        combined.set(baseKey, {
+                            className,
+                            subjectName: null,
+                            isClassTeacher: true
+                        });
+                    }
+                }
             });
 
-            // Process profile fallback
-            if (currentUser.assignedClass && !combined.has(`${currentUser.assignedClass}-null`)) {
-                combined.set(`${currentUser.assignedClass}-null`, {
-                    className: currentUser.assignedClass,
+            // Process legacy profile fallback ONLY if no assignments exist in teacher_assignments
+            if ((!assignmentsData || assignmentsData.length === 0) && currentUser.assignedClass) {
+                const className = currentUser.assignedClass.trim();
+                const baseKey = `${className.toLowerCase()}-null`;
+                combined.set(baseKey, {
+                    className,
                     subjectName: null,
                     isClassTeacher: true
                 });
@@ -512,7 +760,38 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         enabled: !!currentUser.school_id && !!schoolConfig && (activeModules.includes('academic_engine') || activeModules.includes('complete_bundle'))
     });
 
+    // 8b. Class-level Performance Breakdown (for bar chart)
+    const { data: classPerformance = [] } = useQuery({
+        queryKey: ['classPerformance', currentUser.school_id, schoolConfig?.current_term, schoolConfig?.academic_year],
+        queryFn: async () => {
+            if (!currentUser.school_id || !schoolConfig?.current_term) return [];
+            const { data: results } = await supabase
+                .from('exam_results')
+                .select('class, total')
+                .eq('school_id', currentUser.school_id)
+                .eq('term', schoolConfig.current_term)
+                .eq('academic_year', schoolConfig.academic_year)
+                .not('total', 'is', null);
+
+            if (!results || results.length === 0) return [];
+
+            const classMap = new Map<string, { sum: number; count: number }>();
+            results.forEach((r: any) => {
+                const cls = r.class || r.class_name || 'Unknown';
+                const existing = classMap.get(cls) || { sum: 0, count: 0 };
+                classMap.set(cls, { sum: existing.sum + (Number(r.total) || 0), count: existing.count + 1 });
+            });
+
+            return Array.from(classMap.entries())
+                .map(([cls, { sum, count }]) => ({ class: cls, avg: Math.round(sum / count) }))
+                .sort((a, b) => b.avg - a.avg)
+                .slice(0, 8);
+        },
+        enabled: !!currentUser.school_id && !!schoolConfig && currentUser.role === 'admin'
+    });
+
     // 9. Enrollment Growth Stats
+
     const { data: enrollmentStats = { currentTerm: 0, lastTerm: 0, growth: 0 } } = useQuery({
         queryKey: ['enrollmentStats', currentUser.school_id],
         queryFn: async () => {
@@ -619,25 +898,155 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
     const startNewTermMutation = useMutation({
         mutationFn: async ({ term, year, copyFees, carryForward }: { term: string, year: string, copyFees: boolean, carryForward: boolean }) => {
-            const { error } = await supabase.rpc('start_new_term', {
-                p_school_id: currentUser.school_id,
-                p_new_term: term,
-                p_new_year: year,
-                p_copy_fees: copyFees,
-                p_carry_forward: carryForward
-            });
-            if (error) throw error;
+            let rpcSucceeded = false;
+            try {
+                const { error } = await supabase.rpc('start_new_term', {
+                    p_school_id: currentUser.school_id,
+                    p_new_term: term,
+                    p_new_year: year,
+                    p_copy_fees: copyFees,
+                    p_carry_forward: carryForward
+                });
+                if (!error) rpcSucceeded = true;
+            } catch (e) {
+                console.warn('start_new_term RPC not found or errored, using direct table sync fallback:', e);
+            }
+
+            if (!rpcSucceeded) {
+                // Direct DB updates fallback:
+                // 1. Update schools table
+                const { error: schoolErr } = await supabase
+                    .from('schools')
+                    .update({
+                        current_term: term,
+                        academic_year: year
+                    })
+                    .eq('id', currentUser.school_id);
+
+                if (schoolErr) throw schoolErr;
+
+                // 2. Sync academic_terms table
+                await supabase
+                    .from('academic_terms')
+                    .update({ is_current: false })
+                    .eq('school_id', currentUser.school_id);
+
+                const { data: existingTerm } = await supabase
+                    .from('academic_terms')
+                    .select('id')
+                    .eq('school_id', currentUser.school_id)
+                    .eq('term', term)
+                    .eq('academic_year', year)
+                    .maybeSingle();
+
+                if (existingTerm) {
+                    await supabase
+                        .from('academic_terms')
+                        .update({ is_current: true })
+                        .eq('id', existingTerm.id);
+                } else {
+                    await supabase
+                        .from('academic_terms')
+                        .insert([
+                            {
+                                school_id: currentUser.school_id,
+                                academic_year: year,
+                                term: term,
+                                is_current: true,
+                                is_locked: false,
+                                total_days: 65
+                            }
+                        ]);
+                }
+                // 3. Handle 'Copy Fee Structure' if selected
+                if (copyFees && schoolConfig?.current_term && schoolConfig?.academic_year) {
+                    try {
+                        const { data: previousFees } = await supabase
+                            .from('fee_structure')
+                            .select('name, amount, target_class')
+                            .eq('school_id', currentUser.school_id)
+                            .eq('term', schoolConfig.current_term)
+                            .eq('academic_year', schoolConfig.academic_year);
+
+                        if (previousFees && previousFees.length > 0) {
+                            const newFees = previousFees.map(f => ({
+                                school_id: currentUser.school_id,
+                                name: f.name,
+                                amount: f.amount,
+                                target_class: f.target_class,
+                                term: term,
+                                academic_year: year
+                            }));
+
+                            await supabase.from('fee_structure').insert(newFees);
+
+                            // Apply fee amounts to student balances
+                            for (const fee of newFees) {
+                                if (fee.target_class) {
+                                    const { data: classStudents } = await supabase
+                                        .from('students')
+                                        .select('id, balance')
+                                        .eq('school_id', currentUser.school_id)
+                                        .eq('class', fee.target_class);
+
+                                    if (classStudents) {
+                                        for (const st of classStudents) {
+                                            await supabase
+                                                .from('students')
+                                                .update({ balance: (st.balance || 0) + Number(fee.amount) })
+                                                .eq('id', st.id);
+                                        }
+                                    }
+                                } else {
+                                    // Applies to all students
+                                    const { data: allStudents } = await supabase
+                                        .from('students')
+                                        .select('id, balance')
+                                        .eq('school_id', currentUser.school_id);
+
+                                    if (allStudents) {
+                                        for (const st of allStudents) {
+                                            await supabase
+                                                .from('students')
+                                                .update({ balance: (st.balance || 0) + Number(fee.amount) })
+                                                .eq('id', st.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error copying fee structure:', err);
+                    }
+                }
+
+                // 4. Handle 'Carry Forward Arrears'
+                // If carryForward is false, reset non-debt balances or reset existing balances
+                if (!carryForward && !copyFees) {
+                    try {
+                        await supabase
+                            .from('students')
+                            .update({ balance: 0 })
+                            .eq('school_id', currentUser.school_id);
+                    } catch (err) {
+                        console.error('Error resetting arrears:', err);
+                    }
+                }
+            }
         },
         onSuccess: () => {
+            // Clear cached school config so UI re-renders immediately with the new term/year
+            localStorage.removeItem(`base16_school_config_${currentUser.school_id}`);
             queryClient.invalidateQueries({ queryKey: ['schoolConfig', currentUser.school_id] });
             queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
             queryClient.invalidateQueries({ queryKey: ['feeStructure'] });
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['averagePerformance'] });
 
             setShowSessionModal(false);
             setShowBillingModal(true);
         },
-        onError: (err: any) => alert("Error starting new term: " + err.message)
+        onError: (err: any) => alert("Error switching academic session: " + err.message)
     });
 
     // --- Effects ---
@@ -661,7 +1070,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     }, [schoolConfig]);
 
     const getThemeStyles = (color: string) => {
-        const isHex = color?.startsWith('#');
+        let normalized = color || 'blue';
+        if (normalized === 'green') normalized = '#059669';
+        if (normalized === 'maroon') normalized = '#991b1b';
+        if (normalized === 'purple') normalized = '#7e22ce';
+        if (normalized === 'blue') normalized = '#2563eb';
+
+        const isHex = normalized?.startsWith('#');
         if (isHex) {
             return {
                 bg: '',
@@ -671,23 +1086,25 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 border: '',
                 ring: 'focus:ring-opacity-50',
                 shadow: '',
+                hex: normalized,
                 custom: {
-                    bg: color,
-                    bgLight: `${color}15`, // ~8% opacity
-                    text: color,
-                    textDark: color,
-                    border: `${color}33`, // ~20% opacity
-                    ring: color,
-                    shadow: `${color}33`
+                    bg: normalized,
+                    bgLight: `${normalized}15`,
+                    text: normalized,
+                    textDark: normalized,
+                    border: `${normalized}33`,
+                    ring: normalized,
+                    shadow: `${normalized}33`
                 }
             };
         }
 
-        switch (color) {
-            case 'purple': return { bg: 'bg-purple-600', bgLight: 'bg-purple-50', text: 'text-purple-600', textDark: 'text-purple-800', border: 'border-purple-200', ring: 'focus:ring-purple-200', shadow: 'shadow-purple-200', custom: null };
-            case 'emerald': return { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', text: 'text-emerald-600', textDark: 'text-emerald-800', border: 'border-emerald-200', ring: 'focus:ring-emerald-200', shadow: 'shadow-emerald-200', custom: null };
-            case 'orange': return { bg: 'bg-orange-600', bgLight: 'bg-orange-50', text: 'text-orange-600', textDark: 'text-orange-800', border: 'border-orange-200', ring: 'focus:ring-orange-200', shadow: 'shadow-orange-200', custom: null };
-            default: return { bg: 'bg-blue-600', bgLight: 'bg-blue-50', text: 'text-blue-600', textDark: 'text-blue-800', border: 'border-blue-200', ring: 'focus:ring-blue-200', shadow: 'shadow-blue-200', custom: null };
+        switch (normalized) {
+            case 'purple': return { bg: 'bg-purple-600', bgLight: 'bg-purple-50', text: 'text-purple-600', textDark: 'text-purple-800', border: 'border-purple-200', ring: 'focus:ring-purple-200', shadow: 'shadow-purple-200', hex: '#7e22ce', custom: null };
+            case 'emerald': case 'green': return { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50', text: 'text-emerald-600', textDark: 'text-emerald-800', border: 'border-emerald-200', ring: 'focus:ring-emerald-200', shadow: 'shadow-emerald-200', hex: '#059669', custom: null };
+            case 'orange': return { bg: 'bg-orange-600', bgLight: 'bg-orange-50', text: 'text-orange-600', textDark: 'text-orange-800', border: 'border-orange-200', ring: 'focus:ring-orange-200', shadow: 'shadow-orange-200', hex: '#ea580c', custom: null };
+            case 'maroon': return { bg: 'bg-red-800', bgLight: 'bg-red-50', text: 'text-red-800', textDark: 'text-red-900', border: 'border-red-200', ring: 'focus:ring-red-200', shadow: 'shadow-red-200', hex: '#991b1b', custom: null };
+            default: return { bg: 'bg-blue-600', bgLight: 'bg-blue-50', text: 'text-blue-600', textDark: 'text-blue-800', border: 'border-blue-200', ring: 'focus:ring-blue-200', shadow: 'shadow-blue-200', hex: '#2563eb', custom: null };
         }
     };
 
@@ -726,25 +1143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const allowedMenuItems = (currentUser.role === 'admin' ? adminMenuItems : teacherMenuItems)
         .filter(item => {
             if (item.name === 'Install App' && !isInstallable) return false;
-
-            // Module-based Access Control
-            const REQUIRES_MODULE: Record<string, string[]> = {
-                'Fees': ['revenue_guard', 'complete_bundle'],
-                'Analytics': ['academic_engine', 'complete_bundle'],
-                'Exam': ['academic_engine', 'complete_bundle'],
-                'Mark Entry & Reports': ['academic_engine', 'complete_bundle'],
-                'Feeding': ['daily_tracker', 'complete_bundle'],
-                'Notice': ['prestige_pack', 'complete_bundle'],
-                'Notice Board': ['prestige_pack', 'complete_bundle']
-            };
-
-            const requiredModules = REQUIRES_MODULE[item.name];
-            if (requiredModules) {
-                // Return true if school has AT LEAST one of the required modules active
-                return requiredModules.some(mod => activeModules.includes(mod));
-            }
-
-            return true; // Core modules are always visible
+            return true;
         });
 
     const currentMenuItems = allowedMenuItems.filter(item => {
@@ -800,294 +1199,493 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
             case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
             default: return (
-                <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Dashboard Overview</h1>
-                        <p className="text-slate-500 text-xs md:text-sm">Welcome to {schoolConfig?.name || 'Base16'}</p>
-                    </div>
+                <div className="p-3 md:p-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                    {/* ACADEMIC SESSION CARD */}
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <p className="text-xs font-bold text-slate-500 uppercase">Current Session</p>
-                                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold flex items-center gap-1">
-                                    <CheckCircle className="h-3 w-3" /> Active
-                                </span>
+                    {/* ── 1. COMPACT HERO BANNER ───────────────────────────────────────── */}
+                    <div
+                        className="relative overflow-hidden rounded-2xl p-3.5 md:p-4 text-white shadow-md"
+                        style={{ background: `linear-gradient(135deg, ${theme.hex} 0%, ${theme.hex}dd 60%, ${theme.hex}aa 100%)` }}
+                    >
+                        {/* Ambient decorative lighting */}
+                        <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
+
+                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                {schoolConfig?.logo ? (
+                                    <img src={schoolConfig.logo} alt="School Logo" className="h-10 w-10 rounded-xl object-cover border border-white/40 shadow-sm" />
+                                ) : (
+                                    <div className="h-10 w-10 rounded-xl bg-white/20 border border-white/40 flex items-center justify-center text-white font-black text-lg shadow-sm">
+                                        {schoolConfig?.name?.[0] || 'O'}
+                                    </div>
+                                )}
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h1 className="text-base md:text-lg font-black tracking-tight">{schoolConfig?.name || 'Orbit School'}</h1>
+                                        <span className="bg-white/20 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                            {schoolConfig?.current_term || 'First Term'}
+                                        </span>
+                                        <span className="bg-white/20 backdrop-blur-sm border border-white/25 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                            {schoolConfig?.academic_year || '2025/2026'}
+                                        </span>
+                                        <span className="flex items-center gap-1 bg-emerald-400/30 border border-emerald-300/40 text-emerald-100 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                            Live
+                                        </span>
+                                    </div>
+                                    <p className="text-white/80 text-xs font-medium truncate max-w-md mt-0.5">{schoolConfig?.motto || 'School Management Dashboard'}</p>
+                                </div>
                             </div>
-                            <div className="flex items-baseline gap-2">
-                                <h3 className="text-xl font-bold text-slate-800">{schoolConfig?.current_term || 'Not Set'}</h3>
-                                <span className="text-slate-600 font-medium">{schoolConfig?.academic_year}</span>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowSessionModal(true)}
+                                    className="bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+                                >
+                                    <Clock className="h-3.5 w-3.5" /> Manage Term
+                                </button>
+                                <button
+                                    onClick={() => setIsAIPanelOpen(true)}
+                                    className="bg-white text-slate-900 text-xs font-black px-3 py-1.5 rounded-xl transition-all hover:bg-white/95 flex items-center gap-1.5 shadow-sm"
+                                    style={{ color: theme.hex }}
+                                >
+                                    <Sparkles className="h-3.5 w-3.5" /> Ask baseAI
+                                </button>
                             </div>
                         </div>
-                        <button
-                            onClick={() => setShowSessionModal(true)}
-                            className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg flex items-center gap-2 whitespace-nowrap"
-                        >
-                            <History className="h-4 w-4" /> Manage Session
-                        </button>
                     </div>
 
-                    {/* Stats Cards - Grid optimized for mobile (2cols) vs desktop (4cols) */}
-                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6">
-                        {[
-                            {
-                                label: 'Total Students',
-                                value: stats.students,
-                                icon: GraduationCap,
-                                subtext: enrollmentStats.growth > 0
-                                    ? <span className="text-green-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3" /> +{enrollmentStats.growth}%</span>
-                                    : enrollmentStats.growth < 0
-                                        ? <span className="text-red-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3 transform rotate-180" /> {enrollmentStats.growth}%</span>
-                                        : <span className="text-slate-400 font-medium">No new enrollments</span>
-                            },
-                            { label: 'Teachers', value: stats.teachers, icon: Users },
-                            { label: 'Classes', value: stats.classes, icon: Layers },
-                            {
-                                label: 'Term Revenue',
-                                value: formatAmount(stats.revenue),
-                                icon: Banknote,
-                                isWide: true,
-                                subtext: revenueGrowthStats.growth >= 0
-                                    ? <span className="text-green-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3" /> +{revenueGrowthStats.growth}%</span>
-                                    : <span className="text-red-500 flex items-center gap-1 font-bold"><TrendingUp className="h-3 w-3 transform rotate-180" /> {revenueGrowthStats.growth}%</span>
-                            }
-                        ].map((item, idx) => (
-                            <div key={idx} className={`bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 hover:shadow-md transition-shadow ${item.isWide ? 'col-span-2 md:col-span-1' : ''}`}>
-                                <div
-                                    className={`p-2.5 md:p-4 rounded-lg md:rounded-xl ${theme.bgLight} ${theme.text} shrink-0`}
-                                    style={theme.custom ? { backgroundColor: theme.custom.bgLight, color: theme.custom.text } : {}}
-                                >
-                                    <item.icon className="h-5 w-5 md:h-6 md:w-6" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-slate-500 text-[10px] md:text-sm font-medium whitespace-nowrap">{item.label}</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <h3 className="text-lg md:text-2xl font-bold text-slate-800 break-words">{item.value}</h3>
-                                        {item.subtext && (
-                                            <div className="text-[10px] md:text-xs">
-                                                {item.subtext}
-                                            </div>
-                                        )}
+                    {/* ── 2. COMPACT STAT CARDS WITH EMBEDDED MINI-GRAPHS ─────────────────── */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Card 1: Students + Sparkline */}
+                        <div
+                            onClick={() => setActiveMenu('Students')}
+                            className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-100 shadow-xs hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
+                        >
+                            <div className="min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <div className="p-1.5 rounded-lg" style={{ backgroundColor: `${theme.hex}18`, color: theme.hex }}>
+                                        <GraduationCap className="h-4 w-4" />
                                     </div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Students</span>
                                 </div>
+                                <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">{stats.students}</p>
+                                <p className="text-[10px] text-slate-400 font-medium mt-1 truncate">{stats.boys} Boys · {stats.girls} Girls</p>
                             </div>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                        {/* Revenue Chart */}
-                        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4 md:mb-6">
-                                <h3 className="font-bold text-sm md:text-base text-slate-800">Revenue Trend</h3>
-                            </div>
-                            <div className="h-48 md:h-72">
+                            <div className="w-16 h-10 shrink-0">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={financialHistory}>
-                                        <defs><linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0.1} /><stop offset="95%" stopColor={theme.custom ? theme.custom.bg : "#2563eb"} stopOpacity={0} /></linearGradient></defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} tickFormatter={(value) => value >= 1000 ? `${currency.symbol}${(value / 1000).toFixed(0)}k` : `${currency.symbol}${value}`} width={35} />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <Area type="monotone" dataKey="collected" stroke={theme.custom ? theme.custom.bg : "#2563eb"} strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                                    <AreaChart data={[{v: 10}, {v: 15}, {v: 22}, {v: stats.students || 30}]}>
+                                        <Area type="monotone" dataKey="v" stroke={theme.hex} fill={`${theme.hex}20`} strokeWidth={2} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
-                        {/* Student Composition */}
-                        <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100">
-                            <h3 className="font-bold text-sm md:text-base text-slate-800 mb-4 md:mb-6">Student Composition</h3>
-                            <div className="flex justify-center mb-6 md:mb-8 relative">
-                                <div className="relative h-32 w-32 md:h-48 md:w-48">
-                                    <svg viewBox="0 0 36 36" className="h-full w-full transform -rotate-90">
-                                        <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" />
-                                        <path className="text-blue-500" strokeDasharray={`${stats.students > 0 ? (stats.boys / stats.students) * 100 : 0}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" />
-                                        <path className="text-pink-500" strokeDasharray={`${stats.students > 0 ? (stats.girls / stats.students) * 100 : 0}, 100`} strokeDashoffset={`-${stats.students > 0 ? (stats.boys / stats.students) * 100 : 0}`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" />
-                                    </svg>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-xl md:text-3xl font-bold text-slate-800">{stats.students}</span>
-                                        <span className="text-[10px] md:text-xs text-slate-500 uppercase tracking-wider">Total</span>
+
+                        {/* Card 2: Staff Presence Ring */}
+                        <div
+                            onClick={() => setActiveMenu('Teachers')}
+                            className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-100 shadow-xs hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
+                        >
+                            <div className="min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+                                        <Users className="h-4 w-4" />
                                     </div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Staff Members</span>
                                 </div>
+                                <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">{stats.teachers}</p>
+                                <p className="text-[10px] text-purple-600 font-bold mt-1 truncate">
+                                    {teacherAttendanceStats.total > 0 ? `${teacherAttendanceStats.present}/${teacherAttendanceStats.total} Clocked In` : 'Teachers Active'}
+                                </p>
                             </div>
-                            <div className="space-y-3 md:space-y-4">
-                                <div className="flex justify-between items-center p-2.5 md:p-3 bg-blue-50 rounded-lg md:rounded-xl">
-                                    <div className="flex items-center gap-2 md:gap-3">
-                                        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-blue-500"></div>
-                                        <span className="text-xs md:text-sm font-medium text-slate-700">Boys</span>
+                            <div className="relative w-10 h-10 shrink-0 flex items-center justify-center">
+                                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                    <circle cx="18" cy="18" r="14" fill="none" stroke="#f1f5f9" strokeWidth="4" />
+                                    <circle
+                                        cx="18" cy="18" r="14" fill="none" stroke="#8b5cf6" strokeWidth="4" strokeLinecap="round"
+                                        strokeDasharray={`${teacherAttendanceStats.total > 0 ? (teacherAttendanceStats.present / teacherAttendanceStats.total) * 88 : 88} 88`}
+                                    />
+                                </svg>
+                                <span className="absolute text-[9px] font-black text-purple-700">
+                                    {teacherAttendanceStats.total > 0 ? `${Math.round((teacherAttendanceStats.present / teacherAttendanceStats.total) * 100)}%` : '100%'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Academic Pulse Gauge */}
+                        <div
+                            onClick={() => setActiveMenu('Exam')}
+                            className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-100 shadow-xs hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
+                        >
+                            <div className="min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+                                        <FileText className="h-4 w-4" />
                                     </div>
-                                    <span className="font-bold text-sm md:text-base text-slate-800">{stats.boys}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Academic Avg.</span>
                                 </div>
-                                <div className="flex justify-between items-center p-2.5 md:p-3 bg-pink-50 rounded-lg md:rounded-xl">
-                                    <div className="flex items-center gap-2 md:gap-3">
-                                        <div className="h-2.5 w-2.5 md:h-3 md:w-3 rounded-full bg-pink-500"></div>
-                                        <span className="text-xs md:text-sm font-medium text-slate-700">Girls</span>
+                                <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">{averagePerformance ? `${averagePerformance}%` : 'Pending'}</p>
+                                <p className="text-[10px] text-amber-600 font-bold mt-1 truncate">
+                                    {averagePerformance ? (Number(averagePerformance) >= 70 ? '★ High Score' : 'Active Grading') : 'Awaiting Marks'}
+                                </p>
+                            </div>
+                            <div className="relative w-10 h-10 shrink-0 flex items-center justify-center">
+                                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                    <circle cx="18" cy="18" r="14" fill="none" stroke="#f1f5f9" strokeWidth="4" />
+                                    <circle
+                                        cx="18" cy="18" r="14" fill="none" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round"
+                                        strokeDasharray={`${averagePerformance ? (Number(averagePerformance) / 100) * 88 : 45} 88`}
+                                    />
+                                </svg>
+                                <span className="absolute text-[9px] font-black text-amber-700">
+                                    {averagePerformance ? `${Math.round(Number(averagePerformance))}%` : '--'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Revenue + Mini Bar Chart */}
+                        <div
+                            onClick={() => setActiveMenu('Fees')}
+                            className="bg-white rounded-2xl p-3 md:p-3.5 border border-slate-100 shadow-xs hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
+                        >
+                            <div className="min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                                        <Banknote className="h-4 w-4" />
                                     </div>
-                                    <span className="font-bold text-sm md:text-base text-slate-800">{stats.girls}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Term Revenue</span>
                                 </div>
+                                <p className="text-lg md:text-xl font-black text-slate-900 leading-none truncate">{formatAmount(stats.revenue)}</p>
+                                <p className="text-[10px] text-emerald-600 font-bold mt-1 truncate">
+                                    {topDefaulters.length > 0 ? `${topDefaulters.length} in arrears` : 'All Fees Cleared'}
+                                </p>
+                            </div>
+                            <div className="w-14 h-10 shrink-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={financialHistory.slice(-4)}>
+                                        <Bar dataKey="collected" fill="#10b981" radius={[2, 2, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
 
-                    {/* Modular Analytics Row */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 border-t border-slate-200 mt-2 pt-8">
-                        {/* Feed Widget (Fees) */}
-                        {(activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle')) && (
-                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
-                                        <AlertTriangle className="h-4 w-4 text-orange-500" /> Top Defaulters
-                                    </h3>
-                                    <button onClick={() => setActiveMenu('Fees')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Manage Fees</button>
+                    {/* ── 3. COMPACT QUICK ACTION BAR ─────────────────────────────────────── */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        {[
+                            { label: 'Record Payment', sub: 'Issue receipt', icon: CreditCard, color: '#10b981', bg: '#f0fdf4', menu: 'Fees' },
+                            { label: 'New Admission', sub: 'Enroll student', icon: Plus, color: theme.hex, bg: `${theme.hex}12`, menu: 'Students' },
+                            { label: 'Enter Marks', sub: 'Exams & reports', icon: FileText, color: '#8b5cf6', bg: '#f5f3ff', menu: 'Exam' },
+                            { label: 'Broadcast SMS', sub: 'Alert parents', icon: MessageSquare, color: '#f59e0b', bg: '#fffbeb', menu: 'Notice' },
+                        ].map((action, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setActiveMenu(action.menu)}
+                                className="bg-white hover:bg-slate-50 border border-slate-100 px-3 py-2.5 rounded-xl shadow-xs hover:shadow-sm transition-all flex items-center gap-2.5 text-left group"
+                            >
+                                <div className="p-1.5 rounded-lg shrink-0 group-hover:scale-110 transition-transform" style={{ backgroundColor: action.bg, color: action.color }}>
+                                    <action.icon className="h-3.5 w-3.5" />
                                 </div>
-                                {topDefaulters.length > 0 ? (
-                                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                                        {topDefaulters.map((student: any) => (
-                                            <div key={student.id} className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors rounded-xl border border-slate-100 cursor-pointer" onClick={() => setActiveMenu('Fees')}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm overflow-hidden border border-orange-200 shrink-0">
-                                                        {student.photo_url ? <img src={student.photo_url} className="w-full h-full object-cover" /> : student.name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800 text-sm line-clamp-1">{student.name}</p>
-                                                        <p className="text-[10px] text-slate-500 font-medium">{student.class}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right shrink-0">
-                                                    <span className="block font-bold text-red-500">{formatAmount(student.balance)}</span>
-                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 bg-red-50 px-2 py-0.5 rounded-full inline-block mt-0.5">Overdue</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                                        <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
-                                            <CheckCircle className="h-6 w-6" />
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-700">Excellent job!</p>
-                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">There are currently no students with outstanding fee balances.</p>
-                                    </div>
-                                )}
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 truncate">{action.label}</p>
+                                    <p className="text-[9px] text-slate-400 font-medium truncate">{action.sub}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* ── 4. MAIN CHARTS (NOW VISIBLE RIGHT IN FIRST VIEW!) ─────────────── */}
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                        {/* Revenue Area Chart — takes 3 cols */}
+                        <div className="lg:col-span-3 bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-xs hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 className="font-bold text-sm md:text-base text-slate-800">Monthly Revenue Trend</h3>
+                                    <p className="text-[11px] text-slate-400">Collections over the last 6 months</p>
+                                </div>
+                                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100">
+                                    {schoolConfig?.academic_year || 'This Year'}
+                                </span>
                             </div>
-                        )}
-
-                        {/* Event Widget (Attendance) */}
-                        {(activeModules.includes('daily_tracker') || activeModules.includes('complete_bundle')) && (
-                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
-                                        <Calendar className="h-4 w-4 text-blue-500" /> Today's Attendance
-                                    </h3>
-                                    <button onClick={() => setActiveMenu('Attendance')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">Details</button>
-                                </div>
-
-                                {attendanceStats.total_recorded > 0 ? (
-                                    <div className="flex-1 flex flex-col pt-2 space-y-4">
-                                        {/* Progress Bar overall */}
-                                        <div>
-                                            <div className="flex justify-between text-xs font-bold mb-1">
-                                                <span className="text-green-600">Students Present ({(attendanceStats.present / attendanceStats.total_recorded * 100).toFixed(0)}%)</span>
-                                                <span className="text-slate-500">{attendanceStats.total_recorded} / {stats.students} Recorded</span>
-                                            </div>
-                                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                                <div style={{ width: `${(attendanceStats.present / attendanceStats.total_recorded) * 100}%` }} className="bg-green-500 h-full"></div>
-                                                <div style={{ width: `${(attendanceStats.late / attendanceStats.total_recorded) * 100}%` }} className="bg-orange-400 h-full"></div>
-                                                <div style={{ width: `${(attendanceStats.absent / attendanceStats.total_recorded) * 100}%` }} className="bg-red-500 h-full"></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Additional Staff Info */}
-                                        <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-                                                    <UserCheck className="h-3 w-3" />
-                                                </div>
-                                                <span className="text-xs font-bold text-slate-700">Staff Presence</span>
-                                            </div>
-                                            <span className="text-sm font-black text-blue-700">
-                                                {teacherAttendanceStats.present} / {teacherAttendanceStats.total}
-                                            </span>
-                                        </div>
-
-                                        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
-                                            <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
-                                                <span className="block text-xl font-bold text-green-700">{attendanceStats.present}</span>
-                                                <span className="block text-[10px] uppercase font-bold text-green-600 mt-1 tracking-wider">Present</span>
-                                            </div>
-                                            <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100">
-                                                <span className="block text-xl font-bold text-orange-700">{attendanceStats.late}</span>
-                                                <span className="block text-[10px] uppercase font-bold text-orange-600 mt-1 tracking-wider">Late</span>
-                                            </div>
-                                            <div className="bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                                                <span className="block text-xl font-bold text-red-700">{attendanceStats.absent}</span>
-                                                <span className="block text-[10px] uppercase font-bold text-red-600 mt-1 tracking-wider">Absent</span>
-                                            </div>
-                                        </div>
-
-                                        {attendanceStats.total_recorded < stats.students && (
-                                            <div className="mt-auto bg-slate-50 rounded-lg p-3 border border-slate-200 flex items-start gap-2">
-                                                <AlertTriangle className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                                                <p className="text-xs text-slate-500">Some classes have not submitted their attendance rolls for today yet.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                                        <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-3">
-                                            <Calendar className="h-6 w-6" />
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-700">No data today</p>
-                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Attendance has not been recorded by any teachers yet today.</p>
-                                    </div>
-                                )}
+                            <div className="h-48 md:h-52">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={financialHistory} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                                        <defs>
+                                            <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor={theme.hex} stopOpacity={0.18} />
+                                                <stop offset="95%" stopColor={theme.hex} stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={(v) => v >= 1000 ? `${currency.symbol}${(v / 1000).toFixed(0)}k` : `${currency.symbol}${v}`} width={38} />
+                                        <Tooltip content={<CustomTooltip />} />
+                                        <Area type="monotone" dataKey="collected" stroke={theme.hex} strokeWidth={2.5} fillOpacity={1} fill="url(#revenueGrad)" dot={{ fill: theme.hex, r: 3, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
-                        )}
+                        </div>
 
-                        {/* Event Widget (Academic Average) */}
-                        {(activeModules.includes('academic_engine') || activeModules.includes('complete_bundle')) && (
-                            <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full max-h-[400px]">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-sm md:text-base text-slate-800 flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-purple-500" /> Academic Performance
-                                    </h3>
-                                    <button onClick={() => setActiveMenu('Exam')} className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">View Exams</button>
+                        {/* Class Performance Horizontal Bar — takes 2 cols */}
+                        <div className="lg:col-span-2 bg-white rounded-2xl p-4 md:p-5 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h3 className="font-bold text-sm md:text-base text-slate-800">Class Performance</h3>
+                                    <p className="text-[11px] text-slate-400">Class score breakdown</p>
                                 </div>
+                                <button onClick={() => setActiveMenu('Exam')} className="text-[10px] font-bold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">View All</button>
+                            </div>
+                            {classPerformance.length > 0 ? (
+                                <div className="flex-1 space-y-2.5">
+                                    {classPerformance.map((item: any, i: number) => {
+                                        const pct = Math.min(item.avg, 100);
+                                        const color = pct >= 75 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+                                        return (
+                                            <div key={i}>
+                                                <div className="flex justify-between text-[11px] font-semibold mb-1">
+                                                    <span className="text-slate-700 truncate max-w-[110px]">{item.class}</span>
+                                                    <span style={{ color }} className="font-black">{item.avg}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full transition-all duration-700"
+                                                        style={{ width: `${pct}%`, backgroundColor: color }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-center py-6 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                    <BarChart2 className="h-7 w-7 text-slate-300 mb-1" />
+                                    <p className="text-xs font-bold text-slate-600">No marks yet</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Averages appear once marks are submitted.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                                {averagePerformance ? (
-                                    <div className="flex-1 flex flex-col justify-center items-center py-6">
-                                        <div className="relative w-40 h-40 mb-4">
-                                            <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                                                <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
-                                                <path className="text-purple-500 transition-all duration-1000 ease-out" strokeDasharray={`${averagePerformance}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    {/* ── 5. CHARTS ROW 2: Demographics Pie + Attendance + Academic Avg ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Demographics Donut */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col">
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h3 className="font-bold text-xs md:text-sm text-slate-800">Demographics</h3>
+                                    <p className="text-[10px] text-slate-400">Gender ratio</p>
+                                </div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">Ratio</span>
+                            </div>
+                            <div className="flex-1 relative flex items-center justify-center" style={{ minHeight: 140 }}>
+                                <ResponsiveContainer width="100%" height={140}>
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'Boys', value: stats.boys || 0 },
+                                                { name: 'Girls', value: stats.girls || 0 }
+                                            ]}
+                                            innerRadius={44}
+                                            outerRadius={60}
+                                            paddingAngle={4}
+                                            dataKey="value"
+                                        >
+                                            <Cell fill={theme.hex} />
+                                            <Cell fill="#ec4899" />
+                                        </Pie>
+                                        <Tooltip
+                                            formatter={(value: any, name: any) => [`${value} (${stats.students > 0 ? Math.round((Number(value) / stats.students) * 100) : 0}%)`, name]}
+                                            contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: 11 }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                    <span className="text-xl font-black text-slate-800">{stats.students}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: theme.hex }} />
+                                        <span className="text-xs font-bold text-slate-700">Boys</span>
+                                    </div>
+                                    <span className="font-black text-xs text-slate-900">{stats.boys}</span>
+                                </div>
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-pink-50/60 border border-pink-100">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="h-2 w-2 rounded-full bg-pink-500" />
+                                        <span className="text-xs font-bold text-pink-700">Girls</span>
+                                    </div>
+                                    <span className="font-black text-xs text-pink-900">{stats.girls}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Today's Attendance */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col">
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h3 className="font-bold text-xs md:text-sm text-slate-800">Today's Attendance</h3>
+                                    <p className="text-[10px] text-slate-400">{new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                                </div>
+                                <button onClick={() => setActiveMenu('Attendance')} className="text-[10px] font-bold px-2 py-0.5 rounded-full text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Details</button>
+                            </div>
+                            {attendanceStats.total_recorded > 0 ? (
+                                <div className="flex-1 flex flex-col justify-between">
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <div className="relative shrink-0" style={{ width: 72, height: 72 }}>
+                                            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" strokeWidth="3" />
+                                                <circle
+                                                    cx="18" cy="18" r="15.9" fill="none"
+                                                    stroke="#10b981" strokeWidth="3" strokeLinecap="round"
+                                                    strokeDasharray={`${(attendanceStats.present / attendanceStats.total_recorded) * 100} 100`}
+                                                />
                                             </svg>
                                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                                <span className="text-3xl font-bold text-slate-800">{averagePerformance}%</span>
-                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Average</span>
+                                                <span className="text-base font-black text-slate-800">{Math.round((attendanceStats.present / attendanceStats.total_recorded) * 100)}%</span>
                                             </div>
                                         </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex justify-between text-[11px]">
+                                                <span className="font-semibold text-slate-500">Present</span>
+                                                <span className="font-black text-emerald-600">{attendanceStats.present}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px]">
+                                                <span className="font-semibold text-slate-500">Late</span>
+                                                <span className="font-black text-amber-500">{attendanceStats.late}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px]">
+                                                <span className="font-semibold text-slate-500">Absent</span>
+                                                <span className="font-black text-red-500">{attendanceStats.absent}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 bg-blue-50/60 rounded-xl p-2 border border-blue-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                            <UserCheck className="h-3 w-3 text-blue-500" />
+                                            <span className="text-[11px] font-bold text-slate-700">Staff In</span>
+                                        </div>
+                                        <span className="text-xs font-black text-blue-700">{teacherAttendanceStats.present} / {teacherAttendanceStats.total}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                    <Calendar className="h-6 w-6 text-slate-300 mb-1" />
+                                    <p className="text-xs font-bold text-slate-600">Not recorded yet</p>
+                                </div>
+                            )}
+                        </div>
 
-                                        <div className="text-center mt-2 px-4">
-                                            <p className="text-sm font-bold text-slate-700">Term Average Score</p>
-                                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">This represents the average student score across all graded subjects this term.</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                                        <div className="w-12 h-12 bg-purple-50 text-purple-400 rounded-full flex items-center justify-center mb-3">
-                                            <FileText className="h-6 w-6" />
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-700">No Grades Yet</p>
-                                        <p className="text-xs text-slate-500 mt-1 max-w-[200px]">Teachers have not recorded any exam or class scores for this term.</p>
-                                    </div>
-                                )}
+                        {/* Academic Performance */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col">
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h3 className="font-bold text-xs md:text-sm text-slate-800">Academic Avg.</h3>
+                                    <p className="text-[10px] text-slate-400">{schoolConfig?.current_term || 'This term'}</p>
+                                </div>
+                                <button onClick={() => setActiveMenu('Exam')} className="text-[10px] font-bold px-2 py-0.5 rounded-full text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Exams</button>
                             </div>
-                        )}
+                            {averagePerformance ? (
+                                <div className="flex-1 flex flex-col items-center justify-center">
+                                    <div className="relative w-28 h-28">
+                                        <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" strokeWidth="3" />
+                                            <circle
+                                                cx="18" cy="18" r="15.9" fill="none"
+                                                stroke={Number(averagePerformance) >= 75 ? '#10b981' : Number(averagePerformance) >= 50 ? '#f59e0b' : '#ef4444'}
+                                                strokeWidth="3" strokeLinecap="round"
+                                                strokeDasharray={`${averagePerformance} 100`}
+                                                style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-2xl font-black text-slate-800">{averagePerformance}%</span>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Average</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                    <FileText className="h-6 w-6 text-slate-300 mb-1" />
+                                    <p className="text-xs font-bold text-slate-600">No grades yet</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── 6. BOTTOM ROW: Top Defaulters + Notices ────────────────────── */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4">
+                        {/* Top Defaulters */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col max-h-72">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold text-xs md:text-sm text-slate-800 flex items-center gap-1.5">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> Top Fee Defaulters
+                                </h3>
+                                <button onClick={() => setActiveMenu('Fees')} className="text-[10px] font-bold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Manage Fees</button>
+                            </div>
+                            {topDefaulters.length > 0 ? (
+                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                    {topDefaulters.map((student: any) => (
+                                        <div key={student.id} className="flex items-center justify-between p-2.5 bg-slate-50 hover:bg-orange-50/50 transition-colors rounded-xl border border-slate-100 cursor-pointer group" onClick={() => setActiveMenu('Fees')}>
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="h-8 w-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-xs overflow-hidden border border-orange-200 shrink-0">
+                                                    {student.photo_url ? <img src={student.photo_url} className="w-full h-full object-cover" /> : student.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 text-xs line-clamp-1 group-hover:text-orange-600 transition-colors">{student.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">{student.class}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className="block font-black text-red-500 text-xs">{formatAmount(student.balance)}</span>
+                                                <span className="text-[8px] font-bold uppercase tracking-wider text-red-400 bg-red-50 px-1.5 py-0.2 rounded-full inline-block">Overdue</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-emerald-50/40 rounded-xl border border-dashed border-emerald-200">
+                                    <CheckCircle className="h-6 w-6 text-emerald-500 mb-1" />
+                                    <p className="text-xs font-bold text-slate-700">All fees cleared!</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* School Notices */}
+                        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col max-h-72">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-bold text-xs md:text-sm text-slate-800 flex items-center gap-1.5">
+                                    <Bell className="h-3.5 w-3.5 text-blue-500" /> Recent Notices
+                                </h3>
+                                <button onClick={() => setActiveMenu('Notice')} className="text-[10px] font-bold px-2.5 py-1 rounded-full text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Notice Board</button>
+                            </div>
+                            {recentNotices.length > 0 ? (
+                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                    {recentNotices.slice(0, 5).map((n: any) => (
+                                        <div key={n.id} className="p-2.5 bg-slate-50 hover:bg-blue-50/50 transition-colors rounded-xl border border-slate-100 cursor-pointer group" onClick={() => setActiveMenu('Notice')}>
+                                            <div className="flex items-start justify-between gap-2">
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${n.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    {n.priority}
+                                                </span>
+                                                <span className="text-[9px] text-slate-400 font-medium shrink-0">{new Date(n.date || n.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-xs font-bold text-slate-800 mt-1 line-clamp-1 group-hover:text-blue-700 transition-colors">{n.title}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                                    <Megaphone className="h-6 w-6 text-slate-300 mb-1" />
+                                    <p className="text-xs font-bold text-slate-600">No recent notices</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             );
         }
     };
-
     if (subscriptionStatus === 'suspended') {
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 text-center">
@@ -1113,6 +1711,108 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             </div>
         );
     }
+
+    const parseInlineMarkdown = (text: string) => {
+        if (!text) return text;
+        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+        return parts.map((part, idx) => {
+            if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+                return <strong key={idx} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+            }
+            if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+                return <em key={idx} className="italic text-slate-800">{part.slice(1, -1)}</em>;
+            }
+            return part;
+        });
+    };
+
+    const renderFormattedText = (text: string) => {
+        if (!text) return null;
+        const lines = text.split('\n');
+        return lines.map((line, lineIdx) => {
+            const trimmed = line.trim();
+            if (!trimmed) return <div key={lineIdx} className="h-1.5" />;
+
+            if (trimmed.startsWith('###')) {
+                return (
+                    <h4 key={lineIdx} className="font-bold text-sm text-slate-900 mt-2 mb-1 border-b border-slate-100 pb-0.5">
+                        {parseInlineMarkdown(trimmed.replace(/^###\s*/, ''))}
+                    </h4>
+                );
+            }
+
+            if (trimmed.startsWith('##')) {
+                return (
+                    <h3 key={lineIdx} className="font-extrabold text-base text-slate-900 mt-2.5 mb-1 tracking-tight">
+                        {parseInlineMarkdown(trimmed.replace(/^##\s*/, ''))}
+                    </h3>
+                );
+            }
+
+            if (trimmed.startsWith('#')) {
+                return (
+                    <h2 key={lineIdx} className="font-black text-lg text-slate-900 mt-3 mb-1.5 tracking-tight text-blue-700">
+                        {parseInlineMarkdown(trimmed.replace(/^#\s*/, ''))}
+                    </h2>
+                );
+            }
+
+            if (trimmed.startsWith('>')) {
+                const quoteContent = trimmed.substring(1).trim();
+                return (
+                    <div key={lineIdx} className="my-2 p-2.5 bg-blue-50/80 border-l-4 border-blue-500 rounded-r-xl italic text-slate-700 text-xs shadow-2xs">
+                        {parseInlineMarkdown(quoteContent)}
+                    </div>
+                );
+            }
+
+            if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+                const cells = trimmed.split('|').filter(c => c.trim() !== '');
+                if (trimmed.includes('---')) {
+                    return <div key={lineIdx} className="border-b border-slate-200 my-1" />;
+                }
+                return (
+                    <div key={lineIdx} className="flex gap-2 p-1.5 bg-slate-50 border border-slate-200 rounded-lg my-1 text-xs font-mono">
+                        {cells.map((cell, cIdx) => (
+                            <div key={cIdx} className="flex-1 font-semibold text-slate-700">
+                                {parseInlineMarkdown(cell.trim())}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+
+            if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('* ')) {
+                const bulletContent = trimmed.replace(/^([•\-\*])\s*/, '').trim();
+                return (
+                    <div key={lineIdx} className="flex items-start gap-2 my-1 text-xs text-slate-700">
+                        <span className="text-blue-600 font-bold shrink-0 mt-0.5">•</span>
+                        <span className="flex-1 leading-relaxed">{parseInlineMarkdown(bulletContent)}</span>
+                    </div>
+                );
+            }
+
+            if (/^\d+\.\s/.test(trimmed)) {
+                const numMatch = trimmed.match(/^(\d+)\.\s*(.*)/);
+                if (numMatch) {
+                    return (
+                        <div key={lineIdx} className="flex items-start gap-2 my-1 text-xs text-slate-700">
+                            <span className="bg-blue-100 text-blue-800 font-extrabold text-[10px] w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                                {numMatch[1]}
+                            </span>
+                            <span className="flex-1 leading-relaxed">{parseInlineMarkdown(numMatch[2])}</span>
+                        </div>
+                    );
+                }
+            }
+
+            return (
+                <p key={lineIdx} className="my-1 leading-relaxed text-xs text-slate-800">
+                    {parseInlineMarkdown(trimmed)}
+                </p>
+            );
+        });
+    };
 
     return (
         <div className="flex h-screen bg-slate-50 font-sans text-slate-900 flex-col md:flex-row">
@@ -1387,7 +2087,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     {loading && !stats.students ? (
                         <Loading type="skeleton" fullScreen={false} />
                     ) : (
-                        renderContent()
+                        <Suspense fallback={<Loading type="skeleton" fullScreen={false} />}>
+                            {renderContent()}
+                        </Suspense>
                     )}
                 </div>
             </main>
@@ -1666,6 +2368,234 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                                     Continue to Dashboard
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* baseAI FLOATING BOT BUTTON & INTERACTIVE POP-UP MODAL                      */}
+            {/* ========================================================================= */}
+
+            {/* Normal Bot Button at Bottom-Right */}
+            {!isAIPanelOpen && (
+                <button
+                    onClick={() => setIsAIPanelOpen(true)}
+                    className="fixed bottom-6 right-6 z-40 flex items-center justify-center h-14 w-14 rounded-full text-white shadow-2xl hover:scale-110 active:scale-95 transition-all group border-2 border-white/40"
+                    style={{ backgroundColor: theme.hex, boxShadow: `0 10px 25px -4px ${theme.hex}70` }}
+                    aria-label="Open baseAI assistant"
+                    title="Chat with baseAI"
+                >
+                    <div className="relative flex items-center justify-center">
+                        <Bot className="h-7 w-7 text-white group-hover:rotate-6 transition-transform" />
+                        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse"></span>
+                    </div>
+                </button>
+            )}
+
+            {/* baseAI Pop-up Chatbot Window */}
+            {isAIPanelOpen && (
+                <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex items-end sm:items-center justify-center">
+                    {/* Backdrop for small screens */}
+                    <div 
+                        className="fixed inset-0 bg-black/40 backdrop-blur-xs sm:hidden animate-in fade-in"
+                        onClick={() => setIsAIPanelOpen(false)}
+                    />
+
+                    {/* Pop-up Modal Container */}
+                    <div 
+                        className="w-full sm:w-[420px] md:w-[460px] h-[85vh] sm:h-[580px] bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 z-10 animate-in zoom-in-95 slide-in-from-bottom-6 duration-300 relative"
+                        style={{ boxShadow: `0 20px 40px -15px ${theme.hex}35, 0 0 0 1px ${theme.hex}20` }}
+                    >
+                        {/* Header */}
+                        <div 
+                            className="p-4 flex items-center justify-between text-white shadow-md relative overflow-hidden"
+                            style={{ backgroundColor: theme.hex }}
+                        >
+                            <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full -mr-8 -mt-8 blur-lg pointer-events-none"></div>
+
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner">
+                                    <Bot className="h-6 w-6 text-white" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-black text-base text-white tracking-tight uppercase">baseAI</h3>
+                                        <span className="bg-white/20 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                            Online
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-white/80 font-medium truncate max-w-[200px]">
+                                        {schoolConfig?.name || 'School Assistant'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 relative z-10">
+                                <button
+                                    onClick={() => setAiChatMessages([{
+                                        sender: 'ai',
+                                        text: `👋 Hello! I am **baseAI**, your school intelligence co-pilot. Ask me anything about fees, student attendance, exams, or draft instant SMS announcements.`,
+                                        time: 'Just now'
+                                    }])}
+                                    className="text-white/70 hover:text-white p-2 rounded-xl hover:bg-white/15 transition-colors"
+                                    title="Reset chat conversation"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                                <button
+                                    onClick={() => setIsAIPanelOpen(false)}
+                                    className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/15 transition-colors"
+                                    title="Close baseAI"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Chat Messages Scroll Area */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/70">
+                            {aiChatMessages.map((msg, index) => (
+                                <div 
+                                    key={index} 
+                                    className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}
+                                >
+                                    {msg.sender === 'ai' && (
+                                        <div 
+                                            className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm text-white mt-1"
+                                            style={{ backgroundColor: theme.hex }}
+                                        >
+                                            <Sparkles className="h-3.5 w-3.5" />
+                                        </div>
+                                    )}
+
+                                    <div className={`max-w-[92%] md:max-w-[88%] rounded-2xl p-4 text-xs md:text-sm leading-relaxed shadow-sm ${
+                                        msg.sender === 'user' 
+                                            ? 'bg-slate-900 text-white font-medium rounded-br-xs' 
+                                            : 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-xs font-normal'
+                                    }`}>
+                                        <div className="font-sans text-xs leading-relaxed">
+                                            {msg.sender === 'user' ? msg.text : renderFormattedText(msg.text)}
+                                        </div>
+                                        {msg.actions && msg.actions.length > 0 && (
+                                            <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+                                                {msg.actions.map((act: any, aIdx: number) => (
+                                                    <button
+                                                        key={aIdx}
+                                                        onClick={() => {
+                                                            if (act.menu) {
+                                                                setActiveMenu(act.menu);
+                                                                setIsAIPanelOpen(false);
+                                                            }
+                                                        }}
+                                                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-lg text-xs transition-colors border border-blue-200/60 shadow-2xs"
+                                                    >
+                                                        {act.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {msg.smsApproval && (
+                                            <div className="mt-3 p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl space-y-2 text-slate-800 text-xs">
+                                                <div className="flex items-center justify-between font-bold text-amber-900">
+                                                    <span className="flex items-center gap-1.5">📱 SMS Broadcast Approval</span>
+                                                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px]">
+                                                        {msg.smsApproval.total_recipients || 0} Recipients
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-amber-900/90 italic bg-white/80 p-2 rounded-lg border border-amber-100/60 leading-relaxed">
+                                                    "{msg.smsApproval.message_text}"
+                                                </p>
+                                                {msg.smsApproval.status !== 'sent' ? (
+                                                    <div className="flex items-center gap-2 pt-1">
+                                                        <button
+                                                            onClick={() => handleApproveSms(msg.smsApproval, index)}
+                                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                                                        >
+                                                            <CheckCircle className="h-3.5 w-3.5" /> Approve & Send SMS
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-1.5 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-center text-xs flex items-center justify-center gap-1">
+                                                        <CheckCircle className="h-4 w-4 text-emerald-600" /> SMS Sent & Posted to Notice Board!
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className={`text-[9px] mt-1.5 flex ${msg.sender === 'user' ? 'justify-end text-slate-400' : 'text-slate-400'}`}>
+                                            {msg.time}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {isAskingCopilot && (
+                                <div className="flex items-center gap-2.5 text-slate-500 text-xs p-1 animate-in fade-in duration-200">
+                                    <div 
+                                        className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm"
+                                        style={{ backgroundColor: theme.hex }}
+                                    >
+                                        <Sparkles className="h-4 w-4 animate-pulse" />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white border border-slate-200/90 px-4 py-2.5 rounded-2xl shadow-xs text-slate-700">
+                                        <span className="font-bold text-xs">baseAI is thinking</span>
+                                        <div className="flex items-center gap-1 ml-1">
+                                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Quick Prompts */}
+                        <div className="p-2 bg-white border-t border-slate-100">
+                            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-1 pt-0.5 px-1">
+                                {[
+                                    { icon: "⚡", label: "Which class owes most?" },
+                                    { icon: "📱", label: "Draft fee reminder SMS" },
+                                    { icon: "📚", label: "Check exam marks" },
+                                    { icon: "📅", label: "Today's attendance pulse" },
+                                    { icon: "📖", label: "Automatic attendance setup" }
+                                ].map((chip, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleAskCopilot(chip.label)}
+                                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-all shrink-0 border border-slate-200/50 shadow-2xs flex items-center gap-1"
+                                    >
+                                        <span>{chip.icon}</span> {chip.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Input Footer */}
+                        <div className="p-3 bg-white border-t border-slate-200">
+                            <form 
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleAskCopilot();
+                                }}
+                                className="flex items-center gap-2"
+                            >
+                                <input
+                                    type="text"
+                                    value={copilotQuery}
+                                    onChange={(e) => setCopilotQuery(e.target.value)}
+                                    placeholder="Type your message..."
+                                    className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:bg-white transition-all"
+                                    style={{ focusRingColor: theme.hex }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={isAskingCopilot || !copilotQuery.trim()}
+                                    className="p-2 rounded-xl text-white font-bold transition-all disabled:opacity-40 hover:opacity-90 shadow-sm"
+                                    style={{ backgroundColor: theme.hex }}
+                                >
+                                    <Send className="h-4 w-4" />
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>

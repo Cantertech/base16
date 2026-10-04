@@ -5,7 +5,7 @@ import {
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
   Table as TableIcon, LayoutList, Camera, UploadCloud, Lock,
   Mail, MapPin, Shield, Copy, GraduationCap, School, CreditCard,
-  Users, RefreshCw
+  Users, RefreshCw, ArrowRight, Loader2, Check
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
@@ -109,6 +109,13 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
   const [mobileViewMode, setMobileViewMode] = useState<'card' | 'table'>('card');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; status: string } | null>(null);
+  const [importStep, setImportStep] = useState<'upload' | 'preview'>('upload');
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [classMappings, setClassMappings] = useState<Record<string, { targetClass: string; isNew: boolean }>>({});
+  const [importFileName, setImportFileName] = useState('');
+  const [isProcessingImport, setIsProcessingImport] = useState(false);
+  const [balanceStrategy, setBalanceStrategy] = useState<'fee_structure' | 'zero'>('fee_structure');
+  const [treatZeroAsEmpty, setTreatZeroAsEmpty] = useState(false);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -131,8 +138,11 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         .select('classes(name)')
         .eq('teacher_id', currentUser.id);
 
-      const assigned = assignmentsData?.map((a: any) => a.classes?.name).filter(Boolean) || [];
-      if (currentUser.assignedClass && !assigned.includes(currentUser.assignedClass)) {
+      const assigned = assignmentsData?.map((a: any) => {
+        const cls = Array.isArray(a.classes) ? a.classes[0] : a.classes;
+        return cls?.name;
+      }).filter(Boolean) || [];
+      if (assigned.length === 0 && currentUser.assignedClass) {
         assigned.push(currentUser.assignedClass);
       }
       return Array.from(new Set(assigned)) as string[];
@@ -163,27 +173,43 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     enabled: !!schoolId,
   });
 
-  const { data: activeModules = [] } = useQuery({
-    queryKey: ['activeModules', schoolId],
-    queryFn: async () => {
-      if (!schoolId) return [];
-      const { data } = await supabase
-        .from('school_subscriptions')
-        .select('module_id, expires_at')
-        .eq('school_id', schoolId)
-        .eq('status', 'active');
+  const hasFeesModule = true;
+ 
+  // Helper to calculate total fees for a given class from fee_structure
+  const calculateClassFee = (targetClassName: string) => {
+    if (!feeStructure || feeStructure.length === 0) return 0;
+    const normalizedTarget = targetClassName?.trim().toLowerCase();
+    return feeStructure
+      .filter((f: any) => {
+        if (!f.target_class || f.target_class.trim() === '' || f.target_class.trim().toLowerCase() === 'all') {
+          return true;
+        }
+        return f.target_class.trim().toLowerCase() === normalizedTarget;
+      })
+      .reduce((sum: number, f: any) => sum + Number(f.amount || 0), 0);
+  };
 
-      const now = new Date();
-      return data
-        ? data
-            .filter(sub => !sub.expires_at || new Date(sub.expires_at) >= now)
-            .map(sub => sub.module_id)
-        : [];
-    },
-    enabled: !!schoolId
-  });
+  // Resolve starting balance for an imported student row
+  const getInitialStudentBalance = (row: any, targetClassName: string) => {
+    const hasExplicitBalance = row.balance !== null && !isNaN(row.balance);
+    const isZero = hasExplicitBalance && Number(row.balance) === 0;
 
-  const hasFeesModule = activeModules.includes('revenue_guard') || activeModules.includes('complete_bundle');
+    if (isZero && treatZeroAsEmpty && balanceStrategy === 'fee_structure') {
+      const fee = calculateClassFee(targetClassName);
+      return { amount: fee, source: 'fee_structure' as const };
+    }
+
+    if (hasExplicitBalance) {
+      return { amount: Number(row.balance), source: 'csv' as const };
+    }
+
+    if (balanceStrategy === 'fee_structure') {
+      const fee = calculateClassFee(targetClassName);
+      return { amount: fee, source: 'fee_structure' as const };
+    }
+
+    return { amount: 0, source: 'zero' as const };
+  };
 
   // Automatically set class filter for teachers
   useEffect(() => {
@@ -212,8 +238,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         name: studentData.name,
         class: studentData.class,
         gender: studentData.gender,
-        parent_name: studentData.parentName,
-        parent_phone: studentData.parentPhone,
+        parent_name: studentData.parentName || 'Parent',
+        parent_phone: studentData.parentPhone || '',
         date_of_birth: studentData.dob || null,
         status: 'Active',
         balance: Number(studentData.balance) || 0,
@@ -272,8 +298,8 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
         name: updatedData.name,
         class: updatedData.class,
         gender: updatedData.gender,
-        parent_name: updatedData.parentName,
-        parent_phone: updatedData.parentPhone,
+        parent_name: updatedData.parentName || 'Parent',
+        parent_phone: updatedData.parentPhone || '',
         date_of_birth: updatedData.dob || null,
         balance: Number(updatedData.balance),
         admission_no: updatedData.admission_no,
@@ -359,139 +385,239 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
     setSelectedStudents(newSelected);
   };
 
-  // Import Handler (Kept mostly as is but cleaner)
-  const handleImportCSV = async (file: File) => {
-    setImportProgress({ current: 0, total: 0, status: 'Reading file...' });
-    try {
-      if (!schoolId) throw new Error('No school ID');
+  // Download Sample CSV Template
+  const handleDownloadTemplate = () => {
+    const csvContent = "Name,Class,Gender,Parent Name,Parent Phone,Balance\nJohn Doe,Primary 1,Male,Mary Doe,0541234567,\nJane Smith,Primary 2,Female,Peter Smith,0209876543,150.00\nKwame Mensah,JHS 1,Male,,,0\n";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'orbit_students_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        if (!text) return;
+  // Quote-aware CSV Parser
+  const parseCSVContent = (content: string) => {
+    const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (lines.length === 0) return [];
 
-        const lines = text.split('\n');
-        const csvClasses = new Set<string>();
-        const startIndex = lines[0].toLowerCase().includes('name') ? 1 : 0;
-        setImportProgress({ current: 0, total: lines.length - startIndex, status: 'Fetching existing data...' });
-
-        // 1. Fetch existing
-        const { data: existingStudents } = await supabase
-          .from('students')
-          .select('id, name')
-          .eq('school_id', schoolId);
-
-        const studentMap = new Map();
-        existingStudents?.forEach(s => studentMap.set(s.name.trim().toLowerCase(), s.id));
-
-        // 2. Parse
-        const parsedLines = [];
-        for (let i = startIndex; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
-          const parts = line.split(',');
-          if (parts.length >= 2) {
-            parsedLines.push(parts);
-            if (parts[1]?.trim()) csvClasses.add(parts[1]?.trim());
-          }
-        }
-
-        // 3. Classes
-        if (csvClasses.size > 0) {
-          const { data: existingClasses } = await supabase.from('classes').select('name').eq('school_id', schoolId);
-          const existingClassNames = new Set(existingClasses?.map(c => c.name) || []);
-          const classesToCreate = Array.from(csvClasses).filter(c => !existingClassNames.has(c));
-
-          if (classesToCreate.length > 0) {
-            await supabase.from('classes').insert(classesToCreate.map(name => ({ school_id: schoolId, name })));
-            queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
-          }
-        }
-
-        // 4. Prepare
-        let updateCount = 0;
-        let insertCount = 0;
-        const total = parsedLines.length;
-        setImportProgress({ current: 0, total, status: 'Preparing data...' });
-
-        const studentsToUpdate: any[] = [];
-        const studentsToInsert: any[] = [];
-        const seenInBatch = new Set<string>();
-
-        for (let i = 0; i < total; i++) {
-          const parts = parsedLines[i];
-          const name = parts[0]?.trim();
-          const studentClass = parts[1]?.trim();
-          if (!name || !studentClass) continue;
-
-          const key = name.toLowerCase();
-          if (seenInBatch.has(key)) continue;
-          seenInBatch.add(key);
-
-          const existingId = studentMap.get(key);
-          let initialBalance = 0;
-          if (parts[5] && parts[5].trim() !== '') {
-            initialBalance = Number(parts[5].trim());
-          } else if (!existingId) {
-            initialBalance = feeStructure
-              .filter(f => !f.target_class || f.target_class === 'All' || f.target_class === studentClass)
-              .reduce((sum: number, f: any) => sum + Number(f.amount), 0);
-          }
-
-          const payload: any = {
-            school_id: schoolId,
-            name,
-            class: studentClass,
-            gender: (parts[2]?.trim().toLowerCase() === 'female' ? 'Female' : 'Male'),
-            parent_name: parts[3]?.trim() || 'Parent',
-            parent_phone: parts[4]?.trim(),
-            status: 'Active',
-            admission_no: `${new Date().getFullYear()}${(studentClass || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${(Date.now() + i).toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
-            pin: `${Math.floor(Math.random() * 9000 + 1000)}`
-          };
-
-          if (parts[5] && parts[5].trim() !== '') { payload.balance = initialBalance; }
-          else if (!existingId) { payload.balance = initialBalance; }
-
-          if (existingId) {
-            payload.id = existingId;
-            studentsToUpdate.push(payload);
-            updateCount++;
+    const parseLine = (text: string): string[] => {
+      const result: string[] = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (c === '"') {
+          if (inQuotes && text[i + 1] === '"') {
+            cur += '"';
+            i++;
           } else {
-            studentsToInsert.push(payload);
-            insertCount++;
+            inQuotes = !inQuotes;
           }
+        } else if (c === ',' && !inQuotes) {
+          result.push(cur.trim());
+          cur = '';
+        } else {
+          cur += c;
         }
+      }
+      result.push(cur.trim());
+      return result;
+    };
 
-        // 5. Execute
-        const chunkSize = 20;
-        let processed = 0;
-        if (studentsToUpdate.length > 0) {
-          setImportProgress({ current: processed, total, status: `Updating...` });
-          for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
-            await supabase.from('students').upsert(studentsToUpdate.slice(i, i + chunkSize));
-            processed += Math.min(chunkSize, studentsToUpdate.length - i);
-            setImportProgress(p => ({ ...p!, current: processed }));
+    const parsed = lines.map(parseLine);
+    const hasHeader = parsed[0][0]?.toLowerCase().includes('name') || parsed[0][1]?.toLowerCase().includes('class');
+    const dataRows = hasHeader ? parsed.slice(1) : parsed;
+    return dataRows;
+  };
+
+  // Step 1: Read and analyze uploaded CSV
+  const handleFileSelected = (file: File) => {
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const rawRows = parseCSVContent(text);
+      if (rawRows.length === 0) {
+        alert('No data rows found in this CSV file. Please ensure it contains student records.');
+        return;
+      }
+
+      // Filter rows that have at least a Name
+      const validRows = rawRows
+        .filter(r => r[0] && r[0].trim().length > 0)
+        .map(r => ({
+          name: r[0]?.trim() || '',
+          rawClass: r[1]?.trim() || 'Unassigned',
+          gender: (r[2]?.trim().toLowerCase() === 'female' ? 'Female' : 'Male'),
+          parentName: r[3]?.trim() || '',
+          parentPhone: r[4]?.trim() || '',
+          balance: r[5] && r[5].trim() !== '' ? Number(r[5].trim()) : null
+        }));
+
+      if (validRows.length === 0) {
+        alert('Could not find valid student names in the uploaded CSV.');
+        return;
+      }
+
+      // Collect unique classes from the CSV
+      const uniqueCsvClasses = Array.from(new Set(validRows.map(r => r.rawClass))).filter(Boolean);
+
+      // Existing classes in school
+      const schoolClassNames = (classes || []).map((c: any) => c.name);
+
+      // Auto-match or detect new
+      const initialMappings: Record<string, { targetClass: string; isNew: boolean }> = {};
+      uniqueCsvClasses.forEach(rawC => {
+        // Try case-insensitive exact match
+        const exactMatch = schoolClassNames.find(sc => sc.trim().toLowerCase() === rawC.trim().toLowerCase());
+        if (exactMatch) {
+          initialMappings[rawC] = { targetClass: exactMatch, isNew: false };
+        } else {
+          // If no exact match, default to creating it as new class with the exact CSV name
+          initialMappings[rawC] = { targetClass: rawC, isNew: true };
+        }
+      });
+
+      setParsedRows(validRows);
+      setClassMappings(initialMappings);
+      setImportStep('preview');
+    };
+    reader.readAsText(file);
+  };
+
+  // Step 2: Confirm & Execute Import
+  const handleConfirmImport = async () => {
+    if (parsedRows.length === 0 || !schoolId) return;
+    setIsProcessingImport(true);
+    setImportProgress({ current: 0, total: parsedRows.length, status: 'Setting up classes...' });
+
+    try {
+      // 1. Identify which classes need to be created
+      const classesToCreate = new Set<string>();
+      Object.entries(classMappings).forEach(([_, mapping]) => {
+        if (mapping.isNew && mapping.targetClass.trim()) {
+          classesToCreate.add(mapping.targetClass.trim());
+        }
+      });
+
+      // Insert new classes if any
+      if (classesToCreate.size > 0) {
+        const { data: existingInDb } = await supabase
+          .from('classes')
+          .select('name')
+          .eq('school_id', schoolId);
+        const existingNamesLower = new Set(existingInDb?.map(c => c.name.trim().toLowerCase()) || []);
+        
+        const newClassRows = Array.from(classesToCreate)
+          .filter(name => !existingNamesLower.has(name.toLowerCase()))
+          .map(name => ({ school_id: schoolId, name }));
+
+        if (newClassRows.length > 0) {
+          await supabase.from('classes').insert(newClassRows);
+          queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+        }
+      }
+
+      // 2. Fetch existing students to detect updates vs new inserts
+      setImportProgress({ current: 0, total: parsedRows.length, status: 'Checking existing students...' });
+      const { data: existingStudents } = await supabase
+        .from('students')
+        .select('id, name')
+        .eq('school_id', schoolId);
+
+      const studentMap = new Map();
+      existingStudents?.forEach(s => studentMap.set(s.name.trim().toLowerCase(), s.id));
+
+      // 3. Prepare student payloads
+      const studentsToInsert: any[] = [];
+      const studentsToUpdate: any[] = [];
+      const seenInBatch = new Set<string>();
+
+      for (let i = 0; i < parsedRows.length; i++) {
+        const row = parsedRows[i];
+        const key = row.name.toLowerCase();
+        if (seenInBatch.has(key)) continue;
+        seenInBatch.add(key);
+
+        const targetClass = classMappings[row.rawClass]?.targetClass || row.rawClass;
+        const existingId = studentMap.get(key);
+        const initialBalanceInfo = getInitialStudentBalance(row, targetClass);
+
+        const payload: any = {
+          school_id: schoolId,
+          name: row.name,
+          class: targetClass,
+          gender: row.gender,
+          parent_name: row.parentName || 'Parent',
+          parent_phone: row.parentPhone || '',
+          status: 'Active',
+          admission_no: `${new Date().getFullYear()}${(targetClass || 'G').replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase()}${(Date.now() + i).toString().slice(-4)}${Math.floor(Math.random() * 99).toString().padStart(2, '0')}`,
+          pin: `${Math.floor(Math.random() * 9000 + 1000)}`
+        };
+
+        if (existingId) {
+          payload.id = existingId;
+          if (row.balance !== null && !isNaN(row.balance)) {
+            payload.balance = initialBalanceInfo.amount;
           }
+          studentsToUpdate.push(payload);
+        } else {
+          payload.balance = initialBalanceInfo.amount;
+          studentsToInsert.push(payload);
         }
-        if (studentsToInsert.length > 0) {
-          setImportProgress({ current: processed, total, status: `Inserting...` });
-          for (let i = 0; i < studentsToInsert.length; i += chunkSize) {
-            await supabase.from('students').insert(studentsToInsert.slice(i, i + chunkSize));
-            processed += Math.min(chunkSize, studentsToInsert.length - i);
-            setImportProgress(p => ({ ...p!, current: processed }));
+      }
+
+      // 4. Execute chunked operations
+      const chunkSize = 25;
+      let processed = 0;
+      const totalOps = studentsToUpdate.length + studentsToInsert.length;
+
+      if (studentsToUpdate.length > 0) {
+        setImportProgress({ current: processed, total: totalOps, status: 'Updating matching students...' });
+        for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
+          const { error: updateError } = await supabase.from('students').upsert(studentsToUpdate.slice(i, i + chunkSize));
+          if (updateError) {
+            console.error('Update error:', updateError);
+            throw new Error(`Failed to update students: ${updateError.message}`);
           }
+          processed += Math.min(chunkSize, studentsToUpdate.length - i);
+          setImportProgress(p => ({ ...p!, current: processed }));
         }
+      }
 
-        queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
-        setIsImportModalOpen(false);
-        alert(`Import successful!\nUpdated: ${updateCount}\nInserted: ${insertCount}`);
+      if (studentsToInsert.length > 0) {
+        setImportProgress({ current: processed, total: totalOps, status: 'Registering new students...' });
+        for (let i = 0; i < studentsToInsert.length; i += chunkSize) {
+          const { error: insertError } = await supabase.from('students').insert(studentsToInsert.slice(i, i + chunkSize));
+          if (insertError) {
+            console.error('Insert error:', insertError);
+            throw new Error(`Failed to enroll students: ${insertError.message}`);
+          }
+          processed += Math.min(chunkSize, studentsToInsert.length - i);
+          setImportProgress(p => ({ ...p!, current: processed }));
+        }
+      }
 
-      };
-      reader.readAsText(file);
-    } catch (e: any) {
-      alert(e.message);
+      // 5. Invalidate & Wrap up
+      queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+      setIsImportModalOpen(false);
+      setImportStep('upload');
+      setParsedRows([]);
+      setClassMappings({});
+      alert(`Success! Successfully processed ${totalOps} students (${studentsToInsert.length} enrolled, ${studentsToUpdate.length} updated).`);
+    } catch (err: any) {
+      console.error('CSV import failed:', err);
+      alert(`Import failed: ${err.message || 'Unknown error occurred.'}`);
     } finally {
+      setIsProcessingImport(false);
       setImportProgress(null);
     }
   };
@@ -870,98 +996,391 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
       {isImportModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">Import Students</h3>
-                <p className="text-slate-500 text-sm">Bulk add students by uploading a CSV file.</p>
+                <h3 className="text-xl font-bold text-slate-800">
+                  {importStep === 'upload' ? 'Import Students' : 'Review & Class Mapping'}
+                </h3>
+                <p className="text-slate-500 text-sm">
+                  {importStep === 'upload'
+                    ? 'Bulk add students by uploading a CSV file.'
+                    : `${importFileName} • ${parsedRows.length} student records found`}
+                </p>
               </div>
-              <button onClick={() => setIsImportModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportStep('upload');
+                  setParsedRows([]);
+                  setClassMappings({});
+                  setImportProgress(null);
+                }}
+                disabled={isProcessingImport}
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-                <h4 className="text-blue-800 font-bold text-sm mb-2 flex items-center gap-2">
-                  <FileSpreadsheet className="h-4 w-4" /> Required CSV Format
-                </h4>
-                <p className="text-blue-600 text-xs mb-4">
-                  Your CSV file <strong>must</strong> have the headers in the exact order shown below. The first row is skipped as a header row.
-                </p>
-
-                <div className="overflow-x-auto border border-blue-200 rounded-lg bg-white">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-blue-100">
-                      <tr>
-                        <th className="px-3 py-2 border-r border-slate-100">Name <span className="text-red-500">*</span></th>
-                        <th className="px-3 py-2 border-r border-slate-100">Class <span className="text-red-500">*</span></th>
-                        <th className="px-3 py-2 border-r border-slate-100">Gender</th>
-                        <th className="px-3 py-2 border-r border-slate-100">Parent Name</th>
-                        <th className="px-3 py-2 border-r border-slate-100">Parent Phone</th>
-                        <th className="px-3 py-2">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-slate-600">
-                      <tr className="border-b border-slate-50">
-                        <td className="px-3 py-2 border-r border-slate-50">John Doe</td>
-                        <td className="px-3 py-2 border-r border-slate-50">JHS 1</td>
-                        <td className="px-3 py-2 border-r border-slate-50">Male</td>
-                        <td className="px-3 py-2 border-r border-slate-50">Mary Doe</td>
-                        <td className="px-3 py-2 border-r border-slate-50">0541234567</td>
-                        <td className="px-3 py-2">0</td>
-                      </tr>
-                      <tr>
-                        <td className="px-3 py-2 border-r border-slate-50">Jane Smith</td>
-                        <td className="px-3 py-2 border-r border-slate-50">Class 6</td>
-                        <td className="px-3 py-2 border-r border-slate-50">Female</td>
-                        <td className="px-3 py-2 border-r border-slate-50">Peter Smith</td>
-                        <td className="px-3 py-2 border-r border-slate-50">0209876543</td>
-                        <td className="px-3 py-2">150.00</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center hover:border-primary-500 hover:bg-primary-50/50 transition-all cursor-pointer group relative">
-                  <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-primary-500 mb-2 transition-colors" />
-                  <p className="text-sm font-medium text-slate-700 group-hover:text-primary-700">Click to upload CSV file</p>
-                  <p className="text-xs text-slate-400 mt-1">or drag and drop here</p>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImportCSV(file);
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                </div>
-
-                {importProgress && (
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-2">
-                      <span>{importProgress.status}</span>
-                      <span>{Math.round((importProgress.current / (importProgress.total || 1)) * 100)}%</span>
+            <div className="p-6 overflow-y-auto space-y-6">
+              {importStep === 'upload' ? (
+                <>
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-3">
+                      <h4 className="text-blue-900 font-bold text-sm flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-blue-600" /> Required CSV Format
+                      </h4>
+                      <button
+                        onClick={handleDownloadTemplate}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-100/60 rounded-lg text-xs font-bold transition-all shadow-xs shrink-0"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Download Sample Template
+                      </button>
                     </div>
-                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary-600 transition-all duration-300 ease-out"
-                        style={{ width: `${(importProgress.current / (importProgress.total || 1)) * 100}%` }}
-                      ></div>
+
+                    <p className="text-blue-700 text-xs mb-3 leading-relaxed">
+                      Your CSV file must have the column headers in the exact order below. 
+                      <span className="font-bold"> Guardian details and Gender are optional. Balance can be left blank to automatically apply class term fees.</span>
+                    </p>
+
+                    <div className="overflow-x-auto border border-blue-200/80 rounded-lg bg-white shadow-xs">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-blue-100">
+                          <tr>
+                            <th className="px-3 py-2 border-r border-slate-100">Name <span className="text-red-500">*</span></th>
+                            <th className="px-3 py-2 border-r border-slate-100">Class <span className="text-red-500">*</span></th>
+                            <th className="px-3 py-2 border-r border-slate-100">Gender</th>
+                            <th className="px-3 py-2 border-r border-slate-100">Parent Name <span className="text-slate-400 font-normal">(Opt)</span></th>
+                            <th className="px-3 py-2 border-r border-slate-100">Parent Phone <span className="text-slate-400 font-normal">(Opt)</span></th>
+                            <th className="px-3 py-2">Balance <span className="text-slate-400 font-normal">(Opt)</span></th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-slate-600">
+                          <tr className="border-b border-slate-50">
+                            <td className="px-3 py-2 border-r border-slate-50 font-medium">Kofi Mensah</td>
+                            <td className="px-3 py-2 border-r border-slate-50">Primary 1</td>
+                            <td className="px-3 py-2 border-r border-slate-50">Male</td>
+                            <td className="px-3 py-2 border-r border-slate-50">Kwame Mensah</td>
+                            <td className="px-3 py-2 border-r border-slate-50">0244123456</td>
+                            <td className="px-3 py-2 text-slate-400 italic font-normal">(Blank for Class Fees)</td>
+                          </tr>
+                          <tr>
+                            <td className="px-3 py-2 border-r border-slate-50 font-medium">Ama Serwaa</td>
+                            <td className="px-3 py-2 border-r border-slate-50">Primary 2</td>
+                            <td className="px-3 py-2 border-r border-slate-50">Female</td>
+                            <td className="px-3 py-2 border-r border-slate-50 text-slate-400 italic">Optional</td>
+                            <td className="px-3 py-2 border-r border-slate-50 text-slate-400 italic">Optional</td>
+                            <td className="px-3 py-2">150.00</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-2 text-center">Processing record {importProgress.current} of {importProgress.total}</p>
                   </div>
-                )}
-              </div>
+
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center hover:border-primary-500 hover:bg-primary-50/50 transition-all cursor-pointer group relative">
+                    <UploadCloud className="h-10 w-10 text-slate-400 group-hover:text-primary-500 mb-2 transition-colors" />
+                    <p className="text-sm font-medium text-slate-700 group-hover:text-primary-700">Click to upload CSV file</p>
+                    <p className="text-xs text-slate-400 mt-1">or drag and drop here</p>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelected(file);
+                        e.target.value = '';
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Step 2: Class Mapping Review */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Class Assignment & Matching</h4>
+                        <p className="text-xs text-slate-500">
+                          Verify which school class each CSV class connects to. You can map to existing classes or auto-create new ones.
+                        </p>
+                      </div>
+                      <span className="text-xs font-black bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full">
+                        {Object.keys(classMappings).length} Classes Found
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                      {Object.entries(classMappings).map(([rawClass, mapping]) => {
+                        const studentCountInClass = parsedRows.filter(r => r.rawClass === rawClass).length;
+                        return (
+                          <div key={rawClass} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white border border-slate-200 rounded-xl gap-2 shadow-2xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-bold text-slate-800 text-sm truncate">{rawClass}</span>
+                              <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold shrink-0">
+                                {studentCountInClass} student{studentCountInClass === 1 ? '' : 's'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400 text-xs font-bold shrink-0">assigns to</span>
+                              <select
+                                value={mapping.isNew ? '__CREATE_NEW__' : mapping.targetClass}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '__CREATE_NEW__') {
+                                    setClassMappings(prev => ({
+                                      ...prev,
+                                      [rawClass]: { targetClass: rawClass, isNew: true }
+                                    }));
+                                  } else {
+                                    setClassMappings(prev => ({
+                                      ...prev,
+                                      [rawClass]: { targetClass: val, isNew: false }
+                                    }));
+                                  }
+                                }}
+                                className="p-2 text-xs font-bold border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-primary-500 min-w-[200px]"
+                              >
+                                <option value="__CREATE_NEW__">+ Create New Class: "{rawClass}"</option>
+                                <optgroup label="Existing School Classes">
+                                  {classes.map((c: any) => (
+                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Fee & Balance Strategy */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Fee & Starting Balance Strategy</h4>
+                        <p className="text-xs text-slate-500">
+                          Configure how blank or zero balances in the CSV should be billed on enrollment.
+                        </p>
+                      </div>
+                      {feeStructure.length > 0 ? (
+                        <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+                          ✓ Fee Structure Active ({feeStructure.length} items)
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+                          No Fees Set Up Yet (Defaults to 0.00)
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        balanceStrategy === 'fee_structure'
+                          ? 'bg-white border-primary-600 shadow-2xs ring-1 ring-primary-500/20'
+                          : 'bg-white/60 border-slate-200 hover:bg-white'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="balanceStrategy"
+                          checked={balanceStrategy === 'fee_structure'}
+                          onChange={() => setBalanceStrategy('fee_structure')}
+                          className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                        />
+                        <div className="text-xs">
+                          <p className="font-bold text-slate-800">Auto-apply Class Fee Structure</p>
+                          <p className="text-slate-500 mt-0.5">
+                            Blank balance cells will be billed the full term fee configured for their class.
+                          </p>
+                        </div>
+                      </label>
+
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        balanceStrategy === 'zero'
+                          ? 'bg-white border-primary-600 shadow-2xs ring-1 ring-primary-500/20'
+                          : 'bg-white/60 border-slate-200 hover:bg-white'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="balanceStrategy"
+                          checked={balanceStrategy === 'zero'}
+                          onChange={() => setBalanceStrategy('zero')}
+                          className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                        />
+                        <div className="text-xs">
+                          <p className="font-bold text-slate-800">Clean Slate (GH₵ 0.00)</p>
+                          <p className="text-slate-500 mt-0.5">
+                            Blank balance cells will start at 0.00 (fees marked cleared).
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {balanceStrategy === 'fee_structure' && (
+                      <div className="mt-3 pt-3 border-t border-slate-200/80">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 select-none">
+                          <input
+                            type="checkbox"
+                            checked={treatZeroAsEmpty}
+                            onChange={(e) => setTreatZeroAsEmpty(e.target.checked)}
+                            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-3.5 w-3.5"
+                          />
+                          <span>Also apply class fee structure if CSV balance explicitly has <strong>0</strong> or <strong>0.00</strong></span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Student Data Preview */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">
+                        Preview Records <span className="text-slate-400 font-normal text-xs">(First {Math.min(5, parsedRows.length)} of {parsedRows.length})</span>
+                      </h4>
+                      <span className="text-xs text-slate-500 font-medium">Ready for import</span>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2.5">#</th>
+                            <th className="px-3 py-2.5">Name</th>
+                            <th className="px-3 py-2.5">Target Class</th>
+                            <th className="px-3 py-2.5">Gender</th>
+                            <th className="px-3 py-2.5">Guardian Details</th>
+                            <th className="px-3 py-2.5 text-right">CSV Balance</th>
+                            <th className="px-3 py-2.5 text-right">Starting Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {parsedRows.slice(0, 5).map((row, idx) => {
+                            const mappedClass = classMappings[row.rawClass]?.targetClass || row.rawClass;
+                            const balanceInfo = getInitialStudentBalance(row, mappedClass);
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/60">
+                                <td className="px-3 py-2 text-slate-400 font-medium">{idx + 1}</td>
+                                <td className="px-3 py-2 font-bold text-slate-900">{row.name}</td>
+                                <td className="px-3 py-2">
+                                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-100">
+                                    {mappedClass}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2">{row.gender}</td>
+                                <td className="px-3 py-2 text-slate-500">
+                                  {row.parentName || row.parentPhone ? (
+                                    <span>{row.parentName || 'Parent'} {row.parentPhone ? `(${row.parentPhone})` : ''}</span>
+                                  ) : (
+                                    <span className="text-slate-400 italic">None (Optional)</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right text-slate-500 font-medium">
+                                  {row.balance !== null ? formatAmount(row.balance) : <span className="text-slate-400 italic">Blank</span>}
+                                </td>
+                                <td className="px-3 py-2 text-right font-bold">
+                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                    <span className={balanceInfo.amount > 0 ? 'text-slate-900' : 'text-slate-500'}>
+                                      {formatAmount(balanceInfo.amount)}
+                                    </span>
+                                    {balanceInfo.source === 'fee_structure' && (
+                                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded border border-emerald-200">
+                                        Fee Plan
+                                      </span>
+                                    )}
+                                    {balanceInfo.source === 'csv' && (
+                                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded border border-blue-200">
+                                        From CSV
+                                      </span>
+                                    )}
+                                    {balanceInfo.source === 'zero' && (
+                                      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">
+                                        0.00
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {importProgress && (
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                      <div className="flex justify-between text-xs font-bold text-slate-700 mb-2">
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />
+                          {importProgress.status}
+                        </span>
+                        <span>{Math.round((importProgress.current / (importProgress.total || 1)) * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary-600 transition-all duration-300 ease-out"
+                          style={{ width: `${(importProgress.current / (importProgress.total || 1)) * 100}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-2 text-center">Processing record {importProgress.current} of {importProgress.total}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button onClick={() => setIsImportModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-white hover:shadow-sm rounded-lg transition-all border border-transparent hover:border-slate-200">
-                Cancel
-              </button>
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+              {importStep === 'preview' ? (
+                <button
+                  onClick={() => setImportStep('upload')}
+                  disabled={isProcessingImport}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 rounded-lg transition-all disabled:opacity-50"
+                >
+                  ← Change File
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setIsImportModalOpen(false);
+                    setImportStep('upload');
+                    setParsedRows([]);
+                    setClassMappings({});
+                    setImportProgress(null);
+                  }}
+                  disabled={isProcessingImport}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:shadow-xs rounded-lg transition-all border border-transparent hover:border-slate-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                {importStep === 'preview' && (
+                  <button
+                    onClick={handleConfirmImport}
+                    disabled={isProcessingImport || parsedRows.length === 0}
+                    className="px-5 py-2 text-xs font-black uppercase tracking-wider bg-primary-600 hover:bg-primary-700 text-white rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isProcessingImport ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3.5 w-3.5 stroke-[3px]" />
+                        Confirm & Import ({parsedRows.length})
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1442,8 +1861,6 @@ const StudentProfileDrawer = ({ student, onClose, onEdit, hasFeesModule }: any) 
                 <span className="font-mono font-medium text-slate-700 text-sm">{student.parentPhone}</span>
               </div>
             </div>
-
-            \n
 
             {/* Actions */}
             <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-2 border-t border-slate-50 mt-4">

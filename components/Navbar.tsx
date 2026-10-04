@@ -49,8 +49,15 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
               </Link>
  
               <button
+                onClick={() => navigate('/setup')}
+                className="bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
+              >
+                Get Started Free
+              </button>
+
+              <button
                 onClick={() => navigate('/demo')}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-blue-500/25 active:scale-95"
+                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-blue-500/25 active:scale-95"
               >
                 Book Demo
               </button>
@@ -60,7 +67,7 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
                   onClick={showInstallPrompt}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center gap-2"
                 >
-                  <Download className="h-4 w-4" /> Install
+                  <Download className="h-4 w-4" /> Install App
                 </button>
               )}
             </div>
@@ -107,6 +114,18 @@ const Navbar: React.FC<NavbarProps> = ({ showLinks = true, onStartWizard }) => {
                 >
                   Login
                 </Link>
+                {isInstallable && (
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      showInstallPrompt();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white px-5 py-4 rounded-xl font-bold shadow-md transition-colors"
+                  >
+                    <Download className="w-5 h-5 text-blue-400" />
+                    <span>Install Full App</span>
+                  </button>
+                )}
             </div>
           </div>
         </div>

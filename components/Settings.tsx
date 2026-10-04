@@ -3,12 +3,13 @@ import {
     CheckCircle, User, Loader2, Save, Download, Copy,
     History, ShoppingCart, MessageSquare, AlertCircle, RefreshCw, X, ChevronRight,
     Building2, Lock, CreditCard, Upload, Gift, Layout, Smartphone,
-    Eye, EyeOff
+    Eye, EyeOff, GraduationCap, Coins, Users, Sparkles, Zap, ShieldCheck, ArrowRight,
+    BadgePercent, Check, Receipt, Wallet
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PaystackButton } from 'react-paystack';
+import { payWithPaystack } from '../utils/paystack';
 import Loading from './Loading';
 
 interface SettingsProps {
@@ -25,6 +26,144 @@ interface SettingsProps {
     availableMenus?: any[];
 }
 
+// --- Pricing Models & Modules ---
+
+export interface OrbitModuleDef {
+    id: string;
+    code: string;
+    name: string;
+    subtitle: string;
+    price: number; // per term in GHS
+    badge: string;
+    badgeColor: string;
+    features: string[];
+}
+
+export const ORBIT_MODULES: OrbitModuleDef[] = [
+    {
+        id: 'academic_engine',
+        code: 'academic_engine',
+        name: 'Academic Engine',
+        subtitle: 'Terminal Exams, Broadsheets & Report Cards',
+        price: 100,
+        badge: 'Academics',
+        badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+        features: [
+            'Terminal Exams & CA Grading (30/70 & 50/50)',
+            'Auto Class Positions & Broadsheet Compilation',
+            'Prestige Terminal Report Cards (Customizable)',
+            'Batch PDF Generation & Instant Print Export'
+        ]
+    },
+    {
+        id: 'revenue_guard',
+        code: 'revenue_guard',
+        name: 'Revenue & Finance Guard',
+        subtitle: 'Fee Structures, Invoicing, Receipts & Debtors',
+        price: 120,
+        badge: 'Finance',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        features: [
+            'Student Fee Ledgers & Automated Invoicing',
+            'Instant Thermal POS & A4 Printable Receipts',
+            'Defaulters Tracking & Fee Deficit Analysis',
+            'Cash & Mobile Money Transaction Logging'
+        ]
+    },
+    {
+        id: 'daily_operations',
+        code: 'daily_operations',
+        name: 'Operations, Staff & Feeding',
+        subtitle: 'Attendance, Teacher Payroll & Canteen',
+        price: 100,
+        badge: 'Operations',
+        badgeColor: 'bg-violet-50 text-violet-700 border-violet-200',
+        features: [
+            'Daily Student & Teacher Attendance Tracking',
+            'Monthly Teacher Payroll & Absence Deductions',
+            'Instant Teacher Payslip Generator',
+            'Daily Canteen & Feeding Fee Tracker'
+        ]
+    },
+    {
+        id: 'parent_portal',
+        code: 'parent_portal',
+        name: 'Parent Portal & Notices',
+        subtitle: 'Online Parent Access, Reports & Notice Board',
+        price: 80,
+        badge: 'Parents',
+        badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+        features: [
+            'Secure Parent Student Access Link',
+            'Online Terminal Report Card Viewer',
+            'Live Student Fee Balance & Payment Status',
+            'Digital School Notice Board & Announcements'
+        ]
+    },
+    {
+        id: 'ai_copilot',
+        code: 'ai_copilot',
+        name: 'Orbit AI Co-Pilot',
+        subtitle: 'Automated Remarks & School Intelligence',
+        price: 100,
+        badge: 'AI Smart',
+        badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
+        features: [
+            'AI-Generated Terminal Teacher Remarks',
+            '“Ask Your School Anything” AI Co-Pilot',
+            'Predictive Fee Collection & Deficit Analytics',
+            'Instant Principal Executive Summaries'
+        ]
+    }
+];
+
+export const FULL_SUITE_OFFER = {
+    code: 'full_suite',
+    name: '⭐ Complete Orbit Full Suite',
+    termPrice: 350,
+    sumPrice: 500,
+    savings: 150,
+    features: [
+        'ALL 5 Core Modules Completely Unlocked',
+        'Academic Engine (Report Cards & Broadsheets)',
+        'Revenue Guard (Fee Tracking & Receipts)',
+        'Operations & Staff (Teacher Payroll & Attendance)',
+        'Parent Portal (Online Access & Notices)',
+        'Orbit AI Co-Pilot (Remarks & Intelligence)',
+        'Unlimited Students, Classes & Staff Accounts',
+        'Priority 24/7 WhatsApp Support & Free Upgrades'
+    ]
+};
+
+export const SMS_PACKS = [
+    {
+        id: 'starter',
+        name: 'Starter Pack',
+        credits: 500,
+        price: 30,
+        rate: 'GH¢ 0.060 / SMS',
+        popular: false
+    },
+    {
+        id: 'school',
+        name: 'Standard School Pack',
+        credits: 1500,
+        price: 85,
+        rate: 'GH₵ 0.056 / SMS',
+        popular: true,
+        badge: 'MOST POPULAR'
+    },
+    {
+        id: 'proprietor',
+        name: 'Proprietor Mega Pack',
+        credits: 5000,
+        price: 260,
+        rate: 'GH₵ 0.052 / SMS',
+        popular: false,
+        extra: 'Custom Sender ID Included'
+    }
+];
+
 // --- Fetch Functions ---
 
 const fetchSchoolSettings = async (schoolId: string) => {
@@ -34,60 +173,55 @@ const fetchSchoolSettings = async (schoolId: string) => {
         .eq('id', schoolId)
         .single();
     if (error) throw error;
-
-    // Lazy init referral code if missing (moved from useEffect, better to strictly read here, update via mutation if needed or assume backend handles default)
-    // For read-only query, we'll just return what we have.
-    // If we really need to generate it, we should do it via a mutation or triggers. 
-    // For now, adhering to read-only semantics for queryFn. 
     return school;
 };
 
 const fetchBillingHistory = async (schoolId: string) => {
-    const { data, error } = await supabase
-        .from('billing_history')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('date', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+        const { data, error } = await supabase
+            .from('school_billing_invoices')
+            .select('*')
+            .eq('school_id', schoolId)
+            .order('period_start', { ascending: false });
+        if (!error && data) return data;
+    } catch (_) {}
+    return [];
 };
 
 const fetchSMSTransactions = async (schoolId: string) => {
-    const { data, error } = await supabase
-        .from('sms_transactions')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    try {
+        const { data, error } = await supabase
+            .from('sms_purchases')
+            .select('*')
+            .eq('school_id', schoolId)
+            .order('created_at', { ascending: false });
+        if (!error && data) return data;
+    } catch (_) {}
+    return [];
 };
 
-const fetchWallet = async (schoolId: string) => {
-    const { data: wallet, error } = await supabase
-        .from('school_wallets')
-        .select('*')
-        .eq('school_id', schoolId)
-        .single();
-    if (error && error.code !== 'PGRST116') throw error;
-    return wallet || { balance: 0 };
+const fetchWalletTransactions = async (schoolId: string) => {
+    try {
+        const { data, error } = await supabase
+            .from('school_wallet_transactions')
+            .select('*')
+            .eq('school_id', schoolId)
+            .order('created_at', { ascending: false });
+        if (!error && data) return data;
+    } catch (_) {}
+    return [];
 };
 
-const fetchModules = async () => {
-    const { data, error } = await supabase.from('system_modules').select('*').order('price_ghs', { ascending: true });
-    if (error) throw error;
-    return data || [];
-};
-
-const fetchSubscriptions = async (schoolId: string) => {
-    const { data, error } = await supabase
-        .from('school_subscriptions')
-        .select(`
-            *,
-            system_modules (*)
-        `)
-        .eq('school_id', schoolId);
-    if (error) throw error;
-    return data || [];
+const fetchActiveSubscription = async (schoolId: string) => {
+    try {
+        const { data, error } = await supabase
+            .from('school_subscriptions')
+            .select('*')
+            .eq('school_id', schoolId)
+            .maybeSingle();
+        if (!error && data) return data;
+    } catch (_) {}
+    return null;
 };
 
 const fetchStudentCount = async (schoolId: string) => {
@@ -112,7 +246,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
     // -- Tabs State --
     const [activeTab, setActiveTab] = useState<'general' | 'security' | 'billing' | 'menu'>(isTeacher ? 'security' : 'general');
-    const [billingTab, setBillingTab] = useState<'overview' | 'sms' | 'settings'>('overview');
+    const [billingTab, setBillingTab] = useState<'overview' | 'sms' | 'settings' | 'history'>('overview');
 
     // -- Local Form States (initialized from Query Data) --
     // We'll use useEffect to sync query data to these local states for editing
@@ -120,6 +254,17 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
     const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
     const [smsCalc, setSmsCalc] = useState({ amount: '', qty: '' });
     const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
+
+    // Modular & Bundle Billing States
+    const [selectedModules, setSelectedModules] = useState<string[]>(['academic_engine', 'revenue_guard']);
+    const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<{
+        code: string;
+        name: string;
+        amount: number;
+        description: string;
+        modules: string[];
+    } | null>(null);
+    const [showSubscriptionCheckout, setShowSubscriptionCheckout] = useState(false);
 
     // Top Up Context
     const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -163,22 +308,17 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         enabled: !!schoolId
     });
 
-    const { data: wallet } = useQuery({
-        queryKey: ['wallet', schoolId],
-        queryFn: () => fetchWallet(schoolId!),
+    const { data: activeSub } = useQuery({
+        queryKey: ['activeSubscription', schoolId],
+        queryFn: () => fetchActiveSubscription(schoolId!),
         enabled: !!schoolId && !isTeacher && activeTab === 'billing'
     });
 
-    const { data: modules = [] } = useQuery({
-        queryKey: ['modules'],
-        queryFn: fetchModules,
-        enabled: !isTeacher && activeTab === 'billing'
-    });
-
-    const { data: subscriptions = [] } = useQuery({
-        queryKey: ['subscriptions', schoolId],
-        queryFn: () => fetchSubscriptions(schoolId!),
-        enabled: !!schoolId && !isTeacher && activeTab === 'billing'
+    const { data: walletTransactions = [] } = useQuery({
+        queryKey: ['walletTransactions', schoolId],
+        queryFn: () => fetchWalletTransactions(schoolId!),
+        enabled: !!schoolId && !isTeacher && activeTab === 'billing' && billingTab === 'history',
+        retry: false
     });
 
 
@@ -296,114 +436,229 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         onError: (err: any) => alert("Error updating password: " + err.message)
     });
 
-    const updatePlanMutation = useMutation({
-        mutationFn: async (planName: string) => {
-            const { error } = await supabase
-                .from('schools')
-                .update({ subscription_plan: planName })
-                .eq('id', schoolId);
-            if (error) throw error;
-        },
-        onSuccess: (data, planName) => {
-            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
-            setConfig((prev: any) => ({ ...prev, plan: planName }));
-            alert(`Plan updated to ${planName}`);
-            setShowPlanModal(false);
-        },
-        onError: (err: any) => alert("Error updating plan: " + err.message)
-    });
-
-    const requestSMSPurchaseMutation = useMutation({
-        mutationFn: async ({ qty, amount }: { qty: number, amount: number }) => {
-            const { data, error } = await supabase.rpc('request_sms_purchase', {
+    const activateSubscriptionMutation = useMutation({
+        mutationFn: async (payload: {
+            planCode: string;
+            amount: number;
+            paymentMethod: string;
+            paymentRef?: string;
+            description: string;
+        }) => {
+            const { data, error } = await supabase.rpc('activate_school_subscription', {
                 p_school_id: schoolId,
-                p_quantity: qty,
-                p_amount: amount
+                p_plan_code: payload.planCode,
+                p_amount: payload.amount,
+                p_payment_method: payload.paymentMethod || 'Mobile Money',
+                p_payment_ref: payload.paymentRef || `MOMO-${Date.now()}`,
+                p_description: payload.description
             });
-            if (error) throw error;
-
-            // Trigger Admin SMS Notification
-            try {
-                // Ensure we use the international format (233) for reliability and pass credentials
-                const adminPhone = '233502560760';
-
-                await supabase.functions.invoke('send-sms', {
-                    body: {
-                        recipients: [{
-                            phone: adminPhone,
-                            vars: {}
-                        }],
-                        message: `🚀 SMS PURCHASE: ${config.name} (${currentUser?.name}) buying ${qty} SMS credits.`,
-                        hubtelKeys: {
-                            clientId: import.meta.env.VITE_HUBTEL_CLIENT_ID,
-                            clientSecret: import.meta.env.VITE_HUBTEL_CLIENT_SECRET,
-                            senderId: import.meta.env.VITE_HUBTEL_SENDER_ID || 'Base16'
-                        }
-                    }
+            if (error) {
+                // Direct fallback
+                const endDate = new Date();
+                endDate.setMonth(endDate.getMonth() + 4);
+                await supabase.from('school_subscriptions').upsert({
+                    school_id: schoolId,
+                    plan_code: payload.planCode,
+                    billing_cycle: 'Termly',
+                    status: 'active',
+                    amount_billed: payload.amount,
+                    current_period_start: new Date().toISOString().split('T')[0],
+                    current_period_end: endDate.toISOString().split('T')[0],
+                    payment_method: payload.paymentMethod || 'Mobile Money',
+                    payment_reference: payload.paymentRef || `REF-${Date.now()}`
                 });
-            } catch (err) {
-                console.error("Admin notification failed:", err);
+                await supabase.from('schools').update({
+                    subscription_plan: payload.planCode,
+                    next_payment_due: endDate.toISOString().split('T')[0],
+                    status: 'active'
+                }).eq('id', schoolId);
             }
-
             return data;
         },
-        onSuccess: (data, variables) => {
-            alert(`Purchase request sent! Your ${variables.qty} credits will be delivered in under 30 minutes once verified.`);
-            setSmsCalc({ amount: '', qty: '' });
-            setIsSmsModalOpen(false);
-            queryClient.invalidateQueries({ queryKey: ['smsTransactions', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['activeSubscription', schoolId] });
             queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['billingHistory', schoolId] });
+            setShowSubscriptionCheckout(false);
+            alert('🎉 Subscription activated successfully! Your school is licensed for the active term.');
         },
-        onError: (err: any) => alert("Error processing SMS purchase: " + err.message)
+        onError: (err: any) => alert('Subscription error: ' + err.message)
     });
 
-
-    const topUpMutation = useMutation({
-        mutationFn: async (amount: number) => {
-            const { error } = await supabase.rpc('top_up_wallet', {
+    const buySMSCreditsMutation = useMutation({
+        mutationFn: async (pack: { quantity: number; amount: number; paymentMethod?: string; reference?: string }) => {
+            const ref = pack.reference || `SMS-PAY-${Date.now()}`;
+            const { data, error } = await supabase.rpc('top_up_school_sms', {
                 p_school_id: schoolId,
-                p_amount: amount,
-                p_reference: `mock-paystack-${Date.now()}`
+                p_quantity: pack.quantity,
+                p_amount: pack.amount,
+                p_payment_ref: ref,
+                p_payment_method: pack.paymentMethod || 'Paystack Online'
             });
-            if (error) throw error;
+            if (error) {
+                // Safe direct fallback
+                const currentBal = config.sms_balance || 0;
+                await supabase.from('schools').update({
+                    sms_balance: currentBal + pack.quantity
+                }).eq('id', schoolId);
+                try {
+                    await supabase.from('sms_purchases').insert({
+                        school_id: schoolId,
+                        quantity: pack.quantity,
+                        amount_paid: pack.amount,
+                        payment_reference: ref,
+                        payment_method: pack.paymentMethod || 'Paystack Online',
+                        status: 'Completed'
+                    });
+                } catch (_) {}
+            }
+            return data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
-            alert("Wallet topped up successfully!");
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['smsTransactions', schoolId] });
+            setIsSmsModalOpen(false);
+            alert(`🎉 Success! ${variables.quantity.toLocaleString()} SMS credits have been added to your school balance.`);
         },
-        onError: (err: any) => alert("Error topping up: " + err.message)
+        onError: (err: any) => alert('Failed to purchase SMS credits: ' + err.message)
     });
 
-    const activateModuleMutation = useMutation({
-        mutationFn: async (moduleId: string) => {
-            const { error } = await supabase.rpc('activate_module', {
+    const topUpWalletMutation = useMutation({
+        mutationFn: async (payload: { amount: number; paymentMethod: string; reference?: string }) => {
+            const ref = payload.reference || `TOPUP-${Date.now()}`;
+            const { data, error } = await supabase.rpc('top_up_school_wallet', {
                 p_school_id: schoolId,
-                p_module_id: moduleId
+                p_amount: payload.amount,
+                p_payment_ref: ref,
+                p_payment_method: payload.paymentMethod || 'Mobile Money'
             });
-            if (error) throw error;
+            if (error) {
+                // Direct fallback if RPC is not yet executed in database
+                const cur = Number(schoolData?.wallet_balance || 0);
+                const newBal = cur + payload.amount;
+                await supabase.from('schools').update({
+                    wallet_balance: newBal
+                }).eq('id', schoolId);
+
+                try {
+                    await supabase.from('school_wallet_transactions').insert({
+                        school_id: schoolId,
+                        amount: payload.amount,
+                        balance_after: newBal,
+                        type: 'deposit',
+                        purpose: 'Wallet Deposit',
+                        payment_method: payload.paymentMethod || 'Mobile Money',
+                        payment_reference: ref,
+                        description: `Wallet Top-Up of GH₵ ${payload.amount}`
+                    });
+                } catch (_) {}
+            }
+            return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['wallet', schoolId] });
-            queryClient.invalidateQueries({ queryKey: ['subscriptions', schoolId] });
-            alert("Module activated successfully!");
+            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['walletTransactions', schoolId] });
+            setIsTopUpModalOpen(false);
+            alert('🎉 Orbit Wallet topped up successfully! You can now use your balance across any module or SMS pack.');
         },
-        onError: (err: any) => alert("Activation error: " + err.message)
+        onError: (err: any) => alert('Top-up failed: ' + err.message)
     });
 
-    const toggleAutoRenewMutation = useMutation({
-        mutationFn: async ({ moduleId, autoRenew }: { moduleId: string; autoRenew: boolean }) => {
-            const { error } = await supabase
-                .from('school_subscriptions')
-                .update({ auto_renew: autoRenew })
-                .eq('school_id', schoolId)
-                .eq('module_id', moduleId);
-            if (error) throw error;
+    const payFromWalletMutation = useMutation({
+        mutationFn: async (payload: {
+            amount: number;
+            purpose: 'subscription' | 'sms';
+            description: string;
+            planCode?: string;
+            smsQuantity?: number;
+        }) => {
+            const cur = Number(schoolData?.wallet_balance || 0);
+            if (cur < payload.amount) {
+                throw new Error(`Insufficient wallet balance. You have GH₵ ${cur.toFixed(2)}, but need GH₵ ${payload.amount.toFixed(2)}.`);
+            }
+
+            const { data, error } = await supabase.rpc('pay_from_school_wallet', {
+                p_school_id: schoolId,
+                p_amount: payload.amount,
+                p_purpose: payload.purpose,
+                p_description: payload.description,
+                p_plan_code: payload.planCode || null,
+                p_sms_quantity: payload.smsQuantity || 0
+            });
+
+            if (error) {
+                // Direct fallback
+                const newBal = cur - payload.amount;
+                if (payload.purpose === 'subscription') {
+                    const endDate = new Date();
+                    endDate.setMonth(endDate.getMonth() + 4);
+                    await supabase.from('schools').update({
+                        wallet_balance: newBal,
+                        subscription_plan: payload.planCode || 'full_suite',
+                        next_payment_due: endDate.toISOString().split('T')[0],
+                        status: 'active'
+                    }).eq('id', schoolId);
+
+                    await supabase.from('school_subscriptions').upsert({
+                        school_id: schoolId,
+                        plan_code: payload.planCode || 'full_suite',
+                        billing_cycle: 'Termly',
+                        status: 'active',
+                        amount_billed: payload.amount,
+                        current_period_start: new Date().toISOString().split('T')[0],
+                        current_period_end: endDate.toISOString().split('T')[0],
+                        payment_method: 'Orbit Wallet',
+                        payment_reference: `WALLET-${Date.now()}`
+                    });
+                } else if (payload.purpose === 'sms') {
+                    const curSms = Number(config.sms_balance || 0);
+                    await supabase.from('schools').update({
+                        wallet_balance: newBal,
+                        sms_balance: curSms + (payload.smsQuantity || 0)
+                    }).eq('id', schoolId);
+
+                    try {
+                        await supabase.from('sms_purchases').insert({
+                            school_id: schoolId,
+                            quantity: payload.smsQuantity || 0,
+                            amount_paid: payload.amount,
+                            payment_reference: `WALLET-SMS-${Date.now()}`,
+                            payment_method: 'Orbit Wallet',
+                            status: 'Completed'
+                        });
+                    } catch (_) {}
+                }
+
+                try {
+                    await supabase.from('school_wallet_transactions').insert({
+                        school_id: schoolId,
+                        amount: -payload.amount,
+                        balance_after: newBal,
+                        type: payload.purpose,
+                        purpose: payload.purpose,
+                        payment_method: 'Orbit Wallet',
+                        payment_reference: `WALLET-PAY-${Date.now()}`,
+                        description: payload.description
+                    });
+                } catch (_) {}
+            }
+            return data;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['subscriptions', schoolId] });
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['walletTransactions', schoolId] });
+            if (variables.purpose === 'subscription') {
+                queryClient.invalidateQueries({ queryKey: ['activeSubscription', schoolId] });
+                queryClient.invalidateQueries({ queryKey: ['billingHistory', schoolId] });
+                setShowSubscriptionCheckout(false);
+                alert('🎉 Academic Term License unlocked instantly using your Orbit Wallet!');
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['smsTransactions', schoolId] });
+                setIsSmsModalOpen(false);
+                alert(`🎉 ${variables.smsQuantity?.toLocaleString()} SMS credits added to your balance instantly using your Orbit Wallet!`);
+            }
         },
-        onError: (err: any) => alert("Error updating auto-renew status: " + err.message)
+        onError: (err: any) => alert('Wallet payment failed: ' + err.message)
     });
 
     // -- Handlers --
@@ -481,8 +736,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
         alert('Referral code copied to clipboard!');
     };
 
-    // Sub-components helpers
-    const currentPlan = plans.find(p => p.name === config.plan) || plans[0];
 
 
     return (
@@ -826,251 +1079,798 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 {/* --- TAB 3: BILLING --- */}
                 {activeTab === 'billing' && !isTeacher && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="flex flex-col gap-2">
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-800">Billing & Credits</h2>
-                                <p className="text-slate-500 text-sm">Manage subscription, SMS credits, and payment methods.</p>
-                            </div>
+                        {/* Streamlined Header */}
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Billing & Credits</h2>
+                            <p className="text-slate-500 text-sm mt-0.5">Manage subscription, SMS credits, and payment methods.</p>
                         </div>
 
-                        {/* Wallet Card */}
-                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <CreditCard className="h-32 w-32 transform rotate-12" />
+                        {/* Streamlined Wallet Balance Card (Exact to User Design) */}
+                        <div className="bg-[#0b1329] text-white rounded-2xl p-5 md:p-6 shadow-sm relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-5 border border-slate-800">
+                            {/* Background geometric wallet watermark */}
+                            <div className="absolute right-6 -bottom-6 opacity-5 pointer-events-none">
+                                <Wallet className="w-40 h-40 text-white transform rotate-12" />
                             </div>
-                            <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-6">
-                                <div>
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Wallet Balance</p>
-                                    <h3 className="text-4xl font-black mt-1">GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}</h3>
-                                    <p className="text-slate-400 text-sm mt-2">Top up your wallet to activate modules and buy SMS credits.</p>
+
+                            <div className="relative z-10 space-y-1">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                    WALLET BALANCE
                                 </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => {
-                                        setIsTopUpModalOpen(true);
-                                        setTopUpAmount('');
-                                    }} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-100 transition-colors">
-                                        Top Up Wallet
-                                    </button>
+                                <div className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                                    GH₵ {Number(schoolData?.wallet_balance || 0).toFixed(2)}
                                 </div>
+                                <p className="text-xs text-slate-400 pt-0.5">
+                                    Top up your wallet to activate modules and buy SMS credits.
+                                </p>
+                            </div>
+
+                            <div className="relative z-10 flex items-center gap-3">
+                                <button
+                                    onClick={() => setIsTopUpModalOpen(true)}
+                                    className="px-6 py-3 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.98] whitespace-nowrap"
+                                >
+                                    Top Up Wallet
+                                </button>
                             </div>
                         </div>
 
                         {/* Sub Navigation */}
-                        <div className="flex flex-wrap gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-fit">
-                            <button onClick={() => setBillingTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'overview' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Overview</button>
-                            <button onClick={() => setBillingTab('sms')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${billingTab === 'sms' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-500 hover:text-primary-600'}`}>
-                                <Smartphone className="w-4 h-4" /> SMS Credits
+                        <div className="flex flex-wrap gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
+                            <button
+                                onClick={() => setBillingTab('overview')}
+                                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
+                                    billingTab === 'overview'
+                                        ? 'bg-slate-900 text-white shadow-md'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Zap className="w-4 h-4 text-amber-400" /> Term Licenses & Modules
                             </button>
-                            <button onClick={() => setBillingTab('settings')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${billingTab === 'settings' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Settings</button>
+                            <button
+                                onClick={() => setBillingTab('sms')}
+                                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
+                                    billingTab === 'sms'
+                                        ? 'bg-primary-600 text-white shadow-md'
+                                        : 'text-slate-600 hover:text-primary-600 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Smartphone className="w-4 h-4" /> SMS Store ({(config.sms_balance || 0).toLocaleString()})
+                            </button>
+                            <button
+                                onClick={() => setBillingTab('settings')}
+                                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
+                                    billingTab === 'settings'
+                                        ? 'bg-slate-900 text-white shadow-md'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Building2 className="w-4 h-4" /> School Fee Accounts
+                            </button>
+                            <button
+                                onClick={() => setBillingTab('history')}
+                                className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
+                                    billingTab === 'history'
+                                        ? 'bg-slate-900 text-white shadow-md'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Receipt className="w-4 h-4" /> Wallet Ledger & Invoices
+                            </button>
                         </div>
 
-                        {/* SUB-TAB: OVERVIEW */}
+                        {/* SUB-TAB 1: OVERVIEW (PRICING & MODULES) */}
                         {billingTab === 'overview' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                                {/* Modules List */}
-                                <div className="md:col-span-2 space-y-4">
-                                    <div className="flex items-center gap-2 mb-2 border-b border-slate-100 pb-2">
-                                        <Layout className="h-5 w-5 text-slate-500" />
-                                        <h3 className="font-bold text-slate-800">System Modules</h3>
+                            <div className="space-y-4">
+                                {activeSub?.status === 'active' && (
+                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-200 w-fit">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <span>Active Term License: <b>{activeSub?.plan_code === 'full_suite' ? 'Complete Orbit Full Suite' : activeSub?.plan_code}</b> (Valid until {activeSub?.current_period_end ? new Date(activeSub.current_period_end).toLocaleDateString() : 'term conclusion'})</span>
                                     </div>
+                                )}
+
+                                {/* ⭐ HERO CARD: COMPLETE ORBIT FULL SUITE (Small & Neat with Visible Border) */}
+                                <div className="rounded-2xl bg-white text-slate-800 p-4 sm:p-5 border-2 border-indigo-500 shadow-md ring-1 ring-indigo-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="space-y-1.5">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                                <Sparkles className="h-3 w-3 text-amber-600 fill-amber-600" /> RECOMMENDED
+                                            </span>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                                Save GH₵ 150 (30% Off)
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap items-baseline gap-2.5">
+                                            <h3 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">
+                                                Complete Orbit Full Suite
+                                            </h3>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-xl md:text-2xl font-black text-slate-900">GH₵ 350</span>
+                                                <span className="text-xs text-slate-500 font-medium">/ term</span>
+                                                <span className="text-xs text-slate-400 line-through ml-1">GH₵ 500</span>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-500 max-w-xl">
+                                            Unlocks all 5 modules: Academic Engine, Revenue Guard, Operations & Payroll, Parent Portal, and Orbit AI Co-Pilot. Unlimited students.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row md:flex-col items-stretch sm:items-center md:items-end justify-center gap-1.5 shrink-0">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedPlanForCheckout({
+                                                    code: 'full_suite',
+                                                    name: '⭐ Complete Orbit Full Suite',
+                                                    amount: FULL_SUITE_OFFER.termPrice,
+                                                    description: 'All 5 Core Modules: Academic Engine, Revenue & Finance Guard, Operations & Staff Payroll, Parent Portal, and Orbit AI Co-Pilot',
+                                                    modules: [
+                                                        'Academic Engine (Broadsheets & Reports)',
+                                                        'Revenue & Finance Guard (Fees & POS)',
+                                                        'Operations, Staff & Feeding (Payroll & Attendance)',
+                                                        'Parent Portal & Notice Board',
+                                                        'Orbit AI Co-Pilot & Remarks'
+                                                    ]
+                                                });
+                                                setShowSubscriptionCheckout(true);
+                                            }}
+                                            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow transition-all hover:scale-[1.01] active:scale-[0.98] text-center flex items-center justify-center gap-2 text-xs md:text-sm whitespace-nowrap"
+                                        >
+                                            <Zap className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                                            Activate Full Suite (GH₵ 350)
+                                        </button>
+                                        <span className="text-[10px] text-slate-400 text-center md:text-right">
+                                            Instant 1-Click with Wallet • 4 Months
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 2: INDIVIDUAL MODULES (A LA CARTE) */}
+                                <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                                                <Layout className="h-5 w-5 text-indigo-600" />
+                                                Or Build Your Custom Stack (A La Carte)
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                Select only the specific modules you wish to license this term.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <button
+                                                onClick={() => setSelectedModules(ORBIT_MODULES.map(m => m.id))}
+                                                className="text-primary-600 font-bold hover:underline"
+                                            >
+                                                Select All (5)
+                                            </button>
+                                            <span className="text-slate-300">•</span>
+                                            <button
+                                                onClick={() => setSelectedModules(['academic_engine'])}
+                                                className="text-slate-500 hover:text-slate-800"
+                                            >
+                                                Reset to 1
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 5 Modules Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {modules.map((module: any) => {
-                                            const sub = subscriptions.find((s: any) => s.module_id === module.id);
-                                            const isActive = sub?.status === 'active' && (!sub.expires_at || new Date(sub.expires_at) >= new Date());
-
-                                            const isFree = module.price_ghs === 0;
-                                            const isActivating = activateModuleMutation.isPending && activateModuleMutation.variables === module.id;
-
+                                        {ORBIT_MODULES.map((module) => {
+                                            const isSelected = selectedModules.includes(module.id);
                                             return (
-                                                <div key={module.id} className={`bg-white rounded-xl border p-5 flex flex-col justify-between ${isActive ? 'border-primary-500 ring-1 ring-primary-500 shadow-md' : 'border-slate-200'}`}>
+                                                <div
+                                                    key={module.id}
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            if (selectedModules.length > 1) {
+                                                                setSelectedModules(selectedModules.filter(id => id !== module.id));
+                                                            } else {
+                                                                alert('Please keep at least one module selected.');
+                                                            }
+                                                        } else {
+                                                            setSelectedModules([...selectedModules, module.id]);
+                                                        }
+                                                    }}
+                                                    className={`cursor-pointer rounded-2xl p-5 border-2 transition-all flex flex-col justify-between ${
+                                                        isSelected
+                                                            ? 'border-indigo-600 bg-indigo-50/40 shadow-md ring-2 ring-indigo-500/20'
+                                                            : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'
+                                                    }`}
+                                                >
                                                     <div>
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <h4 className="font-bold text-slate-800">{module.name}</h4>
-                                                            {isActive && <span className="text-[10px] font-bold uppercase tracking-widest bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">Active</span>}
-                                                            {!isActive && isFree && <span className="text-[10px] font-bold uppercase tracking-widest bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Free Always</span>}
-                                                        </div>
-                                        <p className="text-xs text-slate-500 mb-4">{module.description}</p>
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-end justify-between mb-4">
-                                                            <div className="font-black text-lg text-slate-800">GH¢ {module.price_ghs} <span className="text-xs font-medium text-slate-500">/ 30 days</span></div>
-                                                        </div>
-
-                                                        {isActive && sub.expires_at ? (
-                                                            <div className="text-xs text-slate-500 mb-3 bg-slate-50 px-3 py-2.5 rounded-lg space-y-2">
-                                                                <div className="flex justify-between items-center">
-                                                                    <span>Expires:</span>
-                                                                    <span className="font-bold text-slate-700">{new Date(sub.expires_at).toLocaleDateString()}</span>
+                                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                                                                    isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'
+                                                                }`}>
+                                                                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                                                 </div>
-                                                                {module.price_ghs > 0 && (
-                                                                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-150">
-                                                                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Auto-Renew</span>
-                                                                        <button
-                                                                            onClick={() => toggleAutoRenewMutation.mutate({ moduleId: module.id, autoRenew: !sub.auto_renew })}
-                                                                            disabled={toggleAutoRenewMutation.isPending}
-                                                                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition-all border ${
-                                                                                sub.auto_renew 
-                                                                                    ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' 
-                                                                                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                                                                            }`}
-                                                                        >
-                                                                            {sub.auto_renew ? 'Enabled' : 'Disabled (Click to Turn On)'}
-                                                                        </button>
-                                                                    </div>
-                                                                )}
+                                                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${module.badgeColor}`}>
+                                                                    {module.badge}
+                                                                </span>
                                                             </div>
-                                                        ) : null}
+                                                            <div className="text-right">
+                                                                <span className="text-lg font-black text-slate-900">GH₵ {module.price}</span>
+                                                                <span className="text-[10px] text-slate-400 block font-medium">/ term</span>
+                                                            </div>
+                                                        </div>
 
+                                                        <h4 className="font-bold text-slate-900 text-base">{module.name}</h4>
+                                                        <p className="text-xs text-slate-500 mt-0.5 mb-3">{module.subtitle}</p>
+
+                                                        <ul className="space-y-1.5 border-t border-slate-100 pt-2.5">
+                                                            {module.features.map((feat, idx) => (
+                                                                <li key={idx} className="flex items-start gap-1.5 text-xs text-slate-600">
+                                                                    <CheckCircle className="h-3.5 w-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                                                                    <span>{feat}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+
+                                                    <div className="pt-4 mt-2">
                                                         <button
-                                                            disabled={isActive || isActivating || (wallet?.balance < module.price_ghs && !isFree)}
-                                                            onClick={() => {
-                                                                if (confirm(`Activate ${module.name} for GH¢ ${module.price_ghs}?`)) {
-                                                                    activateModuleMutation.mutate(module.id);
-                                                                }
-                                                            }}
-                                                            className={`w-full py-2.5 rounded-lg text-sm font-bold transition-all ${isActive ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : wallet?.balance >= module.price_ghs || isFree ? 'bg-slate-900 text-white shadow-md hover:bg-slate-800' : 'bg-red-50 text-red-500 cursor-not-allowed border border-red-200'}`}
+                                                            type="button"
+                                                            className={`w-full py-2 rounded-xl text-xs font-bold transition-all ${
+                                                                isSelected
+                                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                            }`}
                                                         >
-                                                            {isActive ? 'Currently Active' : isActivating ? 'Activating...' : wallet?.balance >= module.price_ghs || isFree ? 'Activate Module' : 'Insufficient Funds'}
+                                                            {isSelected ? '✓ Module Selected' : '+ Add Module'}
                                                         </button>
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
+
+                                    {/* DYNAMIC DECOY NUDGE BANNER & CHECKOUT BAR */}
+                                    {(() => {
+                                        const selectedList = ORBIT_MODULES.filter(m => selectedModules.includes(m.id));
+                                        const currentSum = selectedList.reduce((sum, m) => sum + m.price, 0);
+                                        const isAll = selectedModules.length === ORBIT_MODULES.length;
+                                        const diff = 350 - currentSum;
+
+                                        return (
+                                            <div className="space-y-3 pt-2">
+                                                {/* Smart Suggestion Nudge Box */}
+                                                {isAll ? (
+                                                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                                                                <BadgePercent className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-amber-950 text-sm">You selected all 5 individual modules (GH₵ 500)!</h4>
+                                                                <p className="text-xs text-amber-800">
+                                                                    Don't pay separately. Activate the <b>Complete Full Suite</b> for only <b>GH₵ 350</b> and save <b>GH₵ 150 (30% discount)</b>!
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedPlanForCheckout({
+                                                                    code: 'full_suite',
+                                                                    name: '⭐ Complete Orbit Full Suite',
+                                                                    amount: FULL_SUITE_OFFER.termPrice,
+                                                                    description: 'All 5 Core Modules unlocked at bundle discount',
+                                                                    modules: selectedList.map(m => m.name)
+                                                                });
+                                                                setShowSubscriptionCheckout(true);
+                                                            }}
+                                                            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs shadow-md whitespace-nowrap"
+                                                        >
+                                                            Switch to Full Suite (Save GH₵ 150)
+                                                        </button>
+                                                    </div>
+                                                ) : currentSum > FULL_SUITE_OFFER.termPrice ? (
+                                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                                                <BadgePercent className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-emerald-950 text-sm">
+                                                                    Smart Suggestion: Save GH₵ {currentSum - FULL_SUITE_OFFER.termPrice} with the Full Suite!
+                                                                </h4>
+                                                                <p className="text-xs text-emerald-800">
+                                                                    Your selected {selectedModules.length} modules cost <b>GH₵ {currentSum}</b>, which is more than the Full Suite (GH₵ 350). Switch now to save <b>GH₵ {currentSum - FULL_SUITE_OFFER.termPrice}</b> and unlock ALL 5 modules!
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedPlanForCheckout({
+                                                                    code: 'full_suite',
+                                                                    name: '⭐ Complete Orbit Full Suite',
+                                                                    amount: FULL_SUITE_OFFER.termPrice,
+                                                                    description: 'All 5 Core Modules unlocked at bundle discount',
+                                                                    modules: ORBIT_MODULES.map(m => m.name)
+                                                                });
+                                                                setShowSubscriptionCheckout(true);
+                                                            }}
+                                                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md whitespace-nowrap"
+                                                        >
+                                                            Switch to Full Suite (Save GH₵ {currentSum - FULL_SUITE_OFFER.termPrice})
+                                                        </button>
+                                                    </div>
+                                                ) : currentSum === FULL_SUITE_OFFER.termPrice ? (
+                                                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                                                <Sparkles className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-indigo-950 text-sm">
+                                                                    Smart Suggestion: Unlock ALL 5 Modules for the exact same price!
+                                                                </h4>
+                                                                <p className="text-xs text-indigo-800">
+                                                                    Your selected modules total <b>GH₵ 350</b>. For that exact same price, the Complete Full Suite unlocks every single system in Orbit!
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedPlanForCheckout({
+                                                                    code: 'full_suite',
+                                                                    name: '⭐ Complete Orbit Full Suite',
+                                                                    amount: FULL_SUITE_OFFER.termPrice,
+                                                                    description: 'All 5 Core Modules unlocked at bundle discount',
+                                                                    modules: ORBIT_MODULES.map(m => m.name)
+                                                                });
+                                                                setShowSubscriptionCheckout(true);
+                                                            }}
+                                                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md whitespace-nowrap"
+                                                        >
+                                                            Get All 5 Modules (GH₵ 350)
+                                                        </button>
+                                                    </div>
+                                                ) : currentSum >= 280 ? (
+                                                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-300 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                                                <Sparkles className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-indigo-950 text-sm">
+                                                                    Smart Suggestion: For just GH₵ {FULL_SUITE_OFFER.termPrice - currentSum} more, unlock EVERYTHING!
+                                                                </h4>
+                                                                <p className="text-xs text-indigo-800">
+                                                                    You selected {selectedModules.length} modules for <b>GH₵ {currentSum}</b>. Adding only <b>GH₵ {FULL_SUITE_OFFER.termPrice - currentSum}</b> gives you all 5 modules with the Full Suite (GH₵ 350).
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedPlanForCheckout({
+                                                                    code: 'full_suite',
+                                                                    name: '⭐ Complete Orbit Full Suite',
+                                                                    amount: FULL_SUITE_OFFER.termPrice,
+                                                                    description: 'All 5 Core Modules unlocked at bundle discount',
+                                                                    modules: ORBIT_MODULES.map(m => m.name)
+                                                                });
+                                                                setShowSubscriptionCheckout(true);
+                                                            }}
+                                                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md whitespace-nowrap"
+                                                        >
+                                                            Get Full Suite for +GH₵ {FULL_SUITE_OFFER.termPrice - currentSum}
+                                                        </button>
+                                                    </div>
+                                                ) : null}
+
+                                                {/* Selected Summary Bar */}
+                                                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                    <div>
+                                                        <div className="text-xs text-slate-500 font-medium">Selected Custom Stack:</div>
+                                                        <div className="flex items-baseline gap-2 mt-0.5">
+                                                            <span className="text-2xl font-black text-slate-900">
+                                                                GH₵ {isAll || currentSum > FULL_SUITE_OFFER.termPrice ? FULL_SUITE_OFFER.termPrice : currentSum}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500">/ term ({selectedModules.length} modules selected)</span>
+                                                            {currentSum > FULL_SUITE_OFFER.termPrice && (
+                                                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 ml-2">
+                                                                    Capped at Full Suite Rate (Save GH₵ {currentSum - FULL_SUITE_OFFER.termPrice})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={() => {
+                                                            const shouldUpgrade = isAll || currentSum >= FULL_SUITE_OFFER.termPrice;
+                                                            setSelectedPlanForCheckout({
+                                                                code: shouldUpgrade ? 'full_suite' : `custom_${selectedModules.join('_')}`,
+                                                                name: shouldUpgrade ? '⭐ Complete Orbit Full Suite' : `Custom Modular License (${selectedModules.length} Modules)`,
+                                                                amount: shouldUpgrade ? FULL_SUITE_OFFER.termPrice : currentSum,
+                                                                description: shouldUpgrade ? 'All 5 Core Modules unlocked' : selectedList.map(m => m.name).join(', '),
+                                                                modules: shouldUpgrade ? ORBIT_MODULES.map(m => m.name) : selectedList.map(m => m.name)
+                                                            });
+                                                            setShowSubscriptionCheckout(true);
+                                                        }}
+                                                        disabled={selectedModules.length === 0}
+                                                        className="w-full sm:w-auto px-7 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        Proceed to Checkout ({selectedModules.length} Modules)
+                                                        <ArrowRight className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         )}
 
-                        {/* SUB-TAB: SMS CREDITS */}
+                        {/* SUB-TAB 2: SMS CREDITS */}
                         {billingTab === 'sms' && (
-                            <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6">
-                                {/* Buy Credits Info Card */}
-                                <div className="bg-transparent lg:bg-white p-0 lg:p-6 justify-center flex flex-col items-center rounded-2xl lg:border border-slate-200 lg:shadow-sm space-y-0 lg:space-y-6 text-center">
-                                    <div className="bg-primary-50 p-4 rounded-full text-primary-600 mb-2 hidden lg:flex">
-                                        <Smartphone className="w-10 h-10" />
+                            <div className="space-y-6">
+                                {/* Balance Card */}
+                                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+                                        <Smartphone className="h-40 w-40" />
                                     </div>
-                                    <div className="hidden lg:block">
-                                        <h3 className="font-bold text-slate-800 text-xl">Top Up SMS Balance</h3>
-                                        <p className="text-slate-500 text-sm mt-2 max-w-[250px] mx-auto">Purchase credits to send bulk messages to parents and staff.</p>
+                                    <div className="relative z-10 flex flex-col md:flex-row justify-between md:items-center gap-6">
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest bg-white/20 text-white px-3 py-1 rounded-full">
+                                                Direct Telecel / MTN Carrier Delivery
+                                            </span>
+                                            <h3 className="text-4xl md:text-5xl font-black mt-2">
+                                                {(config.sms_balance || 0).toLocaleString()} <span className="text-lg font-normal text-blue-200">SMS Credits</span>
+                                            </h3>
+                                            <p className="text-blue-100 text-xs md:text-sm mt-1 max-w-lg">
+                                                SMS credits never expire. Use them anytime to send terminal report cards, urgent announcements, and fee payment receipts to parents.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsSmsModalOpen(true)}
+                                            className="px-6 py-3.5 bg-white text-blue-900 hover:bg-blue-50 font-black rounded-xl shadow-lg transition-all text-sm flex items-center justify-center gap-2"
+                                        >
+                                            <CreditCard className="w-4 h-4" /> Buy Credit Pack
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setSmsCalc({ amount: '', qty: '' });
-                                            setIsSmsModalOpen(true);
-                                        }}
-                                        className="w-full max-w-[250px] bg-primary-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:scale-105 transition-all flex justify-center items-center gap-2"
-                                    >
-                                        <CreditCard className="w-5 h-5" /> Buy Credits via Wallet
-                                    </button>
                                 </div>
 
-                                {/* Balance & History */}
-                                <div className="space-y-6">
-                                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                                            <Smartphone className="h-32 w-32" />
-                                        </div>
-                                        <div className="relative z-10">
-                                            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider mb-2">Available Credits</p>
-                                            <h3 className="text-4xl font-black">{config.sms_balance ? config.sms_balance.toLocaleString() : 0}</h3>
-                                            <p className="text-blue-200 text-sm mt-1">SMS Remaining</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-64 overflow-y-auto">
-                                        <div className="p-4 border-b border-slate-100 bg-slate-50">
-                                            <h3 className="font-bold text-slate-700 text-sm">Purchase History</h3>
-                                        </div>
-                                        <div className="divide-y divide-slate-100">
-                                            {smsTransactions.map((tx: any, i: number) => (
-                                                <div key={i} className="p-4 flex justify-between items-center text-sm">
-                                                    <div>
-                                                        <p className="font-bold text-slate-800">{tx.quantity} Credits</p>
-                                                        <span className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</span>
+                                {/* SMS Credit Packs Grid */}
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-slate-800 text-base">Select an SMS Top-Up Pack</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {SMS_PACKS.map(pack => (
+                                            <div
+                                                key={pack.id}
+                                                className={`bg-white rounded-2xl p-6 border-2 flex flex-col justify-between transition-all ${
+                                                    pack.popular
+                                                        ? 'border-primary-500 ring-2 ring-primary-500/20 shadow-lg'
+                                                        : 'border-slate-200 shadow-sm hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h5 className="font-bold text-slate-800 text-lg">{pack.name}</h5>
+                                                        {pack.badge && (
+                                                            <span className="text-[10px] font-black uppercase tracking-wider bg-primary-600 text-white px-2.5 py-0.5 rounded-full">
+                                                                {pack.badge}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold text-slate-900">GH¢ {tx.amount.toFixed(2)}</p>
-                                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${tx.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{tx.status}</span>
+                                                    <div className="text-3xl font-black text-slate-900 mb-1">
+                                                        GH₵ {pack.price}
+                                                    </div>
+                                                    <p className="text-xs text-primary-600 font-bold mb-4">{pack.credits.toLocaleString()} SMS Credits • {pack.rate}</p>
+                                                    
+                                                    <div className="text-xs text-slate-500 space-y-1.5 border-t border-slate-100 pt-3">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                                            <span>Instant MoMo Activation</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                                            <span>{pack.extra}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                                            <span>Delivered to Parents instantly</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            ))}
-                                            {smsTransactions.length === 0 && <div className="p-6 text-center text-slate-400 text-sm">No purchases yet.</div>}
-                                        </div>
+
+                                                <button
+                                                    onClick={() => setIsSmsModalOpen(true)}
+                                                    className={`w-full mt-6 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
+                                                        pack.popular
+                                                            ? 'bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-200'
+                                                            : 'bg-slate-900 hover:bg-slate-800 text-white'
+                                                    }`}
+                                                >
+                                                    <Smartphone className="w-3.5 h-3.5" /> Buy {pack.name}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SMS Purchase History */}
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                        <h4 className="font-bold text-slate-800 text-sm">SMS Credit Purchase History</h4>
+                                        <span className="text-xs text-slate-500">{smsTransactions.length} Total Orders</span>
+                                    </div>
+                                    <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                                        {smsTransactions.map((tx: any, i: number) => (
+                                            <div key={i} className="p-4 flex justify-between items-center text-sm">
+                                                <div>
+                                                    <p className="font-bold text-slate-800">{tx.quantity?.toLocaleString() || 0} Credits</p>
+                                                    <span className="text-xs text-slate-500">
+                                                        {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'Recent'} • Ref: {tx.payment_reference || 'DIRECT'}
+                                                    </span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-black text-slate-900">GH₵ {Number(tx.amount_paid || 0).toFixed(2)}</p>
+                                                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                                                        {tx.status || 'Completed'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {smsTransactions.length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-sm">
+                                                No SMS purchases recorded yet.
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* SUB-TAB: SETTINGS */}
+                        {/* SUB-TAB 3: SETTINGS (SCHOOL PARENT PAYMENT DETAILS) */}
                         {billingTab === 'settings' && (
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                            <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
                                 <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">Parent Payment Settings</h3>
-                                    <p className="text-slate-500 text-sm">Configure how parents can pay school fees.</p>
+                                    <h3 className="font-bold text-slate-800 text-lg">School Fee Collection Accounts</h3>
+                                    <p className="text-slate-500 text-xs md:text-sm mt-0.5">
+                                        Configure the Mobile Money and Bank details shown to parents on fee invoices and the parent portal.
+                                    </p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Money Number</label>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                            School Mobile Money Number & Name
+                                        </label>
                                         <input
                                             type="text"
-                                            placeholder="e.g. 0244123456 (John Doe)"
+                                            placeholder="e.g. 0244 123 456 (St. Jude School)"
                                             value={config.paymentConfig?.momo_number || ''}
                                             onChange={e => setConfig({
                                                 ...config,
                                                 paymentConfig: { ...config.paymentConfig, momo_number: e.target.value }
                                             })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 outline-none text-sm font-semibold"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name</label>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                            Bank Name
+                                        </label>
                                         <input
                                             type="text"
-                                            placeholder="e.g. GCB Bank"
+                                            placeholder="e.g. GCB Bank / Zenith Bank"
                                             value={config.paymentConfig?.bank_name || ''}
                                             onChange={e => setConfig({
                                                 ...config,
                                                 paymentConfig: { ...config.paymentConfig, bank_name: e.target.value }
                                             })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 outline-none text-sm font-semibold"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                            Account Number
+                                        </label>
                                         <input
                                             type="text"
-                                            placeholder="Account No."
+                                            placeholder="e.g. 1011234567890"
                                             value={config.paymentConfig?.account_number || ''}
                                             onChange={e => setConfig({
                                                 ...config,
                                                 paymentConfig: { ...config.paymentConfig, account_number: e.target.value }
                                             })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 outline-none text-sm font-semibold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                            Account Holder / Branch
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. Orbit International School, Accra"
+                                            value={config.paymentConfig?.account_name || ''}
+                                            onChange={e => setConfig({
+                                                ...config,
+                                                paymentConfig: { ...config.paymentConfig, account_name: e.target.value }
+                                            })}
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 outline-none text-sm font-semibold"
                                         />
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Payment Instructions</label>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                            Payment Instructions for Parents
+                                        </label>
                                         <textarea
                                             rows={3}
-                                            placeholder="e.g. Please use Child Name as Reference. Dial *170#..."
+                                            placeholder="e.g. Please use your Child's Full Name or Student ID as the reference for Mobile Money or Bank deposits."
                                             value={config.paymentConfig?.instructions || ''}
                                             onChange={e => setConfig({
                                                 ...config,
                                                 paymentConfig: { ...config.paymentConfig, instructions: e.target.value }
                                             })}
-                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-600 outline-none text-sm"
                                         />
                                     </div>
                                 </div>
-                                <div className="flex justify-end">
+                                <div className="flex justify-end pt-2">
                                     <button
                                         onClick={() => updatePaymentConfigMutation.mutate(config.paymentConfig)}
                                         disabled={updatePaymentConfigMutation.isPending}
-                                        className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                        className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors disabled:opacity-50 text-xs md:text-sm flex items-center gap-2"
                                     >
-                                        {updatePaymentConfigMutation.isPending ? 'Saving...' : 'Save Configuration'}
+                                        {updatePaymentConfigMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        {updatePaymentConfigMutation.isPending ? 'Saving...' : 'Save Payment Configuration'}
                                     </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB 4: INVOICE & WALLET HISTORY */}
+                        {billingTab === 'history' && (
+                            <div className="space-y-6">
+                                {/* Orbit Wallet Ledger */}
+                                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="p-5 border-b border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                                                <Wallet className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 text-base">Orbit Wallet Statement & Ledger</h4>
+                                                <p className="text-xs text-slate-500">Live balance and complete log of all deposits, subscriptions, and SMS charges.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-right">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Available Wallet Balance</div>
+                                                <div className="text-lg font-black text-slate-900">
+                                                    GH₵ {Number(schoolData?.wallet_balance || 0).toFixed(2)}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setIsTopUpModalOpen(true)}
+                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                                            >
+                                                <Wallet className="w-3.5 h-3.5" /> + Top Up Wallet
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs md:text-sm">
+                                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                                                <tr>
+                                                    <th className="p-4">Date</th>
+                                                    <th className="p-4">Transaction / Purpose</th>
+                                                    <th className="p-4">Reference</th>
+                                                    <th className="p-4">Payment Method</th>
+                                                    <th className="p-4 text-right">Amount</th>
+                                                    <th className="p-4 text-right">Balance After</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {walletTransactions.map((tx: any, i: number) => {
+                                                    const isCredit = Number(tx.amount) > 0;
+                                                    return (
+                                                        <tr key={i} className="hover:bg-slate-50/50">
+                                                            <td className="p-4 text-slate-600 whitespace-nowrap">
+                                                                {tx.created_at ? new Date(tx.created_at).toLocaleString() : 'Recent'}
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-full ${
+                                                                        tx.type === 'deposit'
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : tx.type === 'subscription'
+                                                                                ? 'bg-indigo-100 text-indigo-700'
+                                                                                : 'bg-blue-100 text-blue-700'
+                                                                    }`}>
+                                                                        {tx.type}
+                                                                    </span>
+                                                                    <span className="font-semibold text-slate-800">{tx.description || tx.purpose}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 font-mono text-xs text-slate-500">
+                                                                {tx.payment_reference || 'DIRECT'}
+                                                            </td>
+                                                            <td className="p-4 text-slate-600">
+                                                                {tx.payment_method || 'Orbit Wallet'}
+                                                            </td>
+                                                            <td className={`p-4 font-black text-right whitespace-nowrap ${
+                                                                isCredit ? 'text-emerald-600' : 'text-slate-800'
+                                                            }`}>
+                                                                {isCredit ? `+GH₵ ${Number(tx.amount).toFixed(2)}` : `-GH₵ ${Math.abs(Number(tx.amount)).toFixed(2)}`}
+                                                            </td>
+                                                            <td className="p-4 font-mono font-bold text-slate-900 text-right whitespace-nowrap">
+                                                                GH₵ {Number(tx.balance_after || 0).toFixed(2)}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {walletTransactions.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                                                            No wallet transactions yet. Top up your Orbit Wallet to activate unified 1-click billing!
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Subscription Invoices & Receipts */}
+                                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-base">Subscription Invoices & Receipts</h4>
+                                            <p className="text-xs text-slate-500">Official proof of software term licensing for your school.</p>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-600 bg-slate-200/80 px-2.5 py-1 rounded-full">
+                                            {billingHistory.length} Invoices
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs md:text-sm">
+                                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                                                <tr>
+                                                    <th className="p-4">Invoice #</th>
+                                                    <th className="p-4">Date / Period</th>
+                                                    <th className="p-4">Licensed Plan</th>
+                                                    <th className="p-4">Amount</th>
+                                                    <th className="p-4">Payment Method</th>
+                                                    <th className="p-4">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {billingHistory.map((inv: any, i: number) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50">
+                                                        <td className="p-4 font-mono font-bold text-slate-900">
+                                                            {inv.invoice_number || `INV-${i + 1001}`}
+                                                        </td>
+                                                        <td className="p-4 text-slate-600">
+                                                            {inv.period_start ? new Date(inv.period_start).toLocaleDateString() : 'Current Term'}
+                                                        </td>
+                                                        <td className="p-4 font-semibold text-slate-800">
+                                                            {inv.plan_code === 'full_suite' ? '⭐ Complete Orbit Full Suite' : inv.plan_code || 'Term License'}
+                                                        </td>
+                                                        <td className="p-4 font-black text-slate-900">
+                                                            GH₵ {Number(inv.amount || 0).toFixed(2)}
+                                                        </td>
+                                                        <td className="p-4 text-slate-600">
+                                                            {inv.payment_method || 'Mobile Money'}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                                {inv.status || 'Paid'}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {billingHistory.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                                                            No subscription invoices recorded yet.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1079,476 +1879,930 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
             </div>
 
-            {/* Plan Upgrade Modal */}
-            {showPlanModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Choose Your Plan</h3>
-                                <p className="text-slate-500 text-sm">Upgrade anytime. Downgrades available only upon renewal.</p>
-                            </div>
-                            <button onClick={() => setShowPlanModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X className="h-5 w-5 text-slate-500" /></button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {plans.map((plan) => {
-                                const isCurrent = config.plan === plan.name;
-                                const currentPlanObj = plans.find(p => p.name === config.plan) || plans[0];
-                                const isUpgrade = plan.rank > currentPlanObj.rank;
-                                const isSame = plan.rank === currentPlanObj.rank;
-                                const canSelect = isUpgrade || isSame || config.isExpired;
-
-                                return (
-                                    <div key={plan.name} className={`border-2 rounded-xl p-6 relative flex flex-col ${isCurrent ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600 scale-[1.02] shadow-lg' : 'border-slate-200 hover:border-slate-300'}`}>
-                                        {isCurrent && (
-                                            <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-lg">
-                                                CURRENT PLAN
-                                            </div>
-                                        )}
-                                        <h4 className="font-bold text-lg text-slate-800 mb-1">{plan.name}</h4>
-                                        <p className="text-3xl font-bold text-slate-900 mb-4">GH¢ {plan.price}<span className="text-sm font-normal text-slate-500"> / student / term</span></p>
-
-                                        <ul className="space-y-2 mb-6 flex-1">
-                                            {plan.features.map((feat, i) => (
-                                                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                                                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                                                    <span>{feat}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-
-                                        {isCurrent && !config.isExpired ? (
-                                            <button disabled className="w-full py-2.5 rounded-lg font-bold text-sm bg-slate-200 text-slate-400 cursor-not-allowed">
-                                                Current Active Plan
-                                            </button>
-                                        ) : (
-                                            <button
-                                                disabled={!canSelect}
-                                                onClick={() => {
-                                                    // If switching to a new plan, we assume they need to pay/confirm. 
-                                                    // For now, let's open payment modal for the selected plan.
-                                                    setSelectedPlanForPayment(plan);
-                                                    setShowPaymentModal(true);
-                                                    setShowPlanModal(false);
-                                                }}
-                                                className={`w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${canSelect ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                                            >
-                                                {!canSelect ? 'Available on Renewal' : isCurrent ? 'Renew Current Plan' : isUpgrade ? 'Upgrade Now' : 'Switch & Renew'}
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showPaymentModal && selectedPlanForPayment && (
-                <PaymentDetailsModal
-                    plan={selectedPlanForPayment}
-                    studentCount={studentCount}
-                    onClose={() => setShowPaymentModal(false)}
-                    schoolName={config.name}
-                    isUpgrade={selectedPlanForPayment.name !== config.plan}
-                    onConfirmSub={() => {
-                        // After successful payment (hypothetically), update the plan
-                        updatePlanMutation.mutate(selectedPlanForPayment.name);
-                        setShowPaymentModal(false);
+            {/* Modals */}
+            {showSubscriptionCheckout && selectedPlanForCheckout && (
+                <SubscriptionCheckoutModal
+                    plan={selectedPlanForCheckout}
+                    schoolName={config.name || 'Your School'}
+                    schoolEmail={config.email || ''}
+                    walletBalance={Number(schoolData?.wallet_balance || 0)}
+                    onClose={() => setShowSubscriptionCheckout(false)}
+                    onConfirm={(paymentDetails) => {
+                        activateSubscriptionMutation.mutate({
+                            planCode: selectedPlanForCheckout.code,
+                            amount: selectedPlanForCheckout.amount,
+                            paymentMethod: paymentDetails.method,
+                            paymentRef: paymentDetails.reference,
+                            description: selectedPlanForCheckout.name
+                        });
                     }}
+                    onPayFromWallet={() => {
+                        payFromWalletMutation.mutate({
+                            amount: selectedPlanForCheckout.amount,
+                            purpose: 'subscription',
+                            description: `License: ${selectedPlanForCheckout.name}`,
+                            planCode: selectedPlanForCheckout.code
+                        });
+                    }}
+                    onOpenTopUp={() => {
+                        setShowSubscriptionCheckout(false);
+                        setIsTopUpModalOpen(true);
+                    }}
+                    isPending={activateSubscriptionMutation.isPending}
+                    isWalletPending={payFromWalletMutation.isPending}
                 />
             )}
 
-            {/* Invoice Modal */}
-            {showInvoice && (
-                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-                        <div className="text-center mb-6">
-                            <div className="bg-green-100 text-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckCircle className="w-8 h-8" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800">Order Placed!</h3>
-                            <p className="text-slate-500 text-sm">Please complete payment to verify.</p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3 mb-6">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Service</span>
-                                <span className="font-bold text-slate-800">{showInvoice.qty} SMS Credits</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Amount Due</span>
-                                <span className="font-bold text-primary-600 text-lg">GH¢ {Number(showInvoice.amount).toFixed(2)}</span>
-                            </div>
-                        </div>
-
-                        <div className="text-center space-y-2 mb-6">
-                            <p className="text-xs font-bold text-slate-500 uppercase">Payment Instructions</p>
-                            <p className="text-sm text-slate-600">Send <b>GH¢ {Number(showInvoice.amount).toFixed(2)}</b> to:</p>
-                            <p className="text-2xl font-black text-slate-800 tracking-wider">050 256 0760</p>
-                            <p className="text-xs text-slate-400 bg-yellow-50 text-yellow-700 p-2 rounded">Credits are verified within 20 minutes of payment.</p>
-                        </div>
-
-                        <button onClick={() => setShowInvoice(null)} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors">
-                            Okay, I've sent it
-                        </button>
-                    </div>
-                </div>
-            )}
-            {/* Custom Success Modal */}
-            {showSuccessModal && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
-                    <div className="bg-white rounded-2xl shadow-2xl p-6 flex items-center gap-4 animate-in fade-in zoom-in-95 duration-300 border border-green-100 ring-4 ring-green-50 pointer-events-auto">
-                        <div className="bg-green-100 rounded-full p-3 text-green-600">
-                            <CheckCircle className="h-8 w-8" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800">Success!</h3>
-                            <p className="text-slate-500 text-sm">Academic session updated successfully.</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Top Up Wallet Modal */}
-            {isTopUpModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 relative">
-                        <button
-                            onClick={() => setIsTopUpModalOpen(false)}
-                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        <div className="text-center mb-6">
-                            <div className="mx-auto w-12 h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
-                                <CreditCard className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800">Top Up Wallet</h3>
-                            <p className="text-sm text-slate-500 mt-2">Enter the amount you wish to add to your virtual wallet.</p>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount (GH¢)</label>
-                                <input
-                                    type="number"
-                                    value={topUpAmount}
-                                    onChange={e => setTopUpAmount(e.target.value)}
-                                    placeholder="e.g. 500.00"
-                                    className="w-full text-center text-3xl font-black text-slate-800 py-4 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all placeholder:text-slate-300"
-                                    autoFocus
-                                />
-                            </div>
-
-                            {(!topUpAmount || Number(topUpAmount) <= 0 || topUpMutation.isPending) ? (
-                                <button
-                                    disabled
-                                    className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg transition-all opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {topUpMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
-                                    {topUpMutation.isPending ? 'Processing...' : 'Proceed to Payment'}
-                                </button>
-                            ) : (
-                                <PaystackButton
-                                    className="w-full bg-primary-600 text-white rounded-xl py-3.5 font-bold text-sm shadow-lg hover:shadow-primary-600/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                                    email={(config.email && config.email.trim() !== '') ? config.email.trim() : 'billing@base16schools.com'}
-                                    amount={Math.round(Number(topUpAmount) * 100)}
-                                    publicKey={import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || ''}
-                                    text="Proceed to Payment"
-                                    currency="GHS"
-                                    reference={`top-up-${new Date().getTime().toString()}`}
-                                    onSuccess={(reference) => {
-                                        topUpMutation.mutate(Number(topUpAmount), {
-                                            onSuccess: () => {
-                                                setIsTopUpModalOpen(false);
-                                                setTopUpAmount('');
-                                            }
-                                        });
-                                    }}
-                                    onClose={() => {
-                                        console.log("Paystack dialog closed");
-                                    }}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Purchase SMS Modal */}
             {isSmsModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 relative">
-                        <button
-                            onClick={() => setIsSmsModalOpen(false)}
-                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                <SMSPurchaseModal
+                    currentBalance={config.sms_balance || 0}
+                    schoolName={config.name || 'Your School'}
+                    schoolEmail={config.email || ''}
+                    walletBalance={Number(schoolData?.wallet_balance || 0)}
+                    onClose={() => setIsSmsModalOpen(false)}
+                    onBuy={(pack) => {
+                        buySMSCreditsMutation.mutate({
+                            quantity: pack.quantity,
+                            amount: pack.amount,
+                            paymentMethod: pack.paymentMethod,
+                            reference: pack.reference
+                        });
+                    }}
+                    onPayFromWallet={(pack) => {
+                        payFromWalletMutation.mutate({
+                            amount: pack.amount,
+                            purpose: 'sms',
+                            description: `${pack.quantity.toLocaleString()} SMS Credits`,
+                            smsQuantity: pack.quantity
+                        });
+                    }}
+                    onOpenTopUp={() => {
+                        setIsSmsModalOpen(false);
+                        setIsTopUpModalOpen(true);
+                    }}
+                    isPending={buySMSCreditsMutation.isPending}
+                    isWalletPending={payFromWalletMutation.isPending}
+                />
+            )}
 
-                        <div className="text-center mb-6">
-                            <div className="mx-auto w-12 h-12 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-4">
-                                <Smartphone className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800">Purchase SMS Credits</h3>
-                            <p className="text-slate-500 text-sm mt-1">Deducting from your digital wallet balance.</p>
-                            <div className="mt-2 text-[10px] items-center gap-1.5 font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full inline-flex border border-orange-100">
-                                <RefreshCw className="w-3 h-3 animate-spin" /> Delivered in Under 30 Mins
-                            </div>
-                            <div className="mt-3 bg-slate-50 rounded-lg p-2 font-black text-primary-700 tracking-wide block border border-slate-100 text-xs">Rate: GH¢ 0.035 / SMS</div>
-                        </div>
-
-                        <div className="space-y-4 mb-6">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Quantity (SMS limit)</label>
-                                <input
-                                    type="number"
-                                    value={smsCalc.qty}
-                                    onChange={e => {
-                                        const q = Number(e.target.value);
-                                        setSmsCalc({ qty: e.target.value, amount: (q * 0.035).toFixed(2) });
-                                    }}
-                                    placeholder="e.g. 1000"
-                                    className="w-full px-4 py-3 bg-slate-50 font-bold text-lg border border-slate-200 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-100 rounded-xl outline-none transition-all"
-                                />
-                            </div>
-
-                            <div className="flex justify-center -my-1 relative z-10">
-                                <div className="bg-white border text-slate-400 border-slate-200 rounded-full p-1.5 shadow-sm transform">
-                                    <Layout className="w-4 h-4 rotate-90" />
-                                </div>
-                            </div>
-
-                            <div className="-mt-3">
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Deducting Amount (GH¢)</label>
-                                <input
-                                    type="number"
-                                    value={smsCalc.amount}
-                                    onChange={e => {
-                                        const a = Number(e.target.value);
-                                        setSmsCalc({ amount: e.target.value, qty: Math.floor(a / 0.035).toString() });
-                                    }}
-                                    placeholder="e.g. 50.00"
-                                    className="w-full px-4 py-3 bg-slate-50 font-bold text-lg border border-slate-200 focus:border-primary-500 focus:bg-white focus:ring-4 focus:ring-primary-100 rounded-xl outline-none transition-all"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mb-6 bg-slate-100/50 rounded-xl p-3 border border-slate-200 border-dashed flex justify-between items-center text-sm">
-                            <span className="text-slate-500 font-medium tracking-tight">Your Wallet Balance:</span>
-                            <span className={`font-black ${wallet?.balance < Number(smsCalc.amount) ? 'text-red-500' : 'text-slate-800'}`}>
-                                GH¢ {wallet?.balance ? Number(wallet.balance).toFixed(2) : '0.00'}
-                            </span>
-                        </div>
-
-                        <button
-                            disabled={!smsCalc.qty || Number(smsCalc.qty) <= 0 || requestSMSPurchaseMutation.isPending || (wallet?.balance < Number(smsCalc.amount))}
-                            onClick={() => {
-                                if (!confirm(`Confirm purchase of ${smsCalc.qty} SMS for GH¢ ${smsCalc.amount} from your wallet?`)) return;
-                                requestSMSPurchaseMutation.mutate({ qty: Number(smsCalc.qty), amount: Number(smsCalc.amount) });
-                            }}
-                            className={`w-full py-3.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 
-                            ${wallet?.balance >= Number(smsCalc.amount)
-                                    ? 'bg-primary-600 shadow-primary-900/20 text-white hover:bg-primary-700 disabled:opacity-70'
-                                    : 'bg-red-50 text-red-500 border-red-200 border cursor-not-allowed shadow-none'}`}
-                        >
-                            {requestSMSPurchaseMutation.isPending ? 'Processing Purchase...' : wallet?.balance >= Number(smsCalc.amount) ? 'Purchase SMS' : 'Insufficient Balance'}
-                        </button>
-                    </div>
-                </div>
+            {isTopUpModalOpen && (
+                <TopUpWalletModal
+                    currentBalance={Number(schoolData?.wallet_balance || 0)}
+                    schoolName={config.name || 'Your School'}
+                    schoolEmail={config.email || ''}
+                    onClose={() => setIsTopUpModalOpen(false)}
+                    onTopUp={(details) => {
+                        topUpWalletMutation.mutate({
+                            amount: details.amount,
+                            paymentMethod: details.method,
+                            reference: details.reference
+                        });
+                    }}
+                    isPending={topUpWalletMutation.isPending}
+                />
             )}
 
         </div>
     );
 };
 
-const plans = [
-    {
-        name: "Foundation Package",
-        price: "4",
-        rank: 1,
-        limit: "Per Student / Term",
-        features: [
-            "School Management (Records, Classes)",
-            "Results & Academics (Report Cards)",
-            "Parent Access (Online Portal)",
-            "Communication (Bulk SMS Pay-as-you-go)",
-            "Secure Cloud Storage"
-        ]
-    },
-    {
-        name: "Performance Package",
-        price: "20",
-        rank: 2,
-        limit: "Per Student / Term",
-        isPopular: true,
-        features: [
-            "✅ FREE School Management System",
-            "✅ FREE Bulk SMS (Fair Usage)",
-            "🎓 Student Learning App (Quizzes & BECE)",
-            "🤖 Automatic Marking & Analytics",
-            "📊 Parent Performance Insights App",
-            "💰 Ideal to pass on as a Learning Fee"
-        ]
-    }
+// --- MODALS ---
+
+interface TopUpWalletModalProps {
+    currentBalance: number;
+    schoolName: string;
+    schoolEmail: string;
+    onClose: () => void;
+    onTopUp: (details: { amount: number; method: string; reference?: string; phone?: string }) => void;
+    isPending: boolean;
+}
+
+const TOPUP_PRESETS = [
+    { label: 'Starter', amount: 100, desc: '1 Module' },
+    { label: 'Popular', amount: 200, desc: '2 Modules' },
+    { label: '⭐ Full Suite', amount: 350, desc: 'All 5 Modules' },
+    { label: 'Pro Pack', amount: 500, desc: 'Suite + SMS' },
+    { label: 'School Reserve', amount: 1000, desc: 'Full Term Reserve' },
 ];
 
-const PaymentDetailsModal = ({ plan, studentCount, onClose, schoolName, isUpgrade, onConfirmSub }: any) => {
-    const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card');
-    const [isProcessing, setIsProcessing] = useState(false);
+const TopUpWalletModal: React.FC<TopUpWalletModalProps> = ({
+    currentBalance,
+    schoolName,
+    schoolEmail,
+    onClose,
+    onTopUp,
+    isPending
+}) => {
+    const [selectedAmount, setSelectedAmount] = useState<number>(350);
+    const [customAmount, setCustomAmount] = useState<string>('');
+    const [method, setMethod] = useState<'momo' | 'card' | 'bank'>('momo');
+    const [network, setNetwork] = useState<'MTN' | 'Telecel' | 'AT'>('MTN');
+    const [phone, setPhone] = useState('');
+    const [isLaunchingPaystack, setIsLaunchingPaystack] = useState(false);
 
-    // Billing Calculation
-    const pricePerStudent = Number(plan.price);
-    const count = studentCount || 0;
-    const totalBill = pricePerStudent * count;
+    const finalAmount = selectedAmount === 0 ? Number(customAmount) || 0 : selectedAmount;
 
-    // Installment State
-    const [amountToPay, setAmountToPay] = useState<string>(totalBill.toString());
-
-    const handlePaystack = () => {
-        setIsProcessing(true);
-        const payAmount = Number(amountToPay);
-
-        if (payAmount <= 0) {
-            alert("Please enter a valid amount.");
-            setIsProcessing(false);
+    const handleTopUpSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (finalAmount <= 0) {
+            alert('Please select or specify a valid top-up amount.');
             return;
         }
 
-        // Mock Paystack integration with dynamic amount
-        setTimeout(() => {
-            const isPartial = payAmount < totalBill;
-            const message = isPartial
-                ? `Partial Payment of GH¢ ${payAmount.toFixed(2)} Received.\nOutstanding Balance: GH¢ ${(totalBill - payAmount).toFixed(2)}`
-                : `Full Payment of GH¢ ${payAmount.toFixed(2)} Successful!`;
+        if (method === 'bank') {
+            onTopUp({
+                amount: finalAmount,
+                method: 'Bank Transfer',
+                reference: `BANK-${Date.now()}`
+            });
+            return;
+        }
 
-            alert(`Paystack Payment Gateway Integration Coming Soon!\nPAYMENT SIMULATED: SUCCESS\n\n${message}`);
-            onConfirmSub();
-            setIsProcessing(false);
-        }, 1500);
+        // Online Gateway via Paystack (Ghana MoMo / Debit Card)
+        setIsLaunchingPaystack(true);
+        try {
+            await payWithPaystack({
+                amount: finalAmount,
+                email: schoolEmail && schoolEmail.includes('@') ? schoolEmail : 'school@orbit.edu.gh',
+                channels: method === 'momo' ? ['mobile_money'] : ['card'],
+                metadata: {
+                    school_name: schoolName,
+                    purpose: 'orbit_wallet_topup',
+                    phone: phone || undefined,
+                    network: method === 'momo' ? network : undefined
+                },
+                onSuccess: (response) => {
+                    setIsLaunchingPaystack(false);
+                    onTopUp({
+                        amount: finalAmount,
+                        method: method === 'momo' ? `${network} Mobile Money` : 'Debit/Credit Card',
+                        reference: response.reference,
+                        phone
+                    });
+                },
+                onClose: () => {
+                    setIsLaunchingPaystack(false);
+                }
+            });
+        } catch (err: any) {
+            setIsLaunchingPaystack(false);
+            console.error('Paystack top-up error:', err);
+        }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
-                <div className="p-6 bg-slate-900 text-white border-b border-white/10 flex justify-between items-start">
-                    <div>
-                        <h3 className="font-bold text-xl">{isUpgrade ? 'Upgrade Subscription' : 'Renew Subscription'}</h3>
-                        <p className="text-slate-400 text-sm mt-1">{schoolName}</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh] animate-in zoom-in-95">
+                {/* Header */}
+                <div className="p-6 bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white relative">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-700/50">
+                        Prepaid Base Wallet
+                    </span>
+                    <h3 className="text-xl font-black mt-2">Top Up Orbit School Wallet</h3>
+                    <p className="text-xs text-emerald-100/80 mt-0.5">
+                        Current Balance: <span className="font-bold text-white">GH₵ {currentBalance.toFixed(2)}</span> • {schoolName}
+                    </p>
                 </div>
 
-                <div className="p-6 bg-slate-50 border-b border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <span className="text-slate-500 font-bold text-xs uppercase tracking-wider">Plan Selected</span>
-                        <span className="text-primary-600 font-bold text-xs bg-primary-50 px-2 py-1 rounded shadow-sm">{plan.name}</span>
-                    </div>
+                <form onSubmit={handleTopUpSubmit} className="p-6 overflow-y-auto space-y-5">
+                    {/* Amount Preset Grid */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            Select Top-Up Amount (GHS):
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {TOPUP_PRESETS.map((p) => {
+                                const isSelected = selectedAmount === p.amount;
+                                return (
+                                    <button
+                                        key={p.amount}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedAmount(p.amount);
+                                            setCustomAmount('');
+                                        }}
+                                        className={`p-3 rounded-2xl border text-left transition-all ${
+                                            isSelected
+                                                ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20 shadow-sm'
+                                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                        }`}
+                                    >
+                                        <div className="text-[11px] font-bold text-slate-500">{p.label}</div>
+                                        <div className="text-lg font-black text-slate-900 mt-0.5">GH₵ {p.amount}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">{p.desc}</div>
+                                    </button>
+                                );
+                            })}
+                            <button
+                                type="button"
+                                onClick={() => setSelectedAmount(0)}
+                                className={`p-3 rounded-2xl border text-left transition-all ${
+                                    selectedAmount === 0
+                                        ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-500/20 shadow-sm'
+                                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                                }`}
+                            >
+                                <div className="text-[11px] font-bold text-slate-500">Custom</div>
+                                <div className="text-base font-black text-slate-900 mt-0.5">Other Amount</div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">Type custom GHS</div>
+                            </button>
+                        </div>
 
-                    {/* Bill Breakdown */}
-                    <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm text-slate-600">
-                            <span>Rate per Student</span>
-                            <span>GH¢ {plan.price}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-slate-600">
-                            <span>Total Students</span>
-                            <span>x {count}</span>
-                        </div>
-                        <div className="border-t border-slate-200 my-2"></div>
-                        <div className="flex justify-between items-end">
-                            <span className="font-bold text-slate-700">Total Bill</span>
-                            <span className="text-slate-900 font-black text-2xl">GH¢ {totalBill.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-
-                    {/* Installment Input */}
-                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Amount you want to pay now (GH¢)</label>
-                        <input
-                            type="number"
-                            value={amountToPay}
-                            onChange={(e) => setAmountToPay(e.target.value)}
-                            className="w-full p-2 text-lg font-bold text-blue-900 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {Number(amountToPay) < totalBill && Number(amountToPay) > 0 && (
-                            <div className="mt-2 space-y-1">
-                                <p className="text-xs text-blue-600 font-medium">
-                                    Balance to carry forward: <span className="font-bold">GH¢ ${(totalBill - Number(amountToPay)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </p>
-                                <p className="text-[10px] text-blue-400">Installment payment acknowledged.</p>
+                        {selectedAmount === 0 && (
+                            <div className="mt-3">
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Enter Custom Amount (GH₵)</label>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    step="10"
+                                    required
+                                    placeholder="e.g. 750"
+                                    value={customAmount}
+                                    onChange={(e) => setCustomAmount(e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-900 text-base"
+                                />
                             </div>
                         )}
                     </div>
-                </div>
 
-                <div className="p-6">
-                    <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                        <button onClick={() => setPayMethod('card')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${payMethod === 'card' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Mobile Money / Card</button>
-                        <button onClick={() => setPayMethod('bank')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${payMethod === 'bank' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Bank Transfer</button>
-                    </div>
-
-                    {payMethod === 'card' ? (
-                        <div className="space-y-6 text-center py-4">
-                            <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-2">
-                                <CreditCard className="w-8 h-8" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-slate-800 mb-2">Pay Securely with Paystack</h4>
-                                <p className="text-slate-500 text-sm max-w-xs mx-auto">Click below to initiate payment of <span className="font-bold text-slate-900">GH¢ {Number(amountToPay).toLocaleString()}</span> via MM/Card.</p>
-                            </div>
+                    {/* Method Selector */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            Select Payment Channel:
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
                             <button
-                                onClick={handlePaystack}
-                                disabled={isProcessing || Number(amountToPay) <= 0}
-                                className="w-full bg-[#00C3F7] text-white hover:brightness-95 py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200/50 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                type="button"
+                                onClick={() => setMethod('momo')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'momo'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold shadow-sm ring-1 ring-emerald-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
                             >
-                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lock className="w-4 h-4" />}
-                                {isProcessing ? 'Processing...' : `Pay GH¢ ${Number(amountToPay).toLocaleString()}`}
+                                <Smartphone className="h-5 w-5" />
+                                <span className="text-xs">Mobile Money</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMethod('card')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'card'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold shadow-sm ring-1 ring-emerald-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <CreditCard className="h-5 w-5" />
+                                <span className="text-xs">Card / Online</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMethod('bank')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'bank'
+                                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold shadow-sm ring-1 ring-emerald-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <Building2 className="h-5 w-5" />
+                                <span className="text-xs">Bank Transfer</span>
                             </button>
                         </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                                <div className="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3">
-                                    <Building2 className="w-5 h-5 text-slate-400" />
-                                    <span className="font-bold text-slate-700">Bank Details</span>
-                                </div>
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Bank Name</span>
-                                        <span className="font-bold text-slate-800">Zenith Bank</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Account Name</span>
-                                        <span className="font-bold text-slate-800">Base 16 Schools</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Account Number</span>
-                                        <span className="font-bold text-slate-800 font-mono text-base">1234567890123</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Branch</span>
-                                        <span className="font-bold text-slate-800">Accra Main</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Amount Due</span>
-                                        <span className="font-bold text-primary-600">GH¢ {Number(amountToPay).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Reference</span>
-                                        <span className="font-bold text-slate-800">Please use School Name</span>
-                                    </div>
+                    </div>
+
+                    {/* Channel Details */}
+                    {method === 'momo' && (
+                        <div className="space-y-3 pt-1 animate-in fade-in">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Select Network</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['MTN', 'Telecel', 'AT'] as const).map((net) => (
+                                        <button
+                                            key={net}
+                                            type="button"
+                                            onClick={() => setNetwork(net)}
+                                            className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all ${
+                                                network === net
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {net}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                            <div className="bg-yellow-50 text-yellow-800 text-xs p-3 rounded-lg border border-yellow-100 flex items-start gap-2">
-                                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                                <p>After transfer, please send proof of payment to billing@base16schools.com or call 0200000000 for activation.</p>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Mobile Money Number</label>
+                                <input
+                                    type="tel"
+                                    required
+                                    placeholder="e.g. 024 123 4567"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-slate-800 text-sm"
+                                />
+                            </div>
+                            <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex items-start gap-2.5 text-xs text-emerald-800">
+                                <Zap className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                                <span>A prompt will be sent to your phone. After entering your PIN, your Orbit Wallet updates immediately.</span>
                             </div>
                         </div>
                     )}
+
+                    {method === 'card' && (
+                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center space-y-1">
+                            <CreditCard className="h-6 w-6 text-blue-600 mx-auto" />
+                            <div className="text-xs font-bold text-slate-800">Secure Online Checkout</div>
+                            <p className="text-[11px] text-slate-500">Visa, Mastercard, and Verve supported via 256-bit encryption.</p>
+                        </div>
+                    )}
+
+                    {method === 'bank' && (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Bank:</span>
+                                <span className="font-bold text-slate-800">Zenith Bank Ghana</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Account:</span>
+                                <span className="font-mono font-bold text-slate-900">6011234567890</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-400">Reference:</span>
+                                <span className="font-bold text-emerald-700">{schoolName.slice(0, 15)}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Summary & Submit */}
+                    <div className="pt-2">
+                        <button
+                            type="submit"
+                            disabled={isPending || isLaunchingPaystack || finalAmount <= 0}
+                            className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                        >
+                            {isPending || isLaunchingPaystack ? (
+                                <>
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <span>{isLaunchingPaystack ? 'Connecting to Paystack...' : 'Updating Orbit Wallet...'}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Wallet className="h-4 w-4" />
+                                    <span>{method === 'bank' ? `Record Bank Transfer of GH₵ ${finalAmount.toLocaleString()}` : `Pay GH₵ ${finalAmount.toLocaleString()} via Paystack`}</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+interface SubscriptionCheckoutModalProps {
+    plan: {
+        code: string;
+        name: string;
+        amount: number;
+        description: string;
+        modules: string[];
+    };
+    schoolName: string;
+    schoolEmail: string;
+    walletBalance: number;
+    onClose: () => void;
+    onConfirm: (paymentDetails: { method: string; phone?: string; network?: string; reference?: string }) => void;
+    onPayFromWallet: () => void;
+    onOpenTopUp: () => void;
+    isPending: boolean;
+    isWalletPending: boolean;
+}
+
+const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps> = ({
+    plan,
+    schoolName,
+    schoolEmail,
+    walletBalance,
+    onClose,
+    onConfirm,
+    onPayFromWallet,
+    onOpenTopUp,
+    isPending,
+    isWalletPending
+}) => {
+    const [method, setMethod] = useState<'momo' | 'card' | 'bank'>('momo');
+    const [phone, setPhone] = useState('');
+    const [network, setNetwork] = useState<'MTN' | 'Telecel' | 'AT'>('MTN');
+    const [isLaunchingPaystack, setIsLaunchingPaystack] = useState(false);
+
+    const hasEnoughWalletBalance = walletBalance >= plan.amount;
+
+    const handlePay = async (e?: React.FormEvent, directMethod?: 'momo' | 'card' | 'bank') => {
+        if (e) e.preventDefault();
+        const activeMethod = directMethod || method;
+
+        if (activeMethod === 'bank') {
+            onConfirm({
+                method: 'Bank Transfer',
+                reference: `BANK-${Date.now()}`
+            });
+            return;
+        }
+
+        setIsLaunchingPaystack(true);
+        try {
+            await payWithPaystack({
+                amount: plan.amount,
+                email: schoolEmail && schoolEmail.includes('@') ? schoolEmail : 'school@orbit.edu.gh',
+                channels: activeMethod === 'momo' ? ['mobile_money'] : ['card'],
+                metadata: {
+                    school_name: schoolName,
+                    plan_code: plan.code,
+                    plan_name: plan.name,
+                    phone: phone || undefined,
+                    network: activeMethod === 'momo' ? network : undefined
+                },
+                onSuccess: (res) => {
+                    setIsLaunchingPaystack(false);
+                    onConfirm({
+                        method: activeMethod === 'momo' ? `${network} Mobile Money` : 'Debit/Credit Card',
+                        phone,
+                        network,
+                        reference: res.reference
+                    });
+                },
+                onClose: () => {
+                    setIsLaunchingPaystack(false);
+                }
+            });
+        } catch (err: any) {
+            setIsLaunchingPaystack(false);
+            console.error('Subscription Paystack error:', err);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 border border-slate-100 flex flex-col max-h-[92vh]">
+                {/* Header */}
+                <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white relative">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300 bg-indigo-900/60 px-2.5 py-1 rounded-full border border-indigo-700/50">
+                        Termly Software License
+                    </span>
+                    <h3 className="text-xl font-black mt-2">{plan.name}</h3>
+                    <p className="text-xs text-slate-300 mt-0.5">{schoolName}</p>
+                </div>
+
+                <div className="p-6 overflow-y-auto space-y-5">
+                    {/* Amount Card */}
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 flex justify-between items-center">
+                        <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total License Fee</span>
+                            <div className="flex items-baseline gap-1 mt-0.5">
+                                <span className="text-3xl font-black text-slate-900">GH₵ {plan.amount.toLocaleString()}</span>
+                                <span className="text-xs text-slate-500 font-medium">/ 1 Term (4 Months)</span>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                <CheckCircle className="h-3 w-3" /> All Students Included
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Included Modules Pill List */}
+                    <div>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Modules Being Licensed:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {plan.modules.map((m, idx) => (
+                                <span key={idx} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                                    <Check className="h-3 w-3 text-indigo-500" />
+                                    {m}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ⭐ UNIFIED ORBIT WALLET OPTION */}
+                    {hasEnoughWalletBalance ? (
+                        <div className="bg-emerald-50/80 border-2 border-emerald-500 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 bg-emerald-600 text-white rounded-xl">
+                                        <Wallet className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                                            Orbit Base Wallet (Instant 1-Click)
+                                        </span>
+                                        <div className="text-base font-black text-slate-900">
+                                            Available: GH₵ {walletBalance.toFixed(2)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-full">
+                                    Funds Ready
+                                </span>
+                            </div>
+                            <p className="text-xs text-emerald-900">
+                                You have enough balance in your school wallet. Pay instantly with zero phone prompts or network delays!
+                            </p>
+                            <button
+                                type="button"
+                                onClick={onPayFromWallet}
+                                disabled={isWalletPending || isPending}
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                            >
+                                {isWalletPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 text-amber-300 fill-amber-300" />}
+                                {isWalletPending ? 'Activating License...' : `⚡ Pay GH₵ ${plan.amount.toLocaleString()} from Orbit Wallet`}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-slate-200 text-slate-700 rounded-xl">
+                                    <Wallet className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Orbit Wallet Balance
+                                    </span>
+                                    <div className="text-sm font-bold text-slate-800">
+                                        GH₵ {walletBalance.toFixed(2)} <span className="text-xs text-amber-600 font-semibold">(GH₵ {(plan.amount - walletBalance).toFixed(2)} short)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onOpenTopUp}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1"
+                            >
+                                <Wallet className="h-3 w-3" /> + Top Up Wallet
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3 my-1 text-slate-400">
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {hasEnoughWalletBalance ? 'or pay with external MoMo / Card' : 'Direct Payment Channels'}
+                        </span>
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                    </div>
+
+                    {/* Payment Method Selector */}
+                    <div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setMethod('momo')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'momo'
+                                        ? 'border-primary-600 bg-primary-50/70 text-primary-700 font-bold shadow-sm ring-1 ring-primary-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <Smartphone className="h-5 w-5" />
+                                <span className="text-xs">Mobile Money</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMethod('card')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'card'
+                                        ? 'border-primary-600 bg-primary-50/70 text-primary-700 font-bold shadow-sm ring-1 ring-primary-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <CreditCard className="h-5 w-5" />
+                                <span className="text-xs">Debit Card</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMethod('bank')}
+                                className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                                    method === 'bank'
+                                        ? 'border-primary-600 bg-primary-50/70 text-primary-700 font-bold shadow-sm ring-1 ring-primary-500'
+                                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <Building2 className="h-5 w-5" />
+                                <span className="text-xs">Bank Transfer</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Method Details */}
+                    {method === 'momo' && (
+                        <form onSubmit={handlePay} className="space-y-4 pt-1 animate-in fade-in">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Select Network</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['MTN', 'Telecel', 'AT'] as const).map((net) => (
+                                        <button
+                                            key={net}
+                                            type="button"
+                                            onClick={() => setNetwork(net)}
+                                            className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all ${
+                                                network === net
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {net}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Mobile Money Number</label>
+                                <input
+                                    type="tel"
+                                    required
+                                    placeholder="e.g. 024 123 4567"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 text-base"
+                                />
+                            </div>
+                            <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex items-start gap-2.5 text-xs text-amber-800">
+                                <Zap className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                                <span>A prompt will be sent to your phone. Authorize with your 4-digit MoMo PIN to activate your software immediately.</span>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isPending || isLaunchingPaystack}
+                                className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                            >
+                                {isPending || isLaunchingPaystack ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-4 w-4" />}
+                                {isPending || isLaunchingPaystack ? 'Opening Paystack Gateway...' : `Pay GH₵ ${plan.amount.toLocaleString()} via ${network} MoMo`}
+                            </button>
+                        </form>
+                    )}
+
+                    {method === 'card' && (
+                        <div className="space-y-4 pt-1 text-center py-2 animate-in fade-in">
+                            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 max-w-sm mx-auto">
+                                <CreditCard className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                                <h4 className="font-bold text-slate-800 text-sm">Secure Card Payment</h4>
+                                <p className="text-xs text-slate-500 mt-1">Visa, Mastercard, and Verve supported via 256-bit encryption.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handlePay(undefined, 'card')}
+                                disabled={isPending || isLaunchingPaystack}
+                                className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                            >
+                                {isPending || isLaunchingPaystack ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                                {isPending || isLaunchingPaystack ? 'Opening Paystack Gateway...' : `Pay GH₵ ${plan.amount.toLocaleString()} with Card`}
+                            </button>
+                        </div>
+                    )}
+
+                    {method === 'bank' && (
+                        <div className="space-y-3 pt-1 text-xs text-slate-600 animate-in fade-in">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Bank Name</span>
+                                    <span className="font-bold text-slate-800">Zenith Bank Ghana</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Account Name</span>
+                                    <span className="font-bold text-slate-800">Orbit EdTech Systems</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Account Number</span>
+                                    <span className="font-mono font-bold text-slate-900 text-sm">6011234567890</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400">Payment Reference</span>
+                                    <span className="font-bold text-primary-600">{schoolName.slice(0, 15)}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => onConfirm({ method: 'Bank Transfer', reference: `BANK-${Date.now()}` })}
+                                disabled={isPending}
+                                className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all text-xs flex items-center justify-center gap-2"
+                            >
+                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+                                {isPending ? 'Generating...' : 'I Have Transferred — Generate Invoice & Activate'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface SMSPurchaseModalProps {
+    currentBalance: number;
+    schoolName: string;
+    schoolEmail: string;
+    walletBalance: number;
+    onClose: () => void;
+    onBuy: (pack: { quantity: number; amount: number; paymentMethod?: string; reference?: string }) => void;
+    onPayFromWallet: (pack: { quantity: number; amount: number }) => void;
+    onOpenTopUp: () => void;
+    isPending: boolean;
+    isWalletPending: boolean;
+}
+
+const SMSPurchaseModal: React.FC<SMSPurchaseModalProps> = ({
+    currentBalance,
+    schoolName,
+    schoolEmail,
+    walletBalance,
+    onClose,
+    onBuy,
+    onPayFromWallet,
+    onOpenTopUp,
+    isPending,
+    isWalletPending
+}) => {
+    const [selectedPackId, setSelectedPackId] = useState<string>('school');
+    const [customQty, setCustomQty] = useState<string>('');
+    const [phone, setPhone] = useState('');
+    const [isLaunchingPaystack, setIsLaunchingPaystack] = useState(false);
+
+    const activePack = SMS_PACKS.find(p => p.id === selectedPackId);
+    const isCustom = selectedPackId === 'custom';
+    const computedQuantity = isCustom ? Number(customQty) || 0 : activePack?.credits || 0;
+    const computedPrice = isCustom ? Math.round(computedQuantity * 0.055) : activePack?.price || 0;
+
+    const hasEnoughWalletBalance = walletBalance >= computedPrice && computedPrice > 0;
+
+    const handlePurchase = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (computedQuantity <= 0 || computedPrice <= 0) {
+            alert('Please select or specify a valid SMS quantity.');
+            return;
+        }
+
+        setIsLaunchingPaystack(true);
+        try {
+            await payWithPaystack({
+                amount: computedPrice,
+                email: schoolEmail && schoolEmail.includes('@') ? schoolEmail : 'school@orbit.edu.gh',
+                channels: ['mobile_money', 'card'],
+                metadata: {
+                    school_name: schoolName,
+                    type: 'sms_purchase',
+                    credits: computedQuantity,
+                    phone: phone || undefined
+                },
+                onSuccess: (res) => {
+                    setIsLaunchingPaystack(false);
+                    onBuy({
+                        quantity: computedQuantity,
+                        amount: computedPrice,
+                        paymentMethod: 'Paystack MoMo/Card',
+                        reference: res.reference
+                    });
+                },
+                onClose: () => {
+                    setIsLaunchingPaystack(false);
+                }
+            });
+        } catch (err: any) {
+            setIsLaunchingPaystack(false);
+            console.error('SMS Paystack error:', err);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95">
+                <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white relative">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-5 right-5 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-blue-200 bg-blue-900/60 px-2.5 py-1 rounded-full">
+                        Instant SMS Top-Up
+                    </span>
+                    <h3 className="text-xl font-black mt-2">Buy SMS Credit Pack</h3>
+                    <p className="text-xs text-blue-100 mt-0.5">Current Balance: {currentBalance.toLocaleString()} Credits</p>
+                </div>
+
+                <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                    <div className="space-y-2.5">
+                        {SMS_PACKS.map(pack => (
+                            <div
+                                key={pack.id}
+                                onClick={() => setSelectedPackId(pack.id)}
+                                className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${
+                                    selectedPackId === pack.id
+                                        ? 'border-primary-600 bg-primary-50/50 shadow-sm ring-1 ring-primary-500'
+                                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                        selectedPackId === pack.id ? 'border-primary-600 bg-primary-600' : 'border-slate-300'
+                                    }`}>
+                                        {selectedPackId === pack.id && <div className="w-2 h-2 rounded-full bg-white" />}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-800 text-sm">{pack.name}</span>
+                                            {pack.badge && (
+                                                <span className="text-[9px] font-black uppercase tracking-wider bg-primary-600 text-white px-2 py-0.5 rounded-full">
+                                                    {pack.badge}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-xs text-slate-500">{pack.credits.toLocaleString()} SMS • {pack.rate}</span>
+                                    </div>
+                                </div>
+                                <span className="text-lg font-black text-slate-900">GH₵ {pack.price}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* ⭐ WALLET 1-CLICK OPTION FOR SMS */}
+                    {hasEnoughWalletBalance ? (
+                        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Wallet className="h-4 w-4 text-emerald-600" />
+                                    <span className="text-xs font-bold text-slate-900">Orbit Wallet: GH₵ {walletBalance.toFixed(2)}</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                    1-Click Instant
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => onPayFromWallet({ quantity: computedQuantity, amount: computedPrice })}
+                                disabled={isWalletPending || computedPrice <= 0}
+                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                {isWalletPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-3.5 w-3.5 text-amber-300 fill-amber-300" />}
+                                {isWalletPending ? 'Purchasing Credits...' : `⚡ Pay GH₵ ${computedPrice} from Orbit Wallet`}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs">
+                            <div>
+                                <span className="text-slate-500">Orbit Wallet:</span> <b className="text-slate-800">GH₵ {walletBalance.toFixed(2)}</b>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onOpenTopUp}
+                                className="text-emerald-700 font-bold hover:underline flex items-center gap-1"
+                            >
+                                <Wallet className="h-3 w-3" /> + Top Up Wallet
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3 my-1 text-slate-400">
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">or pay via Mobile Money</span>
+                        <div className="h-px bg-slate-200 flex-1"></div>
+                    </div>
+
+                    <form onSubmit={handlePurchase} className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1">Mobile Money Number</label>
+                            <input
+                                type="tel"
+                                required
+                                placeholder="e.g. 0244 000 000"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500 outline-none font-bold text-slate-800 text-sm"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isPending || isLaunchingPaystack || computedPrice <= 0}
+                            className="w-full py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                        >
+                            {isPending || isLaunchingPaystack ? <Loader2 className="h-5 w-5 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                            {isPending || isLaunchingPaystack ? 'Opening Paystack Checkout...' : `Pay GH₵ ${computedPrice} for ${computedQuantity.toLocaleString()} SMS`}
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>

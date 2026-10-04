@@ -38,85 +38,150 @@ const fetchClasses = async (schoolId: string) => {
     const { data: classesData, error: classError } = await supabase
         .from('classes')
         .select('*')
-        .eq('school_id', schoolId);
+        .eq('school_id', schoolId)
+        .order('name', { ascending: true });
 
     if (classError) throw classError;
 
-    // 2. Fetch Students for counts
+    // 2. Fetch Students for real-time counts
     const { data: studentsData } = await supabase
         .from('students')
-        .select('class')
+        .select('class, class_id')
         .eq('school_id', schoolId);
 
     const studentCounts: Record<string, number> = {};
     studentsData?.forEach((s: any) => {
+        if (s.class_id) {
+            studentCounts[s.class_id] = (studentCounts[s.class_id] || 0) + 1;
+        }
         if (s.class) {
             studentCounts[s.class] = (studentCounts[s.class] || 0) + 1;
         }
     });
 
-    // 3. Fetch Teachers for assignment
-    const { data: teachersData } = await supabase
-        .from('teachers')
-        .select('id, name, assigned_class')
-        .eq('school_id', schoolId);
+    // 3. Fetch Class Teachers from teacher_assignments (master_schema_v1.sql standard)
+    const { data: assignmentsData, error: assignError } = await supabase
+        .from('teacher_assignments')
+        .select(`
+            class_id,
+            teacher_id,
+            is_class_teacher,
+            profiles:teacher_id (id, full_name, email)
+        `)
+        .eq('school_id', schoolId)
+        .eq('is_class_teacher', true);
 
-    const classTeachers: Record<string, { id: string, name: string }> = {};
-    teachersData?.forEach((t: any) => {
-        if (t.assigned_class) {
-            classTeachers[t.assigned_class] = { id: t.id, name: t.name };
+    if (assignError) {
+        console.warn('Notice fetching class teacher assignments:', assignError);
+    }
+
+    const classTeachers: Record<string, { id: string; name: string }> = {};
+    assignmentsData?.forEach((ta: any) => {
+        const prof = Array.isArray(ta.profiles) ? ta.profiles[0] : ta.profiles;
+        const teacherName = prof?.full_name || prof?.email;
+        if (ta.class_id && teacherName) {
+            classTeachers[ta.class_id] = { id: ta.teacher_id, name: teacherName };
         }
     });
 
-    return classesData.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        section: c.section,
-        studentCount: studentCounts[c.name] || 0,
-        teacherId: classTeachers[c.name]?.id || null,
-        teacherName: classTeachers[c.name]?.name || 'Unassigned'
-    })) as ClassItem[];
+    return (classesData || []).map((c: any) => {
+        const teacherInfo = classTeachers[c.id] || classTeachers[c.name];
+        return {
+            id: c.id,
+            name: c.name,
+            section: c.section,
+            studentCount: studentCounts[c.id] || studentCounts[c.name] || 0,
+            teacherId: teacherInfo?.id || null,
+            teacherName: teacherInfo?.name || 'Unassigned'
+        };
+    }) as ClassItem[];
 };
 
 const fetchTeachers = async (schoolId: string) => {
-    const { data } = await supabase
-        .from('teachers')
-        .select('id, name')
+    // 1. Fetch teacher profiles (master_schema_v1.sql standard)
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
         .eq('school_id', schoolId)
-        .order('name');
-    return data || [];
+        .eq('role', 'teacher')
+        .order('full_name', { ascending: true });
+
+    return (profiles || []).map((p: any) => ({
+        id: p.id,
+        name: p.full_name || p.email || 'Teacher'
+    })).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 const fetchSubjects = async (schoolId: string) => {
-    // 1. Fetch Subjects
+    // 1. Fetch Subjects from master_schema_v1.sql
     const { data: subjectsData, error: subjectError } = await supabase
         .from('subjects')
         .select('*')
-        .eq('school_id', schoolId);
+        .eq('school_id', schoolId)
+        .order('name', { ascending: true });
 
     if (subjectError) throw subjectError;
 
-    // 2. Fetch Assignments
-    const { data: assignmentsData, error: assignError } = await supabase
-        .from('subject_assignments')
-        .select('subject_id, classes(name)')
-        .eq('school_id', schoolId);
+    // 2. Fetch Assignments from subject_assignments table
+    const subjectClassMap: Record<string, Set<string>> = {};
 
-    if (assignError) throw assignError;
+    try {
+        const { data: saData, error: saError } = await supabase
+            .from('subject_assignments')
+            .select(`
+                subject_id,
+                classes:class_id (id, name)
+            `)
+            .eq('school_id', schoolId);
 
-    return subjectsData.map((s: any) => {
-        const assignedClasses = assignmentsData
-            .filter((a: any) => a.subject_id === s.id && a.classes)
-            .map((a: any) => a.classes.name);
+        if (!saError && saData) {
+            saData.forEach((a: any) => {
+                const clsObj = Array.isArray(a.classes) ? a.classes[0] : a.classes;
+                const clsName = clsObj?.name;
+                if (a.subject_id && clsName) {
+                    if (!subjectClassMap[a.subject_id]) {
+                        subjectClassMap[a.subject_id] = new Set();
+                    }
+                    subjectClassMap[a.subject_id].add(clsName);
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('Notice fetching subject_assignments:', e);
+    }
 
-        return {
-            id: s.id,
-            name: s.name,
-            code: s.code,
-            type: s.type,
-            classes: [...new Set(assignedClasses)] // Unique names
-        } as SubjectItem;
-    });
+    // 3. Also merge from teacher_assignments (if teachers are already assigned)
+    try {
+        const { data: assignmentsData } = await supabase
+            .from('teacher_assignments')
+            .select(`
+                subject_id,
+                classes:class_id (id, name)
+            `)
+            .eq('school_id', schoolId)
+            .not('subject_id', 'is', null);
+
+        assignmentsData?.forEach((a: any) => {
+            const clsObj = Array.isArray(a.classes) ? a.classes[0] : a.classes;
+            const clsName = clsObj?.name;
+            if (a.subject_id && clsName) {
+                if (!subjectClassMap[a.subject_id]) {
+                    subjectClassMap[a.subject_id] = new Set();
+                }
+                subjectClassMap[a.subject_id].add(clsName);
+            }
+        });
+    } catch (_) {}
+
+
+
+    return (subjectsData || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code || '',
+        type: s.type || 'Core',
+        classes: Array.from(subjectClassMap[s.id] || [])
+    })) as SubjectItem[];
 };
 
 const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
@@ -182,45 +247,85 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const saveClassMutation = useMutation({
         mutationFn: async (classData: Partial<ClassItem> & { newTeacherId?: string | null }) => {
             if (!schoolId) throw new Error('No school ID');
+            const targetClassName = classData.name?.trim();
+            const targetSection = classData.section?.trim() || null;
+            let classId = editingClass?.id;
+
             const payload = {
                 school_id: schoolId,
-                name: classData.name,
-                section: classData.section
+                name: targetClassName,
+                section: targetSection
             };
 
-            const targetClassName = classData.name;
-
-            if (editingClass) {
+            if (classId) {
+                const oldName = editingClass?.name;
                 const { error } = await supabase
                     .from('classes')
                     .update(payload)
-                    .eq('id', editingClass.id);
+                    .eq('id', classId);
                 if (error) throw error;
+
+                // Cascade rename to student records and related tables
+                if (oldName && targetClassName && oldName !== targetClassName) {
+                    await supabase
+                        .from('students')
+                        .update({ class: targetClassName })
+                        .eq('school_id', schoolId)
+                        .eq('class', oldName);
+
+                    await supabase
+                        .from('fee_structure')
+                        .update({ target_class: targetClassName })
+                        .eq('school_id', schoolId)
+                        .eq('target_class', oldName);
+
+                    await supabase
+                        .from('attendance')
+                        .update({ class: targetClassName })
+                        .eq('school_id', schoolId)
+                        .eq('class', oldName);
+                }
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('classes')
-                    .insert(payload);
+                    .insert(payload)
+                    .select()
+                    .single();
                 if (error) throw error;
+                classId = data.id;
             }
 
-            // Update Teacher Assignment
-            if (classData.newTeacherId !== undefined && targetClassName) {
-                // Remove previous assignment for this class
-                await supabase.from('teachers')
-                    .update({ assigned_class: null })
-                    .eq('school_id', schoolId)
-                    .eq('assigned_class', targetClassName);
+            if (!classId) throw new Error('Failed to resolve class ID');
 
-                // Assign the new teacher
+            // Update Class Teacher in teacher_assignments (master_schema_v1.sql standard)
+            if (classData.newTeacherId !== undefined) {
+                // Remove previous class teacher assignment for this class
+                await supabase
+                    .from('teacher_assignments')
+                    .delete()
+                    .eq('school_id', schoolId)
+                    .eq('class_id', classId)
+                    .eq('is_class_teacher', true);
+
+                // Assign new class teacher if selected
                 if (classData.newTeacherId) {
-                    await supabase.from('teachers')
-                        .update({ assigned_class: targetClassName })
-                        .eq('id', classData.newTeacherId);
+                    await supabase
+                        .from('teacher_assignments')
+                        .insert({
+                            school_id: schoolId,
+                            teacher_id: classData.newTeacherId,
+                            class_id: classId,
+                            subject_id: null,
+                            is_class_teacher: true
+                        });
                 }
             }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['teachersList', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['students', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['feeStructure', schoolId] });
             setIsClassModalOpen(false);
             setEditingClass(null);
         },
@@ -232,6 +337,13 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
 
     const deleteClassMutation = useMutation({
         mutationFn: async (id: string) => {
+            // Delete teacher assignments for this class
+            await supabase
+                .from('teacher_assignments')
+                .delete()
+                .eq('class_id', id);
+
+            // Delete from classes (cascades in master_schema_v1.sql)
             const { error } = await supabase
                 .from('classes')
                 .delete()
@@ -240,6 +352,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['classes', schoolId] });
+            queryClient.invalidateQueries({ queryKey: ['subjects', schoolId] });
         },
         onError: (error: any) => {
             console.error('Error deleting class:', error);
@@ -253,12 +366,12 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             if (!schoolId) throw new Error('No school ID');
             let subjectId = subjectData.id || editingSubject?.id;
 
-            // 1. Upsert Subject
+            // 1. Upsert Subject in master_schema_v1.sql
             const payload = {
                 school_id: schoolId,
-                name: subjectData.name,
-                code: subjectData.code,
-                type: subjectData.type
+                name: subjectData.name?.trim(),
+                code: subjectData.code?.trim().toUpperCase(),
+                type: subjectData.type || 'Core'
             };
 
             if (subjectId) {
@@ -277,34 +390,46 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                 subjectId = data.id;
             }
 
-            if (!subjectId) throw new Error('Failed to get subject ID');
+            if (!subjectId) throw new Error('Failed to resolve subject ID');
 
-            // 2. Handle Assignments
-            const { error: delError } = await supabase
+            // 2. Manage Class Assignments via subject_assignments table
+            const targetClassNames = subjectData.classes || [];
+            const targetClasses = classes.filter(c => targetClassNames.includes(c.name));
+            const targetClassIds = new Set(targetClasses.map(c => c.id));
+
+            // Fetch existing subject assignments
+            const { data: existingAssignments } = await supabase
                 .from('subject_assignments')
-                .delete()
+                .select('id, class_id')
+                .eq('school_id', schoolId)
                 .eq('subject_id', subjectId);
 
-            if (delError) throw delError;
+            const existingClassIds = new Set((existingAssignments || []).map(a => a.class_id));
 
-            if (subjectData.classes && subjectData.classes.length > 0) {
-                const assignments = subjectData.classes.map((className: string) => {
-                    const cls = classes.find(c => c.name === className);
-                    if (cls) {
-                        return {
-                            school_id: schoolId,
-                            subject_id: subjectId,
-                            class_id: cls.id
-                        };
-                    }
-                    return null;
-                }).filter(Boolean);
+            // Remove assignments for classes that were deselected
+            const toDelete = (existingAssignments || []).filter(a => !targetClassIds.has(a.class_id));
+            if (toDelete.length > 0) {
+                const deleteIds = toDelete.map(a => a.id);
+                await supabase
+                    .from('subject_assignments')
+                    .delete()
+                    .in('id', deleteIds);
+            }
 
-                if (assignments.length > 0) {
-                    const { error: assignError } = await supabase
-                        .from('subject_assignments')
-                        .insert(assignments);
-                    if (assignError) throw assignError;
+            // For newly selected classes, link directly in subject_assignments table
+            const toAddClasses = targetClasses.filter(c => !existingClassIds.has(c.id));
+            if (toAddClasses.length > 0) {
+                const newRows = toAddClasses.map(cls => ({
+                    school_id: schoolId,
+                    class_id: cls.id,
+                    subject_id: subjectId
+                }));
+                const { error: insErr } = await supabase
+                    .from('subject_assignments')
+                    .insert(newRows);
+                if (insErr) {
+                    console.error('Error inserting subject_assignments:', insErr);
+                    throw insErr;
                 }
             }
         },
@@ -321,20 +446,18 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
 
     const deleteSubjectMutation = useMutation({
         mutationFn: async (id: string) => {
-            // 1. Delete assignments
-            const { error: assignError } = await supabase.from('subject_assignments').delete().eq('subject_id', id);
-            if (assignError) throw assignError;
+            // 1. Delete assignments in subject_assignments & teacher_assignments
+            try { await supabase.from('subject_assignments').delete().eq('subject_id', id); } catch (_) {}
+            try { await supabase.from('teacher_assignments').delete().eq('subject_id', id); } catch (_) {}
 
-            // 2. Timetable
-            const { error: timetableError } = await supabase.from('timetable_entries').delete().eq('subject_id', id);
-            if (timetableError) throw timetableError;
+            // 2. Safe cleanup of legacy tables if they exist
+            try { await supabase.from('timetable_entries').delete().eq('subject_id', id); } catch (_) {}
 
-            // 3. Teacher assignments
-            const { error: teacherError } = await supabase.from('teacher_assignments').delete().eq('subject_id', id);
-            if (teacherError) throw teacherError;
-
-            // 4. Subject
-            const { error } = await supabase.from('subjects').delete().eq('id', id);
+            // 3. Delete Subject (cascades in master_schema_v1.sql)
+            const { error } = await supabase
+                .from('subjects')
+                .delete()
+                .eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -387,7 +510,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
                         <div className="text-sm font-medium text-slate-600 hidden sm:block">
-                            Organize your school's classes, sections, and assign teachers.
+                            Organize your school's classes and sections.
                         </div>
                         <div className="flex gap-3 w-full sm:w-auto">
                             <button
@@ -420,7 +543,7 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                                         </div>
                                         <div className="flex items-center gap-3 text-sm text-slate-600">
                                             <BookOpen className="h-4 w-4 text-slate-400" />
-                                            <span className="truncate">Teacher: {cls.teacherName || 'Unassigned'}</span>
+                                            <span className="truncate">Class Teacher: {cls.teacherName || 'Unassigned'}</span>
                                         </div>
                                     </div>
 
@@ -671,7 +794,6 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
             {isClassModalOpen && (
                 <AddClassModal
                     existingData={editingClass}
-                    availableTeachers={allTeachers}
                     onClose={() => setIsClassModalOpen(false)}
                     onSave={handleSaveClass}
                 />
@@ -705,14 +827,13 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
 
 // --- Sub-components: Modals ---
 
-const AddClassModal = ({ existingData, availableTeachers, onClose, onSave }: any) => {
+const AddClassModal = ({ existingData, onClose, onSave }: any) => {
     const [name, setName] = useState(existingData?.name || '');
     const [section, setSection] = useState(existingData?.section || '');
-    const [teacherId, setTeacherId] = useState(existingData?.teacherId || '');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ name, section, newTeacherId: teacherId || null });
+        onSave({ name, section });
     };
 
     return (
@@ -746,18 +867,8 @@ const AddClassModal = ({ existingData, availableTeachers, onClose, onSave }: any
                             className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Class Teacher</label>
-                        <select
-                            value={teacherId}
-                            onChange={e => setTeacherId(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 outline-none bg-white"
-                        >
-                            <option value="">-- No Teacher Assigned --</option>
-                            {availableTeachers?.map((t: any) => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                        </select>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 leading-relaxed">
+                        Teachers are assigned when adding or editing teacher profiles in the <strong>Teachers</strong> section.
                     </div>
                     <div className="pt-4 flex justify-end gap-3">
                         <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
@@ -1014,11 +1125,15 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
             for (const item of updates) {
                 if (item.newClass === 'Graduated') {
                     await supabase.from('students')
-                        .update({ status: 'Graduated', class: 'Graduated' })
+                        .update({ status: 'Graduated', class: 'Graduated', class_id: null })
                         .in('id', item.ids);
                 } else {
+                    const matchedClass = classes.find((c: any) => c.name === item.newClass);
                     await supabase.from('students')
-                        .update({ class: item.newClass })
+                        .update({ 
+                            class: item.newClass, 
+                            class_id: matchedClass?.id || null 
+                        })
                         .in('id', item.ids);
                 }
             }

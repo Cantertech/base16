@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ArrowLeft, Building2, Palette, Lock, Upload, CheckCircle, Tag, CreditCard, Globe } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Building2, Palette, Lock, Upload, CheckCircle, CreditCard, Globe } from 'lucide-react';
 import { generateMockData } from '../utils/mockDataGenerator';
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
@@ -18,7 +18,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     schoolName: '',
     motto: '',
     phone: '',
-    referralCode: '',
     color: 'blue', // blue, green, maroon, purple
     logo: null as string | null,
     logoFile: null as File | null,
@@ -29,29 +28,8 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     currency: 'GHS' as CurrencyCode
   });
 
-  // Validation State for Referral
-  const [referralStatus, setReferralStatus] = useState<'none' | 'valid' | 'invalid'>('none');
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    // Reset referral status if they type in the code box
-    if (e.target.name === 'referralCode') setReferralStatus('none');
-  };
-
-  const validateReferral = async () => {
-    if (!formData.referralCode) return;
-
-    try {
-      const { data, error } = await supabase.rpc('check_referral_code', { p_code: formData.referralCode });
-      if (data) {
-        setReferralStatus('valid');
-      } else {
-        setReferralStatus('invalid');
-      }
-    } catch (error) {
-      console.error("Referral check failed", error);
-      setReferralStatus('invalid');
-    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,12 +71,12 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Check if session exists (if not, email confirmation might be required)
+        // Auto-login if session was not returned immediately (since DB trigger pre-confirms account)
         if (!authData.session) {
-          console.warn('User created but no session. Email confirmation likely required.');
-          alert('Account created! Please check your email to confirm your account before we can set up your school.');
-          setLoading(false);
-          return;
+          await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
         }
 
         // 3. Create School Record with 'pending' status
@@ -109,14 +87,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               name: formData.schoolName,
               motto: formData.motto,
               phone: formData.phone,
+              email: formData.email,
               brand_color: formData.color,
+              theme_color: formData.color,
               logo_url: logoUrl,
-              admin_id: authData.user.id,
-              referral_code_used: referralStatus === 'valid' ? formData.referralCode : null,
-              referral_code: `SZO-${Math.floor(Math.random() * 900 + 100)}`,
-              status: 'pending', // Initial status
-              subscription_plan: 'Small School', // Default plan
-              currency: formData.currency
+              status: 'pending', // Initial status awaiting review
+              subscription_plan: 'Small School',
+              currency: formData.currency,
+              sms_balance: 50,
+              current_term: 'First Term',
+              academic_year: '2025/2026',
             },
           ])
           .select()
@@ -133,23 +113,29 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               full_name: formData.adminName,
               role: 'admin',
               school_id: schoolData.id,
-              email: formData.email
+              email: formData.email,
+              phone_number: formData.phone
             }
           ]);
 
         if (profileError) throw profileError;
 
-        // 5. Process Referral Reward (if applicable)
-        if (referralStatus === 'valid' && formData.referralCode) {
-          await supabase.rpc('process_referral', {
-            p_referral_code: formData.referralCode,
-            p_new_school_id: schoolData.id,
-            p_new_school_name: formData.schoolName
-          });
-        }
+        // 5. Initialize Default Academic Term so exams/fees work out of the box
+        await supabase
+          .from('academic_terms')
+          .insert([
+            {
+              school_id: schoolData.id,
+              academic_year: '2025/2026',
+              term: 'First Term',
+              is_current: true,
+              is_locked: false,
+              total_days: 65
+            }
+          ]);
 
         setLoading(false);
-        // Move to Step 4 (Billing/Pending)
+        // Move to Step 4 (Registration Complete / Pending Approval)
         setStep(4);
       }
     } catch (error: any) {
@@ -221,35 +207,6 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                   placeholder="020 123 4567"
                   className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:outline-none"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Referral Code (Optional)</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      name="referralCode"
-                      value={formData.referralCode}
-                      onChange={handleInputChange}
-                      onBlur={validateReferral}
-                      type="text"
-                      placeholder="Enter code"
-                      className={`w-full pl-9 pr-3 py-3 border rounded-lg focus:ring-2 outline-none ${referralStatus === 'valid' ? 'border-green-500 focus:ring-green-200' :
-                        referralStatus === 'invalid' ? 'border-red-500 focus:ring-red-200' :
-                          'border-slate-300 focus:ring-primary-600'
-                        }`}
-                    />
-                  </div>
-                  {/* Validation Message */}
-                </div>
-                {referralStatus === 'valid' && (
-                  <p className="text-green-600 text-xs mt-1 flex items-center gap-1 font-bold">
-                    <CheckCircle className="h-3 w-3" /> Code accepted! You qualify for a GH¢ 100 Setup Discount.
-                  </p>
-                )}
-                {referralStatus === 'invalid' && (
-                  <p className="text-red-600 text-xs mt-1">Invalid referral code.</p>
-                )}
               </div>
             </div>
           )}
