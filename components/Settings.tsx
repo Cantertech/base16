@@ -337,8 +337,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 color: schoolData.theme_color || 'blue',
                 feeding_fee_amount: schoolData.feeding_fee_amount || 5,
                 teachers_can_collect_feeding: schoolData.teachers_can_collect_feeding || false,
-                referralCode: schoolData.referral_code || `BW-${Math.floor(Math.random() * 900 + 100)}`, // Fallback display
-                referralPreference: schoolData.referral_preference || 'CASH',
                 plan: schoolData.subscription_plan || 'Small School',
                 nextPaymentDue: schoolData.next_payment_due,
                 paymentConfig: schoolData.payment_config || {},
@@ -365,7 +363,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                     email: newConfig.email,
                     logo_url: newConfig.logo,
                     theme_color: newConfig.color,
-                    referral_preference: newConfig.referralPreference,
                     feeding_fee_amount: newConfig.feeding_fee_amount,
                     teachers_can_collect_feeding: newConfig.teachers_can_collect_feeding
                 })
@@ -729,11 +726,6 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 alert("Error uploading image");
             }
         }
-    };
-
-    const handleCopyCode = () => {
-        navigator.clipboard.writeText(config.referralCode);
-        alert('Referral code copied to clipboard!');
     };
 
 
