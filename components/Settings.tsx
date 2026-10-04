@@ -967,38 +967,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                             </div>
                         )}
 
-                        {/* Referral Hub */}
-                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden mt-8">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <Gift className="h-32 w-32 transform rotate-12" />
-                            </div>
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="bg-white/20 p-2 rounded-lg">
-                                        <Gift className="h-6 w-6 text-white" />
-                                    </div>
-                                    <h3 className="font-bold text-lg">Base16 Referral Hub</h3>
-                                </div>
-                                <p className="text-purple-100 text-sm mb-6 max-w-lg">
-                                    Refer other schools to Base16 and earn rewards! Share your unique referral code below.
-                                </p>
 
-                                <div className="bg-white/10 rounded-xl p-4 border border-white/20 backdrop-blur-sm">
-                                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                                        <div>
-                                            <p className="text-purple-200 text-xs uppercase font-bold tracking-wider mb-1">Your Referral Code</p>
-                                            <p className="text-2xl font-mono font-bold tracking-widest">{config.referralCode || 'LOADING...'}</p>
-                                        </div>
-                                        <button
-                                            onClick={handleCopyCode}
-                                            className="bg-white text-purple-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-50 transition-colors flex items-center gap-2 shadow-sm"
-                                        >
-                                            <Copy className="h-4 w-4" /> Copy Code
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 )}
 
