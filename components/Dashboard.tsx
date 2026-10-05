@@ -315,10 +315,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     });
 
     // 1.3 Free Trial & Module Lock Calculations
-    const schoolCreatedAt = schoolConfig?.created_at ? new Date(schoolConfig.created_at) : new Date();
+    const hasCreatedAt = !!schoolConfig?.created_at;
+    const schoolCreatedAt = hasCreatedAt ? new Date(schoolConfig.created_at) : new Date(0);
     const daysSinceCreation = Math.floor((new Date().getTime() - schoolCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
-    const trialDaysLeft = Math.max(0, 7 - daysSinceCreation);
-    const isTrialActive = trialDaysLeft > 0;
+    const trialDaysLeft = hasCreatedAt ? Math.max(0, 7 - daysSinceCreation) : 0;
+    const isTrialActive = hasCreatedAt && trialDaysLeft > 0;
 
     const isModuleUnlocked = (moduleCode: string) => {
         if (isTrialActive) return true; // All modules unlocked during 7-Day Free Trial!
