@@ -67,6 +67,7 @@ const Attendance = lazy(() => import('./Attendance'));
 const Timetable = lazy(() => import('./Timetable'));
 const Feeding = lazy(() => import('./Feeding'));
 const MyPayroll = lazy(() => import('./MyPayroll'));
+const ModuleLockGate = lazy(() => import('./ModuleLockGate'));
 import Loading from './Loading';
 import { supabase } from '../utils/supabaseClient';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -280,6 +281,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     feeding_fee_amount: school.feeding_fee_amount || 5,
                     report_card_config: school.report_card_config,
                     status: school.status || 'active',
+                    created_at: school.created_at,
+                    wallet_balance: school.wallet_balance || 0,
+                    email: school.email || ''
                 };
                 // Cache the config to prevent flashing on reload
                 localStorage.setItem(`base16_school_config_${currentUser.school_id}`, JSON.stringify(config));
@@ -298,6 +302,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         },
         enabled: !!currentUser.school_id
     });
+
+    // 1.2 Active Subscription Query
+    const { data: activeSub } = useQuery({
+        queryKey: ['activeSubscription', currentUser.school_id],
+        queryFn: async () => {
+            if (!currentUser.school_id) return null;
+            const { data } = await supabase.from('school_subscriptions').select('*').eq('school_id', currentUser.school_id).maybeSingle();
+            return data || null;
+        },
+        enabled: !!currentUser.school_id
+    });
+
+    // 1.3 Free Trial & Module Lock Calculations
+    const schoolCreatedAt = schoolConfig?.created_at ? new Date(schoolConfig.created_at) : new Date();
+    const daysSinceCreation = Math.floor((new Date().getTime() - schoolCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+    const trialDaysLeft = Math.max(0, 7 - daysSinceCreation);
+    const isTrialActive = trialDaysLeft > 0;
+
+    const isModuleUnlocked = (moduleCode: string) => {
+        if (isTrialActive) return true; // All modules unlocked during 7-Day Free Trial!
+        const unlocked: string[] = activeSub?.unlocked_modules || [];
+        return unlocked.includes(moduleCode) || activeSub?.plan_type === 'full_suite' || activeSub?.plan_type === 'all';
+    };
 
     // 1.5 Global Search Query
     const { data: searchResults = { students: [], teachers: [] } } = useQuery({
@@ -1189,13 +1216,105 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Students': return <Students currentUser={currentUser} />;
             case 'Teachers': return <Teachers currentUser={currentUser} />;
             case 'Timetable': return <Timetable currentUser={currentUser} />;
-            case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
-            case 'Fees': return <Fees currentUser={currentUser} />;
+            case 'Attendance':
+                if (!isModuleUnlocked('daily_operations')) {
+                    return (
+                        <ModuleLockGate
+                            moduleCode="daily_operations"
+                            moduleName="Operations, Staff & Feeding"
+                            subtitle="Attendance, Teacher Payroll & Canteen Tracker"
+                            price={100}
+                            badge="Operations"
+                            features={[
+                                'Daily Student & Teacher Attendance Tracking',
+                                'Monthly Teacher Payroll & Absence Deductions',
+                                'Instant Teacher Payslip Generator',
+                                'Daily Canteen & Feeding Fee Tracker'
+                            ]}
+                            schoolId={currentUser.school_id}
+                            schoolName={schoolConfig?.name}
+                            schoolEmail={schoolConfig?.email}
+                            walletBalance={schoolConfig?.wallet_balance || 0}
+                            onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] })}
+                        />
+                    );
+                }
+                return <Attendance currentUser={currentUser} theme={theme} />;
+            case 'Fees':
+                if (!isModuleUnlocked('revenue_guard')) {
+                    return (
+                        <ModuleLockGate
+                            moduleCode="revenue_guard"
+                            moduleName="Revenue & Finance Guard"
+                            subtitle="Fee Structures, Invoicing, Receipts & Debtors"
+                            price={120}
+                            badge="Finance"
+                            features={[
+                                'Student Fee Ledgers & Automated Invoicing',
+                                'Instant Thermal POS & A4 Printable Receipts',
+                                'Defaulters Tracking & Fee Deficit Analysis',
+                                'Cash & Mobile Money Transaction Logging'
+                            ]}
+                            schoolId={currentUser.school_id}
+                            schoolName={schoolConfig?.name}
+                            schoolEmail={schoolConfig?.email}
+                            walletBalance={schoolConfig?.wallet_balance || 0}
+                            onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] })}
+                        />
+                    );
+                }
+                return <Fees currentUser={currentUser} />;
             case 'Feeding': return <Feeding currentUser={currentUser} />;
-            case 'Exam': return <Exams currentUser={currentUser} activeModules={activeModules} />;
+            case 'Exam':
+                if (!isModuleUnlocked('academic_engine')) {
+                    return (
+                        <ModuleLockGate
+                            moduleCode="academic_engine"
+                            moduleName="Academic Engine"
+                            subtitle="Terminal Exams, Broadsheets & Report Cards"
+                            price={100}
+                            badge="Academics"
+                            features={[
+                                'Terminal Exams & CA Grading (30/70 & 50/50)',
+                                'Auto Class Positions & Broadsheet Compilation',
+                                'Prestige Terminal Report Cards (Customizable)',
+                                'Batch PDF Generation & Instant Print Export'
+                            ]}
+                            schoolId={currentUser.school_id}
+                            schoolName={schoolConfig?.name}
+                            schoolEmail={schoolConfig?.email}
+                            walletBalance={schoolConfig?.wallet_balance || 0}
+                            onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] })}
+                        />
+                    );
+                }
+                return <Exams currentUser={currentUser} activeModules={activeModules} />;
             case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
-            case 'Notice': return <Communication currentUser={currentUser} />;
+            case 'Notice':
+                if (!isModuleUnlocked('parent_portal')) {
+                    return (
+                        <ModuleLockGate
+                            moduleCode="parent_portal"
+                            moduleName="Parent Portal & Notices"
+                            subtitle="Online Parent Access, Reports & Notice Board"
+                            price={80}
+                            badge="Parents"
+                            features={[
+                                'Secure Parent Student Access Link',
+                                'Online Terminal Report Card Viewer',
+                                'Live Student Fee Balance & Payment Status',
+                                'Digital School Notice Board & Announcements'
+                            ]}
+                            schoolId={currentUser.school_id}
+                            schoolName={schoolConfig?.name}
+                            schoolEmail={schoolConfig?.email}
+                            walletBalance={schoolConfig?.wallet_balance || 0}
+                            onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] })}
+                        />
+                    );
+                }
+                return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
             case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
             default: return (
@@ -1881,6 +2000,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 </div>
             </nav>
             <main className={`flex-1 md:ml-64 flex flex-col h-screen overflow-hidden relative ${subscriptionStatus === 'warning' ? 'mt-9' : ''}`}>
+                {isTrialActive && (
+                    <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs border-b border-amber-600/30 z-30 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-amber-200 animate-pulse" />
+                            <span>🎉 <strong>7-Day Free Trial Active</strong> ({trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} remaining) — All Base16 modules are unlocked for your school!</span>
+                        </div>
+                        <button onClick={() => setActiveMenu('Settings')} className="bg-white text-orange-700 px-3 py-1 rounded-lg font-black text-[11px] hover:bg-orange-50 transition-colors shadow-xs shrink-0">
+                            Upgrade Plan
+                        </button>
+                    </div>
+                )}
                 <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
                     <div className="flex items-center gap-4 md:hidden">
                         {schoolConfig?.logo ? (
