@@ -504,7 +504,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         setIsAskingCopilot(true);
         setCopilotResponse(null);
 
-        const agentEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL || 'http://localhost:8000/api/chat';
+        const agentEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL || 'http://155.248.239.188/base16-api/api/chat';
 
         try {
             const res = await fetch(agentEndpoint, {
@@ -606,7 +606,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
     const handleApproveSms = async (smsPayload: any, msgIndex: number) => {
         try {
-            const smsEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL?.replace('/api/chat', '/api/send-sms') || 'http://localhost:8000/api/send-sms';
+            const smsEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL?.replace('/api/chat', '/api/send-sms') || 'http://155.248.239.188/base16-api/api/send-sms';
             let sent = false;
             try {
                 const res = await fetch(smsEndpoint, {
