@@ -1273,7 +1273,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                             moduleCode="academic_engine"
                             moduleName="Academic Engine"
                             subtitle="Terminal Exams, Broadsheets & Report Cards"
-                            price={100}
+                            price={70}
                             badge="Academics"
                             features={[
                                 'Terminal Exams & CA Grading (30/70 & 50/50)',

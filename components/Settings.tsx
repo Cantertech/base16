@@ -45,7 +45,7 @@ export const ORBIT_MODULES: OrbitModuleDef[] = [
         code: 'academic_engine',
         name: 'Academic Engine',
         subtitle: 'Terminal Exams, Broadsheets & Report Cards',
-        price: 100,
+        price: 70,
         badge: 'Academics',
         badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
         features: [
@@ -121,8 +121,8 @@ export const FULL_SUITE_OFFER = {
     code: 'full_suite',
     name: '⭐ Complete Orbit Full Suite',
     termPrice: 350,
-    sumPrice: 500,
-    savings: 150,
+    sumPrice: 470,
+    savings: 120,
     features: [
         'ALL 5 Core Modules Completely Unlocked',
         'Academic Engine (Report Cards & Broadsheets)',
@@ -1137,7 +1137,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                                 <Sparkles className="h-3 w-3 text-amber-600 fill-amber-600" /> RECOMMENDED
                                             </span>
                                             <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                                Save GH₵ 150 (30% Off)
+                                                Save GH₵ 120 (26% Off)
                                             </span>
                                         </div>
                                         <div className="flex flex-wrap items-baseline gap-2.5">
@@ -1147,7 +1147,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-xl md:text-2xl font-black text-slate-900">GH₵ 350</span>
                                                 <span className="text-xs text-slate-500 font-medium">/ term</span>
-                                                <span className="text-xs text-slate-400 line-through ml-1">GH₵ 500</span>
+                                                <span className="text-xs text-slate-400 line-through ml-1">GH₵ 470</span>
                                             </div>
                                         </div>
                                         <p className="text-xs text-slate-500 max-w-xl">
