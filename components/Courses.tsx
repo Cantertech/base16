@@ -514,6 +514,12 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                         </div>
                         <div className="flex gap-3 w-full sm:w-auto">
                             <button
+                                onClick={() => setIsPromotionModalOpen(true)}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold text-sm shadow-md transition-colors"
+                            >
+                                <FastForward className="h-4 w-4 text-indigo-400" /> <span className="hidden sm:inline">Bulk Promotion</span><span className="sm:hidden">Promote</span>
+                            </button>
+                            <button
                                 onClick={() => { setEditingClass(null); setIsClassModalOpen(true); }}
                                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold text-sm shadow-md transition-colors"
                             >
