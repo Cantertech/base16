@@ -1168,7 +1168,16 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
         // We'll manually update releasedClasses via cache invalidation or update
         onSuccess: (className) => {
             queryClient.invalidateQueries({ queryKey: ['releasedClasses', schoolId] });
-            // Notification is now handled by the UI handler manually if selected
+            // Publish an in-app parent notice so Base16 Connect alerts parents
+            supabase.from('app_notifications').insert({
+                school_id: schoolId,
+                title: `${currentTerm} Results Released (${className})`,
+                message: `${currentTerm} exam results for ${className} are now available. Open Base16 Connect to view your child's report card.`,
+                category: 'Academic',
+                target_audience: 'Parents'
+            }).then(({ error }) => {
+                if (error) console.warn('Failed to create parent release notice:', error.message);
+            });
         },
         onError: (error: any) => {
             toast('error', 'Publish Failed', error.message);
