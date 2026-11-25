@@ -30,10 +30,8 @@ Generated from live inspection of `cvikeikqhxxkwdupglpp.supabase.co`, frontend (
 - **Risk:** `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `VITE_HUBTEL_CLIENT_SECRET` are stored in local scripts (`scratch/*.js`, `scratch/*.py`).
 - **Fix:** Ensure `scratch/` and `.env` are never committed to GitHub (`.gitignore` covers `.env`, verify `scratch/` is ignored or cleaned), and rotate any keys that were ever exposed in client bundles or public logs.
 
-### 7. Multi-Tenant RLS Isolation Verification
-- **Where:** [supabase/master_schema_v1.sql](file:///c:/Users/HP/Desktop/orbit/supabase/master_schema_v1.sql)
-- **Risk:** Need to verify that an authenticated user in **School A** cannot read or mutate **School B**'s `students`, `teachers`, `transactions`, `exam_results`, or `school_subscriptions` via direct REST calls.
-- **Fix:** Write a small automated RLS test script using two test school accounts to verify zero cross-school read/write access on every table.
+### 7. [DONE] Multi-Tenant RLS Isolation Verification
+- **Status:** Fixed & verified (`supabase/enable_multi_tenant_rls.sql` applied on `cvikeikqhxxkwdupglpp`). Live cross-school attack test confirmed **0 rows** readable across schools (`students`, `profiles`, `exam_results`, `transactions`, `school_subscriptions`, `message_logs`, `schools`) while own-school reads work cleanly.
 
 ---
 
