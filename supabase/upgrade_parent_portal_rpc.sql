@@ -16,6 +16,7 @@ DECLARE
     v_student RECORD;
     v_school RECORD;
     v_report RECORD;
+    v_report_cards JSONB;
     v_results JSONB;
     v_transactions JSONB;
     v_released_terms JSONB;
@@ -44,10 +45,10 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'Student not found. Please check your Student ID or phone number.');
     END IF;
 
-    -- Verify PIN if student has one and caller didn't pass UUID reload
+    -- Verify PIN strictly whenever the student has a PIN configured
     IF v_student.pin IS NOT NULL AND TRIM(v_student.pin) <> '' THEN
-        IF p_pin IS NOT NULL AND TRIM(p_pin) <> '' AND TRIM(v_student.pin) <> TRIM(p_pin) THEN
-            RETURN jsonb_build_object('success', false, 'error', 'Incorrect PIN. Please check with the school.');
+        IF p_pin IS NULL OR TRIM(p_pin) = '' OR TRIM(v_student.pin) <> TRIM(p_pin) THEN
+            RETURN jsonb_build_object('success', false, 'error', 'Incorrect or missing PIN. Please check with the school.');
         END IF;
     END IF;
 
@@ -69,13 +70,18 @@ BEGIN
       AND UPPER(TRIM(ers.class_name)) = UPPER(TRIM(v_student.class))
       AND ers.status = 'Released';
 
-    -- 4. Latest active report card
+    -- 4. Latest active report card + all report cards for this student
     SELECT * INTO v_report
     FROM public.student_report_cards
     WHERE student_id = v_student.id
       AND term = v_school.current_term
       AND academic_year = v_school.academic_year
     LIMIT 1;
+
+    SELECT COALESCE(jsonb_agg(to_jsonb(rc)), '[]'::jsonb)
+    INTO v_report_cards
+    FROM public.student_report_cards rc
+    WHERE rc.student_id = v_student.id;
 
     -- 5. Exam results (previous terms always visible; current term only when released for this class)
     SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -192,6 +198,7 @@ BEGIN
             'payment_config', v_school.payment_config
         ),
         'report_card', to_jsonb(v_report),
+        'report_cards', v_report_cards,
         'exam_results', v_results,
         'released_terms', v_released_terms,
         'transactions', v_transactions,
