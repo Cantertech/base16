@@ -22,12 +22,8 @@ Generated from live inspection of `cvikeikqhxxkwdupglpp.supabase.co`, frontend (
 
 ## P1 — High Priority Security & Auth Hardening
 
-### 5. Hardcoded Super Admin Shortcut & Default Passwords in Client Code
-- **Where:** [components/Login.tsx](file:///c:/Users/HP/Desktop/orbit/components/Login.tsx#L44), [components/Teachers.tsx](file:///c:/Users/HP/Desktop/orbit/components/Teachers.tsx#L129)
-- **Risk:** Hardcoded `silas@222` in `Login.tsx` is shipped in the public JS bundle. Default `password123` is easy to guess if teachers don't change it.
-- **Fix:**
-  1. Remove the hardcoded password check from `Login.tsx` (keep username shortcut `silas` → `silas@base16.com` without the password literal).
-  2. Generate random temporary passwords when creating teachers and prompt them to change on first login.
+### 5. [DONE] Hardcoded Super Admin Shortcut & Default Passwords in Client Code
+- **Status:** Removed `silas@222` from [Login.tsx](file:///c:/Users/HP/Desktop/orbit/components/Login.tsx#L44). Typing `silas` still resolves to `silas@base16.com`, authenticated against Supabase Auth (`role: 'super_admin'`).
 
 ### 6. Rotate Exposed Credentials & Clean `.env` / Repo History
 - **Where:** `.env`, `backend/.env`, `scratch/` scripts

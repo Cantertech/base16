@@ -40,8 +40,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onCancel }) => {
         }
       }
 
-      // Fallback for silas shortcut
-      if (loginEmail.toLowerCase() === 'silas' && password === 'silas@222') {
+      // Resolve 'silas' username alias without hardcoding any password
+      if (loginEmail.toLowerCase() === 'silas') {
         loginEmail = 'silas@base16.com';
       }
 
