@@ -156,27 +156,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ currentUser }) => {
         enabled: !!currentUser?.school_id
     });
 
-    // 4. Referrals
+    // 4. Referrals (retired feature — return empty list without hitting nonexistent table)
     const { data: referralHistory = [] } = useQuery({
         queryKey: ['referralAnalytics', currentUser?.school_id],
-        queryFn: async () => {
-            if (!currentUser?.school_id) return [];
-            const { data: referrals } = await supabase
-                .from('referrals')
-                .select('*')
-                .eq('school_id', currentUser.school_id);
-
-            if (!referrals) return [];
-
-            return referrals.map((r: any) => ({
-                id: r.id,
-                schoolName: r.referee_school_name,
-                date: r.date,
-                reward: r.reward_amount > 0 ? `${currency.symbol} ${r.reward_amount}` : 'Credit',
-                status: r.status
-            }));
-        },
-        enabled: !!currentUser?.school_id
+        queryFn: async () => [] as any[],
+        enabled: false
     });
 
     // 5. Attendance Overview

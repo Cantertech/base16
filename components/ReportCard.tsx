@@ -221,11 +221,6 @@ const ReportCard: React.FC<ReportCardProps> = ({ student, results, onClose, scho
                     present: attData.filter((r: any) => r.status === 'Present').length,
                     total: attData.length
                 };
-            } else {
-                const { data: rpcData } = await supabase.rpc('get_student_attendance_summary', { p_student_id: student.id });
-                if (rpcData) {
-                    data = { present: Number(rpcData.present || 0), total: Number(rpcData.total || 0) };
-                }
             }
 
             setAttendanceStats(data);

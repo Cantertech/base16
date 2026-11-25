@@ -222,24 +222,7 @@ const Teachers: React.FC<TeachersProps> = ({ currentUser }) => {
           console.warn('admin_create_teacher exception:', rpcEx);
         }
 
-        // Secondary fallback: create_teacher_user RPC
-        if (!teacherId) {
-          try {
-            const { data: rpc2Id, error: rpc2Err } = await supabase.rpc('create_teacher_user', {
-              email: teacherData.email.trim().toLowerCase(),
-              password: passwordToUse,
-              name: teacherData.name.trim(),
-              school_id: schoolId,
-              phone: teacherData.phone?.trim() || '',
-              subject: derivedSubjectText,
-              assigned_class: derivedAssignedClass,
-              salary: Number(teacherData.salary) || 0
-            });
-            if (!rpc2Err && rpc2Id) teacherId = rpc2Id;
-          } catch (_) {}
-        }
-
-        // Tertiary fallback: check existing profile or client auth signup
+        // Secondary fallback: check existing profile or client auth signup
         if (!teacherId) {
           const { data: existingProfile } = await supabase
             .from('profiles')

@@ -245,13 +245,29 @@ const Fees: React.FC<FeesProps> = ({ currentUser }) => {
             const { error } = await supabase.from('fee_structure').insert(feesToInsert);
             if (error) throw error;
 
-            // Auto-update student balances
+            // Auto-update student balances via RPC, with direct fallback if RPC is absent
+            const amountToAdd = Number(feeData.amount);
+            const applyFeeFallback = async (targetClass: string | null) => {
+                let q = supabase.from('students').select('id, balance').eq('school_id', schoolId);
+                if (targetClass) q = q.eq('class', targetClass);
+                const { data: targetStudents } = await q;
+                if (targetStudents && targetStudents.length > 0) {
+                    await Promise.all(targetStudents.map((st: any) =>
+                        supabase.from('students')
+                            .update({ balance: Number(st.balance || 0) + amountToAdd })
+                            .eq('id', st.id)
+                    ));
+                }
+            };
+
             if (feeData.applyToAll) {
-                await supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: Number(feeData.amount), p_target_class: null });
+                const { error: rpcErr } = await supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: amountToAdd, p_target_class: null });
+                if (rpcErr) await applyFeeFallback(null);
             } else {
-                await Promise.all(feeData.selectedClasses.map((cls: string) =>
-                    supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: Number(feeData.amount), p_target_class: cls })
-                ));
+                await Promise.all(feeData.selectedClasses.map(async (cls: string) => {
+                    const { error: rpcErr } = await supabase.rpc('add_fee_to_students', { p_school_id: schoolId, p_amount: amountToAdd, p_target_class: cls });
+                    if (rpcErr) await applyFeeFallback(cls);
+                }));
             }
         },
         onSuccess: () => {

@@ -625,11 +625,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             }
 
             if (!sent) {
-                await supabase.from('notices').insert([{
+                await supabase.from('app_notifications').insert([{
                     school_id: currentUser.school_id,
                     title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
                     message: smsPayload.message_text,
-                    priority: 'Urgent',
+                    category: 'Urgent',
                     target_audience: smsPayload.recipient_group || 'Parents'
                 }]);
             }
@@ -928,16 +928,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         mutationFn: async ({ term, year, copyFees, carryForward }: { term: string, year: string, copyFees: boolean, carryForward: boolean }) => {
             let rpcSucceeded = false;
             try {
-                const { error } = await supabase.rpc('start_new_term', {
+                const { error } = await supabase.rpc('admin_switch_academic_term', {
                     p_school_id: currentUser.school_id,
                     p_new_term: term,
                     p_new_year: year,
-                    p_copy_fees: copyFees,
-                    p_carry_forward: carryForward
+                    p_copy_fee_structure: copyFees,
+                    p_roll_over_arrears: carryForward
                 });
                 if (!error) rpcSucceeded = true;
             } catch (e) {
-                console.warn('start_new_term RPC not found or errored, using direct table sync fallback:', e);
+                console.warn('admin_switch_academic_term RPC not found or errored, using direct table sync fallback:', e);
             }
 
             if (!rpcSucceeded) {

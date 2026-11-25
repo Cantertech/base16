@@ -57,23 +57,16 @@ export async function sendHubtelSms(params: SendSmsParams): Promise<{ count: num
         throw new Error('No valid Ghana phone numbers found among the selected recipients.');
     }
 
-    const clientId = (import.meta as any).env.VITE_HUBTEL_CLIENT_ID;
-    const clientSecret = (import.meta as any).env.VITE_HUBTEL_CLIENT_SECRET;
-    const senderId = (import.meta as any).env.VITE_HUBTEL_SENDER_ID || schoolName?.slice(0, 11) || 'Orbit';
-
     const finalMessage = schoolName ? `${schoolName}\n${message}` : message;
 
     // Dispatches SMS via the deployed Supabase Edge Function 'send-sms'
+    // Hubtel credentials are stored securely in Supabase Edge Function secrets
     try {
         const { data, error } = await supabase.functions.invoke('send-sms', {
             body: {
                 recipients: validRecipients,
                 message: finalMessage,
-                hubtelKeys: {
-                    clientId,
-                    clientSecret,
-                    senderId
-                }
+                senderId: schoolName?.slice(0, 11) || undefined
             }
         });
 

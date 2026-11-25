@@ -18,105 +18,138 @@ function formatGhanaPhone(raw: string): string {
     return cleaned;
 }
 
+async function parseJsonSafe(res: Response) {
+    const rawText = await res.text();
+    try {
+        return { json: JSON.parse(rawText), rawText };
+    } catch {
+        return { json: null, rawText };
+    }
+}
+
+async function sendViaArkesel(apiKey: string, sender: string, recipients: string[], message: string) {
+    const res = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+        method: 'POST',
+        headers: {
+            'api-key': apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ sender, message, recipients }),
+    });
+    const { json, rawText } = await parseJsonSafe(res);
+    if (!res.ok || json?.status === 'error') {
+        throw new Error(`Arkesel HTTP ${res.status}: ${json?.message || rawText.slice(0, 150)}`);
+    }
+    return json;
+}
+
+async function sendViaHubtel(clientId: string, clientSecret: string, sender: string, toCommaList: string, message: string) {
+    const url = new URL('https://smsc.hubtel.com/v1/messages/send');
+    url.searchParams.append('clientid', clientId);
+    url.searchParams.append('clientsecret', clientSecret);
+    url.searchParams.append('from', sender);
+    url.searchParams.append('to', toCommaList);
+    url.searchParams.append('content', message);
+
+    const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; Base16Orbit/1.0)',
+            'Accept': 'application/json',
+        },
+    });
+    const { json, rawText } = await parseJsonSafe(res);
+    if (!res.ok) {
+        throw new Error(`Hubtel HTTP ${res.status}: ${json?.statusDescription || rawText.slice(0, 150)}`);
+    }
+    return json;
+}
+
 serve(async (req) => {
-    // 1. Handle CORS Preflight
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders })
+        return new Response('ok', { headers: corsHeaders });
     }
 
     try {
-        const { recipients, phoneNumbers, message, hubtelKeys } = await req.json()
+        const { recipients, phoneNumbers, message, senderId: requestedSenderId } = await req.json();
 
-        // 2. Get Credentials
-        const clientId = Deno.env.get('HUBTEL_CLIENT_ID') || hubtelKeys?.clientId;
-        const clientSecret = Deno.env.get('HUBTEL_CLIENT_SECRET') || hubtelKeys?.clientSecret;
-        const senderId = Deno.env.get('HUBTEL_SENDER_ID') || hubtelKeys?.senderId || 'Orbit';
+        const arkeselApiKey = Deno.env.get('ARKESEL_API_KEY');
+        const arkeselSender = Deno.env.get('ARKESEL_SENDER_ID') || requestedSenderId || 'Base16';
 
-        if (!clientId || !clientSecret) {
-            throw new Error('Hubtel Credentials missing. Please ensure HUBTEL_CLIENT_ID and HUBTEL_CLIENT_SECRET are provided.');
+        const hubtelId = Deno.env.get('HUBTEL_CLIENT_ID');
+        const hubtelSecret = Deno.env.get('HUBTEL_CLIENT_SECRET');
+        const hubtelSender = Deno.env.get('HUBTEL_SENDER_ID') || requestedSenderId || 'Base16';
+
+        const useArkesel = Boolean(arkeselApiKey);
+        if (!useArkesel && (!hubtelId || !hubtelSecret)) {
+            throw new Error('SMS credentials missing. Set ARKESEL_API_KEY (or HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET) in Supabase Edge Function secrets.');
         }
 
         // MODE A: Personalized Blast (Recipients Array with Vars)
-        // Frontend sends: recipients: [{ phone: '...', vars: { '{Parent Name}': 'John' } }]
         if (recipients && Array.isArray(recipients) && recipients.length > 0) {
-            console.log(`Processing ${recipients.length} personalized messages via Hubtel...`);
+            const hasVars = recipients.some((r) => r?.vars && Object.keys(r.vars).length > 0);
 
-            // Limit concurrency if needed, but for <500 Promise.all is usually fine on Deno Deploy
-            const promises = recipients.map(async (r) => {
+            // Fast batch path when using Arkesel and all recipients share the same message
+            if (useArkesel && !hasVars) {
+                const formatted = recipients.map((r) => formatGhanaPhone(r.phone)).filter((p) => p.length >= 10);
+                if (formatted.length === 0) throw new Error('No valid phone numbers provided.');
+                const data = await sendViaArkesel(arkeselApiKey, arkeselSender, formatted, message);
+                return new Response(JSON.stringify({ success: true, provider: 'arkesel', count: formatted.length, data }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    status: 200,
+                });
+            }
+
+            const results = await Promise.all(recipients.map(async (r) => {
                 let personalizedMsg = message;
-
-                // Replace variables
                 if (r.vars) {
                     for (const [key, val] of Object.entries(r.vars)) {
-                        // Replace all occurrences of the variable
                         personalizedMsg = personalizedMsg.split(key).join(String(val));
                     }
                 }
-
-                // Send Single SMS to Hubtel
-                // Format to Ghana 233 format
                 const to = formatGhanaPhone(r.phone);
                 if (!to || to.length < 10) {
                     return { to: r.phone, error: 'Invalid phone format' };
                 }
-
-                const url = new URL("https://smsc.hubtel.com/v1/messages/send");
-                url.searchParams.append("clientid", clientId);
-                url.searchParams.append("clientsecret", clientSecret);
-                url.searchParams.append("from", senderId);
-                url.searchParams.append("to", to);
-                url.searchParams.append("content", personalizedMsg);
-
                 try {
-                    const res = await fetch(url.toString(), { method: 'GET' });
-                    const json = await res.json();
-                    return { to, status: json.status || 'sent', data: json };
+                    const data = useArkesel
+                        ? await sendViaArkesel(arkeselApiKey, arkeselSender, [to], personalizedMsg)
+                        : await sendViaHubtel(hubtelId, hubtelSecret, hubtelSender, to, personalizedMsg);
+                    return { to, status: data?.status || 'sent', data };
                 } catch (e) {
                     return { to, error: e.message };
                 }
-            });
+            }));
 
-            // Wait for all to finish
-            const results = await Promise.all(promises);
-            console.log(`Sent ${results.length} messages.`);
-
-            return new Response(JSON.stringify({ success: true, count: results.length, sample: results[0] }), {
+            return new Response(JSON.stringify({ success: true, provider: useArkesel ? 'arkesel' : 'hubtel', count: results.length, sample: results[0] }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 200,
-            })
+            });
         }
 
-        // MODE B: Standard Bulk (Same content to many numbers) - Fallback
-        // Used if frontend sends old payload format
-        if ((phoneNumbers && phoneNumbers.length > 0) && message) {
+        // MODE B: Standard Bulk (Same content to many numbers)
+        if (phoneNumbers && phoneNumbers.length > 0 && message) {
             const rawList = Array.isArray(phoneNumbers) ? phoneNumbers : [phoneNumbers];
-            const formatted = rawList.map(formatGhanaPhone).filter(Boolean);
-            const to = formatted.join(',');
-            console.log(`Sending Bulk SMS to ${formatted.length} numbers via Hubtel...`);
+            const formatted = rawList.map(formatGhanaPhone).filter((p) => p.length >= 10);
+            if (formatted.length === 0) throw new Error('No valid phone numbers provided.');
 
-            const url = new URL("https://smsc.hubtel.com/v1/messages/send");
-            url.searchParams.append("clientid", clientId);
-            url.searchParams.append("clientsecret", clientSecret);
-            url.searchParams.append("from", senderId);
-            url.searchParams.append("to", to);
-            url.searchParams.append("content", message);
+            const data = useArkesel
+                ? await sendViaArkesel(arkeselApiKey, arkeselSender, formatted, message)
+                : await sendViaHubtel(hubtelId, hubtelSecret, hubtelSender, formatted.join(','), message);
 
-            const response = await fetch(url.toString(), { method: 'GET' });
-            const data = await response.json();
-
-            return new Response(JSON.stringify({ success: true, apiResponse: data }), {
+            return new Response(JSON.stringify({ success: true, provider: useArkesel ? 'arkesel' : 'hubtel', count: formatted.length, apiResponse: data }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 200,
-            })
+            });
         }
 
         throw new Error('Invalid Payload. Provide "recipients" array or "phoneNumbers" array.');
-
     } catch (error) {
-        console.error('Error:', error)
+        console.error('Error:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,
-        })
+        });
     }
-})
+});

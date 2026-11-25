@@ -46,12 +46,7 @@ const BookDemo: React.FC<BookDemoProps> = ({ onBack }) => {
           body: {
             recipients: [{ phone: adminPhone }],
             phoneNumbers: [adminPhone, "0502560760"],
-            message: smsMessage,
-            hubtelKeys: {
-              clientId: (import.meta as any).env.VITE_HUBTEL_CLIENT_ID,
-              clientSecret: (import.meta as any).env.VITE_HUBTEL_CLIENT_SECRET,
-              senderId: (import.meta as any).env.VITE_HUBTEL_SENDER_ID || 'Orbit',
-            }
+            message: smsMessage
           },
         });
 

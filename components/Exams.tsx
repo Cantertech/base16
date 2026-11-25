@@ -1066,8 +1066,6 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
             } catch (delSubErr) {
                 console.warn("Could not delete exam_submissions record:", delSubErr);
             }
-
-            try { await supabase.rpc('unsubmit_exam_marks', { p_school_id: schoolId, p_class: className, p_subject: cleanSubj, p_term: cleanTerm }); } catch (e) { }
         },
         onSuccess: async () => {
             queryClient.setQueryData(['examResults', schoolId, currentTerm, currentYear], () => []);
