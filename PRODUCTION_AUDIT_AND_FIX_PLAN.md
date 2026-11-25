@@ -15,12 +15,8 @@ Generated from live inspection of `cvikeikqhxxkwdupglpp.supabase.co`, frontend (
 ### 3. [DONE] Client-Side Paystack & Wallet Unlocking (Revenue Bypass Risk)
 - **Status:** Fixed & deployed (`supabase/functions/verify-paystack/index.ts`, `utils/paystack.ts`, `components/ModuleLockGate.tsx`, `components/Settings.tsx`, and `supabase/lock_billing_and_wallets.sql` applied on `cvikeikqhxxkwdupglpp`). All Paystack payments are now verified server-side with `PAYSTACK_SECRET_KEY`, and `wallet_balance`/`sms_balance`/`school_subscriptions` are locked against browser tampering.
 
-### 4. Mixed Content: Oracle AI Agent URL Uses `http://` on an `https://` Site
-- **Where:** `.env` (`VITE_AI_AGENT_URL=http://155.248.239.188/base16-api/api/chat`), [backend/main.py](file:///c:/Users/HP/Desktop/orbit/backend/main.py)
-- **Risk:** `https://www.base16schools.com` cannot call `http://155.248.239.188/...` directly in modern browsers (blocked as Mixed Content).
-- **Fix:**
-  1. Either attach an HTTPS domain (e.g., `api.base16schools.com` → `155.248.239.188` with Let's Encrypt SSL on Nginx), **or** add a Vercel serverless proxy `api/chat.js` that forwards `/api/chat` → `http://155.248.239.188/base16-api/api/chat`.
-  2. Add JWT verification + `school_id` ownership check in [backend/main.py](file:///c:/Users/HP/Desktop/orbit/backend/main.py#L53-L89) and restrict `ALLOWED_ORIGINS` from `*` to `https://www.base16schools.com` (currently anyone can call `/api/chat` or `/api/send-sms` with any `school_id`).
+### 4. [DONE] Mixed Content: Oracle AI Agent URL Uses `http://` on an `https://` Site
+- **Status:** Fixed via `api/chat.js` (Vercel HTTPS proxy with Supabase JWT + `school_id` ownership verification) and updated `components/Dashboard.tsx` to route AI requests through `/api/chat` with the user's bearer token. Supports optional `AI_AGENT_UPSTREAM_URL` (e.g. `https://api.base16schools.com/api/chat`).
 
 ---
 

@@ -504,12 +504,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         setIsAskingCopilot(true);
         setCopilotResponse(null);
 
-        const agentEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL || 'http://155.248.239.188/base16-api/api/chat';
+        const envAgentUrl = (import.meta as any).env?.VITE_AI_AGENT_URL;
+        const agentEndpoint = (envAgentUrl && envAgentUrl.startsWith('https://')) ? envAgentUrl : '/api/chat';
 
         try {
+            const { data: { session } } = await supabase.auth.getSession();
             const res = await fetch(agentEndpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+                },
                 body: JSON.stringify({
                     message: queryText,
                     school_id: currentUser.school_id,
@@ -606,33 +611,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
     const handleApproveSms = async (smsPayload: any, msgIndex: number) => {
         try {
-            const smsEndpoint = (import.meta as any).env?.VITE_AI_AGENT_URL?.replace('/api/chat', '/api/send-sms') || 'http://155.248.239.188/base16-api/api/send-sms';
-            let sent = false;
-            try {
-                const res = await fetch(smsEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        school_id: currentUser.school_id,
-                        title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
-                        message: smsPayload.message_text,
-                        target_audience: smsPayload.recipient_group || 'Parents'
-                    })
-                });
-                if (res.ok) sent = true;
-            } catch (e) {
-                console.info('FastAPI SMS endpoint offline, posting directly to Supabase notices:', e);
-            }
-
-            if (!sent) {
-                await supabase.from('app_notifications').insert([{
-                    school_id: currentUser.school_id,
-                    title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
-                    message: smsPayload.message_text,
-                    category: 'Urgent',
-                    target_audience: smsPayload.recipient_group || 'Parents'
-                }]);
-            }
+            await supabase.from('app_notifications').insert([{
+                school_id: currentUser.school_id,
+                title: `Broadcast to ${smsPayload.recipient_group || 'Parents'}`,
+                message: smsPayload.message_text,
+                category: 'Urgent',
+                target_audience: smsPayload.recipient_group || 'Parents'
+            }]);
 
             queryClient.invalidateQueries({ queryKey: ['recentNotices'] });
 
