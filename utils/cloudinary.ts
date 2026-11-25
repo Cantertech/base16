@@ -1,12 +1,13 @@
-export const uploadToCloudinary = async (file: File) => {
-    // Hardcoded credentials to ensure they are used
+export const uploadToCloudinary = async (file: File | Blob, filename?: string): Promise<string> => {
     const cloudName = 'dcojlfyrp';
     const uploadPreset = 'metly_uploads';
 
-    console.log('Using Cloudinary Config:', { cloudName, uploadPreset });
-
     const formData = new FormData();
-    formData.append('file', file);
+    if (filename && !(file instanceof File)) {
+        formData.append('file', file, filename);
+    } else {
+        formData.append('file', file);
+    }
     formData.append('upload_preset', uploadPreset);
 
     try {

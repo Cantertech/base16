@@ -12,6 +12,7 @@ import { supabase } from '../utils/supabaseClient';
 import Loading from './Loading';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { compressImage } from '../utils/imageCompression';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 // --- Types ---
 interface Student {
@@ -259,26 +260,15 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       if (studentData.photoFile) {
         try {
           const compressedFile = await compressImage(studentData.photoFile);
-          const fileName = `${newStudentId}_${Date.now()}.jpg`;
-          const filePath = `${newStudentId}/${fileName}`;
+          const photoUrl = await uploadToCloudinary(compressedFile, `${newStudentId}_${Date.now()}.jpg`);
 
-          const { error: uploadError } = await supabase.storage
-            .from('student-photos')
-            .upload(filePath, compressedFile);
-
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage
-              .from('student-photos')
-              .getPublicUrl(filePath);
-
-            if (publicUrlData.publicUrl) {
-              await supabase
-                .from('students')
-                .update({ photo_url: publicUrlData.publicUrl })
-                .eq('id', newStudentId);
-            }
+          if (photoUrl) {
+            await supabase
+              .from('students')
+              .update({ photo_url: photoUrl })
+              .eq('id', newStudentId);
           }
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('Student photo upload failed:', err); }
       }
       return { admission_no, pin };
     },
@@ -309,23 +299,12 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
       if (updatedData.photoFile) {
         try {
           const compressedFile = await compressImage(updatedData.photoFile);
-          const fileName = `${id}_${Date.now()}.jpg`;
-          const filePath = `${id}/${fileName}`;
+          const photoUrl = await uploadToCloudinary(compressedFile, `${id}_${Date.now()}.jpg`);
 
-          const { error: uploadError } = await supabase.storage
-            .from('student-photos')
-            .upload(filePath, compressedFile);
-
-          if (!uploadError) {
-            const { data: publicUrlData } = supabase.storage
-              .from('student-photos')
-              .getPublicUrl(filePath);
-
-            if (publicUrlData.publicUrl) {
-              updatePayload.photo_url = publicUrlData.publicUrl;
-            }
+          if (photoUrl) {
+            updatePayload.photo_url = photoUrl;
           }
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('Student photo upload failed:', err); }
       }
 
       const { error } = await supabase.from('students').update(updatePayload).eq('id', id);

@@ -59,9 +59,8 @@ Generated from live inspection of `cvikeikqhxxkwdupglpp.supabase.co`, frontend (
 - **Risk:** Fetching 5,000 rows and all columns on every tab switch slows down low-end school laptops and burns Supabase Free egress (5 GB/mo).
 - **Fix:** Paginate student/fee/exam tables server-side (`.range(from, to)`) and select only needed columns.
 
-### 12. Migrate Student Photos from Supabase Storage to Cloudflare R2 (When Scaling)
-- **Where:** [components/Students.tsx](file:///c:/Users/HP/Desktop/orbit/components/Students.tsx#L265-L327)
-- **Why:** Current usage (~45 MB for 668 students) fits easily in Supabase's 1 GB storage, but Supabase Free's **5 GB/month egress** will be hit as schools view photos daily. Cloudflare R2 gives **10 GB free + \$0.015/GB + \$0 egress fees**.
+### 12. [DONE] Migrate Student Photos & Signatures from Supabase Storage to Cloudinary
+- **Status:** Switched [components/Students.tsx](file:///c:/Users/HP/Desktop/orbit/components/Students.tsx) and [components/Exams.tsx](file:///c:/Users/HP/Desktop/orbit/components/Exams.tsx) to upload compressed images to Cloudinary via [utils/cloudinary.ts](file:///c:/Users/HP/Desktop/orbit/utils/cloudinary.ts), avoiding Supabase Storage & 5 GB/mo egress limits.
 
 ---
 

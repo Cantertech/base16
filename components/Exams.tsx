@@ -10,6 +10,7 @@ import {
 import ReportCard from './ReportCard';
 import { supabase } from '../utils/supabaseClient';
 import { sendHubtelSms } from '../utils/sms';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useReactToPrint } from 'react-to-print';
 import { ExamsProvider, ExamsContextValue } from './ExamsContext';
@@ -1468,23 +1469,10 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                 const response = await fetch(base64);
                 const blob = await response.blob();
 
-                // 3. Upload to Supabase Storage
-                const fileExt = 'png';
-                const fileName = `${schoolId}/${fieldName}_${Date.now()}.${fileExt}`;
-                
-                const { data, error } = await supabase.storage
-                    .from('student-photos') // Reusing available bucket from schema
-                    .upload(fileName, blob, { upsert: true, contentType: 'image/png' });
-
-                if (!error && data?.path) {
-                    const { data: { publicUrl } } = supabase.storage
-                        .from('student-photos')
-                        .getPublicUrl(fileName);
-                    if (publicUrl) {
-                        finalImageUrl = publicUrl;
-                    }
-                } else if (error) {
-                    console.warn("Storage upload notice (falling back to direct optimized image):", error.message);
+                // 3. Upload to Cloudinary (avoids Supabase Storage/egress limits)
+                const cloudUrl = await uploadToCloudinary(blob, `${fieldName}_${Date.now()}.png`);
+                if (cloudUrl) {
+                    finalImageUrl = cloudUrl;
                 }
             } catch (storageErr) {
                 console.warn("Storage upload exception (falling back to direct optimized image):", storageErr);
