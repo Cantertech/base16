@@ -9,7 +9,7 @@ import {
 import { supabase } from '../utils/supabaseClient';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { payWithPaystack } from '../utils/paystack';
+import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack';
 import Loading from './Loading';
 
 interface SettingsProps {
@@ -441,36 +441,18 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
             paymentRef?: string;
             description: string;
         }) => {
-            const { data, error } = await supabase.rpc('activate_school_subscription', {
-                p_school_id: schoolId,
-                p_plan_code: payload.planCode,
-                p_amount: payload.amount,
-                p_payment_method: payload.paymentMethod || 'Mobile Money',
-                p_payment_ref: payload.paymentRef || `MOMO-${Date.now()}`,
-                p_description: payload.description
-            });
-            if (error) {
-                // Direct fallback
-                const endDate = new Date();
-                endDate.setMonth(endDate.getMonth() + 4);
-                await supabase.from('school_subscriptions').upsert({
-                    school_id: schoolId,
-                    plan_code: payload.planCode,
-                    billing_cycle: 'Termly',
-                    status: 'active',
-                    amount_billed: payload.amount,
-                    current_period_start: new Date().toISOString().split('T')[0],
-                    current_period_end: endDate.toISOString().split('T')[0],
-                    payment_method: payload.paymentMethod || 'Mobile Money',
-                    payment_reference: payload.paymentRef || `REF-${Date.now()}`
-                });
-                await supabase.from('schools').update({
-                    subscription_plan: payload.planCode,
-                    next_payment_due: endDate.toISOString().split('T')[0],
-                    status: 'active'
-                }).eq('id', schoolId);
+            if (!payload.paymentRef) {
+                throw new Error('Missing Paystack payment reference.');
             }
-            return data;
+            return await verifyPaystackPayment({
+                reference: payload.paymentRef,
+                action: 'subscription',
+                schoolId,
+                expectedAmount: payload.amount,
+                planCode: payload.planCode,
+                paymentMethod: payload.paymentMethod || 'Mobile Money',
+                description: payload.description
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['activeSubscription', schoolId] });
@@ -484,32 +466,17 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
     const buySMSCreditsMutation = useMutation({
         mutationFn: async (pack: { quantity: number; amount: number; paymentMethod?: string; reference?: string }) => {
-            const ref = pack.reference || `SMS-PAY-${Date.now()}`;
-            const { data, error } = await supabase.rpc('top_up_school_sms', {
-                p_school_id: schoolId,
-                p_quantity: pack.quantity,
-                p_amount: pack.amount,
-                p_payment_ref: ref,
-                p_payment_method: pack.paymentMethod || 'Paystack Online'
-            });
-            if (error) {
-                // Safe direct fallback
-                const currentBal = config.sms_balance || 0;
-                await supabase.from('schools').update({
-                    sms_balance: currentBal + pack.quantity
-                }).eq('id', schoolId);
-                try {
-                    await supabase.from('sms_purchases').insert({
-                        school_id: schoolId,
-                        quantity: pack.quantity,
-                        amount_paid: pack.amount,
-                        payment_reference: ref,
-                        payment_method: pack.paymentMethod || 'Paystack Online',
-                        status: 'Completed'
-                    });
-                } catch (_) {}
+            if (!pack.reference) {
+                throw new Error('Missing Paystack payment reference.');
             }
-            return data;
+            return await verifyPaystackPayment({
+                reference: pack.reference,
+                action: 'sms_purchase',
+                schoolId,
+                expectedAmount: pack.amount,
+                smsQuantity: pack.quantity,
+                paymentMethod: pack.paymentMethod || 'Paystack Online'
+            });
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
@@ -522,35 +489,16 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
 
     const topUpWalletMutation = useMutation({
         mutationFn: async (payload: { amount: number; paymentMethod: string; reference?: string }) => {
-            const ref = payload.reference || `TOPUP-${Date.now()}`;
-            const { data, error } = await supabase.rpc('top_up_school_wallet', {
-                p_school_id: schoolId,
-                p_amount: payload.amount,
-                p_payment_ref: ref,
-                p_payment_method: payload.paymentMethod || 'Mobile Money'
-            });
-            if (error) {
-                // Direct fallback if RPC is not yet executed in database
-                const cur = Number(schoolData?.wallet_balance || 0);
-                const newBal = cur + payload.amount;
-                await supabase.from('schools').update({
-                    wallet_balance: newBal
-                }).eq('id', schoolId);
-
-                try {
-                    await supabase.from('school_wallet_transactions').insert({
-                        school_id: schoolId,
-                        amount: payload.amount,
-                        balance_after: newBal,
-                        type: 'deposit',
-                        purpose: 'Wallet Deposit',
-                        payment_method: payload.paymentMethod || 'Mobile Money',
-                        payment_reference: ref,
-                        description: `Wallet Top-Up of GH₵ ${payload.amount}`
-                    });
-                } catch (_) {}
+            if (!payload.reference) {
+                throw new Error('Missing Paystack payment reference.');
             }
-            return data;
+            return await verifyPaystackPayment({
+                reference: payload.reference,
+                action: 'wallet_topup',
+                schoolId,
+                expectedAmount: payload.amount,
+                paymentMethod: payload.paymentMethod || 'Mobile Money'
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
@@ -583,62 +531,7 @@ const Settings: React.FC<SettingsProps> = ({ onConfigUpdate, currentUser, hidden
                 p_sms_quantity: payload.smsQuantity || 0
             });
 
-            if (error) {
-                // Direct fallback
-                const newBal = cur - payload.amount;
-                if (payload.purpose === 'subscription') {
-                    const endDate = new Date();
-                    endDate.setMonth(endDate.getMonth() + 4);
-                    await supabase.from('schools').update({
-                        wallet_balance: newBal,
-                        subscription_plan: payload.planCode || 'full_suite',
-                        next_payment_due: endDate.toISOString().split('T')[0],
-                        status: 'active'
-                    }).eq('id', schoolId);
-
-                    await supabase.from('school_subscriptions').upsert({
-                        school_id: schoolId,
-                        plan_code: payload.planCode || 'full_suite',
-                        billing_cycle: 'Termly',
-                        status: 'active',
-                        amount_billed: payload.amount,
-                        current_period_start: new Date().toISOString().split('T')[0],
-                        current_period_end: endDate.toISOString().split('T')[0],
-                        payment_method: 'Orbit Wallet',
-                        payment_reference: `WALLET-${Date.now()}`
-                    });
-                } else if (payload.purpose === 'sms') {
-                    const curSms = Number(config.sms_balance || 0);
-                    await supabase.from('schools').update({
-                        wallet_balance: newBal,
-                        sms_balance: curSms + (payload.smsQuantity || 0)
-                    }).eq('id', schoolId);
-
-                    try {
-                        await supabase.from('sms_purchases').insert({
-                            school_id: schoolId,
-                            quantity: payload.smsQuantity || 0,
-                            amount_paid: payload.amount,
-                            payment_reference: `WALLET-SMS-${Date.now()}`,
-                            payment_method: 'Orbit Wallet',
-                            status: 'Completed'
-                        });
-                    } catch (_) {}
-                }
-
-                try {
-                    await supabase.from('school_wallet_transactions').insert({
-                        school_id: schoolId,
-                        amount: -payload.amount,
-                        balance_after: newBal,
-                        type: payload.purpose,
-                        purpose: payload.purpose,
-                        payment_method: 'Orbit Wallet',
-                        payment_reference: `WALLET-PAY-${Date.now()}`,
-                        description: payload.description
-                    });
-                } catch (_) {}
-            }
+            if (error) throw error;
             return data;
         },
         onSuccess: (_, variables) => {

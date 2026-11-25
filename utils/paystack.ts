@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient';
+
 /**
  * Orbit Paystack Integration Utility
  * Supports Mobile Money (MTN, Telecel, AT) and Debit/Credit Cards in Ghana (GHS)
@@ -49,6 +51,36 @@ export const loadPaystackScript = (): Promise<boolean> => {
         };
         document.body.appendChild(script);
     });
+};
+
+export interface VerifyPaystackParams {
+    reference: string;
+    action: 'wallet_topup' | 'sms_purchase' | 'subscription' | 'module_unlock';
+    schoolId: string;
+    expectedAmount: number;
+    planCode?: string;
+    moduleCode?: string;
+    moduleName?: string;
+    smsQuantity?: number;
+    paymentMethod?: string;
+    description?: string;
+}
+
+/**
+ * Verifies a Paystack transaction server-side via the 'verify-paystack' Edge Function
+ * before crediting wallets, SMS balances, or unlocking modules.
+ */
+export const verifyPaystackPayment = async (params: VerifyPaystackParams) => {
+    const { data, error } = await supabase.functions.invoke('verify-paystack', {
+        body: params,
+    });
+    if (error) {
+        throw new Error(error.message || 'Server payment verification failed.');
+    }
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    return data;
 };
 
 export const payWithPaystack = async (config: PaystackPaymentConfig): Promise<boolean> => {

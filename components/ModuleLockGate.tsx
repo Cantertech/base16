@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Wallet, CreditCard, Lock, CheckCircle, Zap, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
-import { payWithPaystack } from '../utils/paystack';
+import { payWithPaystack, verifyPaystackPayment } from '../utils/paystack';
 import { useQueryClient } from '@tanstack/react-query';
 
 export interface ModuleLockGateProps {
@@ -38,62 +38,23 @@ export const ModuleLockGate: React.FC<ModuleLockGateProps> = ({
 
     const hasEnoughWallet = walletBalance >= price;
 
-    // Handle 1-Click Instant Unlock using Wallet Balance
+    // Handle 1-Click Instant Unlock using Wallet Balance (atomic server-side RPC)
     const handleWalletUnlock = async () => {
         if (!hasEnoughWallet) return;
         setIsWalletUnlocking(true);
         setErrorMsg(null);
 
         try {
-            const newBalance = walletBalance - price;
-
-            // 1. Update School Wallet Balance
-            const { error: schoolErr } = await supabase
-                .from('schools')
-                .update({ wallet_balance: newBalance })
-                .eq('id', schoolId);
-
-            if (schoolErr) throw schoolErr;
-
-            // 2. Fetch or Create Subscription Record
-            const { data: subData } = await supabase
-                .from('school_subscriptions')
-                .select('*')
-                .eq('school_id', schoolId)
-                .maybeSingle();
-
-            let currentModules: string[] = subData?.unlocked_modules || [];
-            if (!currentModules.includes(moduleCode)) {
-                currentModules = [...currentModules, moduleCode];
-            }
-
-            if (subData) {
-                await supabase
-                    .from('school_subscriptions')
-                    .update({
-                        unlocked_modules: currentModules,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('school_id', schoolId);
-            } else {
-                await supabase
-                    .from('school_subscriptions')
-                    .insert({
-                        school_id: schoolId,
-                        plan_type: 'modular',
-                        unlocked_modules: currentModules,
-                        status: 'active'
-                    });
-            }
-
-            // 3. Log Wallet Transaction
-            await supabase.from('school_wallet_transactions').insert({
-                school_id: schoolId,
-                amount: price,
-                type: 'debit',
-                description: `Unlocked Module: ${moduleName} (${price} GHS/term)`,
-                reference: `MOD-UNLOCK-${Date.now()}`
+            const { error: rpcErr } = await supabase.rpc('pay_from_school_wallet', {
+                p_school_id: schoolId,
+                p_amount: price,
+                p_purpose: 'subscription',
+                p_description: `Unlocked Module: ${moduleName} (${price} GHS/term)`,
+                p_plan_code: moduleCode,
+                p_sms_quantity: 0
             });
+
+            if (rpcErr) throw rpcErr;
 
             // Refresh cached queries
             await queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
@@ -109,7 +70,7 @@ export const ModuleLockGate: React.FC<ModuleLockGateProps> = ({
         }
     };
 
-    // Handle Paystack Payment Gateway
+    // Handle Paystack Payment Gateway (server-side verified)
     const handlePaystackUnlock = async () => {
         setIsPaystackLoading(true);
         setErrorMsg(null);
@@ -124,53 +85,27 @@ export const ModuleLockGate: React.FC<ModuleLockGateProps> = ({
                     purpose: 'module_unlock'
                 },
                 onSuccess: async (payRes) => {
-                    // Update unlocked modules in DB
-                    const { data: subData } = await supabase
-                        .from('school_subscriptions')
-                        .select('*')
-                        .eq('school_id', schoolId)
-                        .maybeSingle();
+                    try {
+                        await verifyPaystackPayment({
+                            reference: payRes.reference,
+                            action: 'module_unlock',
+                            schoolId,
+                            expectedAmount: price,
+                            moduleCode,
+                            moduleName,
+                            paymentMethod: 'Paystack MoMo/Card'
+                        });
 
-                    let currentModules: string[] = subData?.unlocked_modules || [];
-                    if (!currentModules.includes(moduleCode)) {
-                        currentModules = [...currentModules, moduleCode];
+                        await queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
+                        await queryClient.invalidateQueries({ queryKey: ['schoolConfig', schoolId] });
+                        await queryClient.invalidateQueries({ queryKey: ['activeSubscription', schoolId] });
+
+                        if (onUnlocked) onUnlocked();
+                    } catch (verifyErr: any) {
+                        setErrorMsg(verifyErr.message || 'Payment verification failed. Contact support with your reference.');
+                    } finally {
+                        setIsPaystackLoading(false);
                     }
-
-                    if (subData) {
-                        await supabase
-                            .from('school_subscriptions')
-                            .update({
-                                unlocked_modules: currentModules,
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('school_id', schoolId);
-                    } else {
-                        await supabase
-                            .from('school_subscriptions')
-                            .insert({
-                                school_id: schoolId,
-                                plan_type: 'modular',
-                                unlocked_modules: currentModules,
-                                status: 'active'
-                            });
-                    }
-
-                    // Log invoice
-                    await supabase.from('school_billing_invoices').insert({
-                        school_id: schoolId,
-                        amount: price,
-                        status: 'paid',
-                        payment_method: 'Paystack MoMo/Card',
-                        reference: payRes.reference,
-                        description: `Module Activation: ${moduleName}`
-                    });
-
-                    await queryClient.invalidateQueries({ queryKey: ['schoolSettings', schoolId] });
-                    await queryClient.invalidateQueries({ queryKey: ['schoolConfig', schoolId] });
-                    await queryClient.invalidateQueries({ queryKey: ['activeSubscription', schoolId] });
-
-                    if (onUnlocked) onUnlocked();
-                    setIsPaystackLoading(false);
                 },
                 onClose: () => {
                     setIsPaystackLoading(false);

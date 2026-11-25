@@ -6,36 +6,14 @@ Generated from live inspection of `cvikeikqhxxkwdupglpp.supabase.co`, frontend (
 
 ## P0 — Critical Security & Broken Production Features (Fix First)
 
-### 1. Hubtel SMS Secrets Exposed in Frontend Bundle
-- **Where:** `.env` (`VITE_HUBTEL_CLIENT_ID`, `VITE_HUBTEL_CLIENT_SECRET`), [utils/sms.ts](file:///c:/Users/HP/Desktop/orbit/utils/sms.ts#L60-L76), [supabase/functions/send-sms/index.ts](file:///c:/Users/HP/Desktop/orbit/supabase/functions/send-sms/index.ts#L31-L33)
-- **Risk:** Any variable starting with `VITE_` is compiled into the public browser JS bundle. Anyone can inspect DevTools and steal your Hubtel API credentials to send SMS on your account.
-- **Fix:**
-  1. Set `HUBTEL_CLIENT_ID`, `HUBTEL_CLIENT_SECRET`, and `HUBTEL_SENDER_ID` as Supabase Edge Function secrets (`supabase secrets set`).
-  2. Remove `hubtelKeys` from [utils/sms.ts](file:///c:/Users/HP/Desktop/orbit/utils/sms.ts#L72-L76) and remove `VITE_HUBTEL_*` from `.env` and Vercel.
-  3. Require a valid logged-in user JWT inside `send-sms/index.ts` and deduct SMS credits atomically server-side before sending.
+### 1. [DONE] Hubtel SMS Secrets Exposed in Frontend Bundle
+- **Status:** Fixed in `7b2a225` (Hubtel secrets removed from `utils/sms.ts`, `components/BookDemo.tsx`, and `.env`; `supabase/functions/send-sms/index.ts` updated to use Arkesel v2 / Hubtel strictly via Supabase Edge Function Secrets).
 
-### 2. Missing Tables & RPCs in Live Database (`cvikeikqhxxkwdupglpp`)
-Our automated scan against the live OpenAPI schema (`31 tables`, `24 RPCs`) found frontend calls referencing tables and RPCs that **do not exist** in `cvikeikqhxxkwdupglpp`:
-- **Missing Tables:**
-  - `notices` (used in [components/Dashboard.tsx](file:///c:/Users/HP/Desktop/orbit/components/Dashboard.tsx) and [backend/tools.py](file:///c:/Users/HP/Desktop/orbit/backend/tools.py#L171-L230))
-  - `message_logs` (used in [components/Communication.tsx](file:///c:/Users/HP/Desktop/orbit/components/Communication.tsx#L110) and [components/Exams.tsx](file:///c:/Users/HP/Desktop/orbit/components/Exams.tsx))
-  - `referrals` (used in [components/Analytics.tsx](file:///c:/Users/HP/Desktop/orbit/components/Analytics.tsx))
-  - `demo_bookings` (used in [components/BookDemo.tsx](file:///c:/Users/HP/Desktop/orbit/components/BookDemo.tsx))
-- **Missing RPCs:**
-  - `start_new_term` ([components/Dashboard.tsx](file:///c:/Users/HP/Desktop/orbit/components/Dashboard.tsx))
-  - `add_fee_to_students` ([components/Fees.tsx](file:///c:/Users/HP/Desktop/orbit/components/Fees.tsx))
-  - `create_teacher_user` ([components/Teachers.tsx](file:///c:/Users/HP/Desktop/orbit/components/Teachers.tsx))
-  - `get_student_class_rank`, `toggle_mark_entry`, `submit_exam_marks_v3`, `unsubmit_exam_marks`, `publish_class_results` ([components/Exams.tsx](file:///c:/Users/HP/Desktop/orbit/components/Exams.tsx))
-  - `get_student_attendance_summary` ([components/ReportCard.tsx](file:///c:/Users/HP/Desktop/orbit/components/ReportCard.tsx))
-- **Fix:** Audit each one — create the missing tables/RPCs in `cvikeikqhxxkwdupglpp` (from `supabase/` migrations) or update the frontend calls to use the new `master_schema_v1.sql` names (e.g., `app_notifications` vs `notices`).
+### 2. [DONE] Missing Tables & RPCs in Live Database (`cvikeikqhxxkwdupglpp`)
+- **Status:** Fixed in `7b2a225` + `supabase/fix_missing_tables_and_rpcs.sql` (`message_logs`, `demo_bookings`, `add_fee_to_students`, `get_student_class_rank` verified live; `notices` → `app_notifications`, `start_new_term` → `admin_switch_academic_term`, retired `referrals` query removed).
 
-### 3. Client-Side Paystack & Wallet Unlocking (Revenue Bypass Risk)
-- **Where:** [components/ModuleLockGate.tsx](file:///c:/Users/HP/Desktop/orbit/components/ModuleLockGate.tsx#L42-L166), [components/Settings.tsx](file:///c:/Users/HP/Desktop/orbit/components/Settings.tsx)
-- **Risk:** `onSuccess` in `PaystackPop` directly updates `school_subscriptions` and `schools.wallet_balance` from the browser without server-side Paystack verification. A technical user can fake a client callback or modify wallet balance via the Supabase REST API if RLS allows `schools` updates.
-- **Fix:**
-  1. Create a server-side Paystack webhook / verification endpoint (in FastAPI or Supabase Edge Function) using your Paystack **Secret Key** (`https://api.paystack.co/transaction/verify/:reference`).
-  2. Only unlock modules / credit wallets / credit SMS from the server after Paystack confirms `status === 'success'` and the exact `amount` matches.
-  3. Lock down `schools.wallet_balance`, `schools.sms_balance`, and `school_subscriptions` in RLS so normal school admins cannot `UPDATE` balances directly from the browser.
+### 3. [DONE] Client-Side Paystack & Wallet Unlocking (Revenue Bypass Risk)
+- **Status:** Fixed & deployed (`supabase/functions/verify-paystack/index.ts`, `utils/paystack.ts`, `components/ModuleLockGate.tsx`, `components/Settings.tsx`, and `supabase/lock_billing_and_wallets.sql` applied on `cvikeikqhxxkwdupglpp`). All Paystack payments are now verified server-side with `PAYSTACK_SECRET_KEY`, and `wallet_balance`/`sms_balance`/`school_subscriptions` are locked against browser tampering.
 
 ### 4. Mixed Content: Oracle AI Agent URL Uses `http://` on an `https://` Site
 - **Where:** `.env` (`VITE_AI_AGENT_URL=http://155.248.239.188/base16-api/api/chat`), [backend/main.py](file:///c:/Users/HP/Desktop/orbit/backend/main.py)
