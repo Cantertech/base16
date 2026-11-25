@@ -1763,20 +1763,27 @@ const StudentProfileDrawer = ({ student, onClose, onEdit, hasFeesModule }: any) 
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
                 <div>
-                  <span className="block text-slate-400 text-xs mb-1">Admission Number</span>
-                  <div className="font-mono text-lg font-bold tracking-wider flex items-center gap-2">
-                    {student.admission_no}
-                    <button className="text-slate-500 hover:text-white transition-colors" onClick={() => navigator.clipboard.writeText(student.admission_no || '')}><Copy className="h-3 w-3" /></button>
+                  <span className="block text-slate-300 text-xs mb-1">Admission Number</span>
+                  <div className="font-mono text-lg font-bold tracking-wider text-white flex items-center gap-2">
+                    <span>{student.admission_no || student.id.substring(0, 8).toUpperCase()}</span>
+                    <button
+                      type="button"
+                      className="text-slate-300 hover:text-white transition-colors"
+                      onClick={() => navigator.clipboard.writeText(student.admission_no || student.id.substring(0, 8).toUpperCase())}
+                      title="Copy Admission Number"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
                 <div>
-                  <span className="block text-slate-400 text-xs mb-1">Login PIN</span>
+                  <span className="block text-slate-300 text-xs mb-1">Login PIN</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg font-bold tracking-wider">
-                      {showPin ? student.pin : '••••'}
+                    <span className="font-mono text-lg font-bold tracking-wider text-white">
+                      {showPin ? (student.pin || 'Not Set') : '••••'}
                     </span>
-                    <button onClick={() => setShowPin(!showPin)} className="text-slate-400 hover:text-white transition-colors">
-                      {showPin ? <Eye className="h-3 w-3" /> : <Eye className="h-3 w-3 off" />}
+                    <button type="button" onClick={() => setShowPin(!showPin)} className="text-slate-300 hover:text-white transition-colors">
+                      {showPin ? <Eye className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </div>
