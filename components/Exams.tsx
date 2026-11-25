@@ -1085,7 +1085,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const sendResultNotifications = async (className: string) => {
         try {
             const cleanPhone = (p: string) => p?.replace(/\s+/g, '') || '';
-            const PORTAL_LINK = 'https://base16.sixzones.com/login';
+            const PORTAL_LINK = 'https://parent.base16schools.com/login';
 
             // 1. Get recipients
             const targetStudents = (students as Student[]).filter(s => s.class === className && s.parent_phone);
