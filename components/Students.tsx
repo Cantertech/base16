@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Search, Filter, Plus, FileSpreadsheet, Eye, Edit,
+  Search, Filter, Plus, FileSpreadsheet, Eye, EyeOff, Edit,
   X, User, Phone, CheckCircle, AlertCircle, ChevronLeft,
   ChevronRight, Download, DollarSign, Calendar, TrendingUp, Trash2,
   Table as TableIcon, LayoutList, Camera, UploadCloud, Lock,
@@ -66,7 +66,7 @@ const fetchStudents = async (schoolId: string, assignedClasses: string[] = []) =
   // Projection: Avoid fetching heavy or sensitive columns like 'pin' in the main list unless needed
   let query = supabase
     .from('students')
-    .select('id, name, class, gender, parent_name, parent_phone, balance, status, admission_no, photo_url, date_of_birth')
+    .select('id, name, class, gender, parent_name, parent_phone, balance, status, admission_no, pin, photo_url, date_of_birth')
     .eq('school_id', schoolId)
     .limit(5000)
     .order('name', { ascending: true });
@@ -1756,43 +1756,64 @@ const StudentProfileDrawer = ({ student, onClose, onEdit, hasFeesModule }: any) 
           <div className="space-y-6">
 
             {/* Credentials Card */}
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-3 opacity-10"><Shield className="h-16 w-16" /></div>
-              <h4 className="flex items-center gap-2 font-bold mb-4 text-slate-200 text-sm tracking-wide">
-                <Lock className="h-4 w-4" /> STUDENT CREDENTIALS
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
-                <div>
-                  <span className="block text-slate-300 text-xs mb-1">Admission Number</span>
-                  <div className="font-mono text-lg font-bold tracking-wider text-white flex items-center gap-2">
-                    <span>{student.admission_no || student.id.substring(0, 8).toUpperCase()}</span>
-                    <button
-                      type="button"
-                      className="text-slate-300 hover:text-white transition-colors"
-                      onClick={() => navigator.clipboard.writeText(student.admission_no || student.id.substring(0, 8).toUpperCase())}
-                      title="Copy Admission Number"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <span className="block text-slate-300 text-xs mb-1">Login PIN</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg font-bold tracking-wider text-white">
-                      {showPin ? (student.pin || 'Not Set') : '••••'}
+            <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                  <span className="p-1.5 rounded-lg bg-primary-50 text-primary-600 border border-primary-100">
+                    <Lock className="h-3.5 w-3.5" />
+                  </span>
+                  Parent Portal Credentials
+                </h4>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Portal Access
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">
+                      Admission Number
                     </span>
-                    <button type="button" onClick={() => setShowPin(!showPin)} className="text-slate-300 hover:text-white transition-colors">
-                      {showPin ? <Eye className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
+                    <div className="font-mono text-base font-bold tracking-wider text-slate-900 truncate">
+                      {student.admission_no || student.id.substring(0, 8).toUpperCase()}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors shrink-0"
+                    onClick={() => navigator.clipboard.writeText(student.admission_no || student.id.substring(0, 8).toUpperCase())}
+                    title="Copy Admission Number"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
                 </div>
-                <div className="col-span-1 sm:col-span-2 pt-2 border-t border-slate-700/50">
-                  <span className="block text-slate-500 text-[10px] uppercase tracking-wider mb-1">System ID</span>
-                  <div className="font-mono text-xs text-slate-400 break-all select-all cursor-text">
-                    {student.id}
+
+                <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">
+                      Login PIN
+                    </span>
+                    <div className="font-mono text-base font-bold tracking-wider text-slate-900">
+                      {showPin ? (student.pin || 'Not Set') : '••••'}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="p-2 rounded-lg text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors shrink-0"
+                    title={showPin ? 'Hide PIN' : 'Show PIN'}
+                  >
+                    {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">System ID</span>
+                <span className="font-mono text-[11px] text-slate-500 truncate select-all cursor-text">
+                  {student.id}
+                </span>
               </div>
             </div>
 
