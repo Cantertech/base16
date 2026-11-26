@@ -1,3 +1,0 @@
-ALTER TABLE schools 
-ADD COLUMN IF NOT EXISTS feeding_fee_amount NUMERIC(10,2) DEFAULT 5.00,
-ADD COLUMN IF NOT EXISTS teachers_can_collect_feeding BOOLEAN DEFAULT FALSE;
