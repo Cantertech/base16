@@ -397,6 +397,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
     const { data: schoolInfo, isLoading: isSchoolInfoLoading } = useQuery({
         queryKey: ['schoolInfo', schoolId],
         queryFn: () => fetchSchoolInfo(schoolId!),
+        refetchOnMount: 'always',
         enabled: !!schoolId
     });
 

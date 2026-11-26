@@ -300,6 +300,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                 return undefined;
             }
         },
+        initialDataUpdatedAt: 0,
+        refetchOnMount: 'always',
         enabled: !!currentUser.school_id
     });
 
@@ -1051,6 +1053,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             // Clear cached school config so UI re-renders immediately with the new term/year
             localStorage.removeItem(`base16_school_config_${currentUser.school_id}`);
             queryClient.invalidateQueries({ queryKey: ['schoolConfig', currentUser.school_id] });
+            queryClient.invalidateQueries({ queryKey: ['schoolInfo', currentUser.school_id] });
+            queryClient.invalidateQueries({ queryKey: ['examConfig', currentUser.school_id] });
             queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
             queryClient.invalidateQueries({ queryKey: ['feeStructure'] });
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
