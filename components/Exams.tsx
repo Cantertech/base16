@@ -66,6 +66,8 @@ const fetchSchoolInfo = async (schoolId: string) => {
         phone: data.phone,
         email: data.email,
         motto: data.motto,
+        current_term: data.current_term,
+        academic_year: data.academic_year,
         exam_config: data.exam_config,
         report_card_config: data.report_card_config,
     };
