@@ -2497,11 +2497,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             {/* baseAI FLOATING BOT BUTTON & INTERACTIVE POP-UP MODAL                      */}
             {/* ========================================================================= */}
 
-            {/* Normal Bot Button at Bottom-Right */}
-            {!isAIPanelOpen && (
+            {/* Normal Bot Button at Bottom-Right (Only when ai_copilot / complete_bundle is unlocked) */}
+            {(isModuleUnlocked('ai_copilot') || (activeSub?.unlocked_modules || []).includes('complete_bundle')) && !isAIPanelOpen && (
                 <button
                     onClick={() => setIsAIPanelOpen(true)}
-                    className="fixed bottom-6 right-6 z-40 flex items-center justify-center h-14 w-14 rounded-full text-white shadow-2xl hover:scale-110 active:scale-95 transition-all group border-2 border-white/40"
+                    className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-40 flex items-center justify-center h-14 w-14 rounded-full text-white shadow-2xl hover:scale-110 active:scale-95 transition-all group border-2 border-white/40"
                     style={{ backgroundColor: theme.hex, boxShadow: `0 10px 25px -4px ${theme.hex}70` }}
                     aria-label="Open baseAI assistant"
                     title="Chat with baseAI"
@@ -2514,7 +2514,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             )}
 
             {/* baseAI Pop-up Chatbot Window */}
-            {isAIPanelOpen && (
+            {(isModuleUnlocked('ai_copilot') || (activeSub?.unlocked_modules || []).includes('complete_bundle')) && isAIPanelOpen && (
                 <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex items-end sm:items-center justify-center">
                     {/* Backdrop for small screens */}
                     <div 
