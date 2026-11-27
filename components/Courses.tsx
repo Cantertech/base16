@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, BookOpen, Layers, Edit, Trash2, Plus,
-    MoreHorizontal, Search, CheckSquare, Square, X, Check, FastForward, Loader2
+    MoreHorizontal, Search, CheckSquare, Square, X, Check, FastForward, Loader2, RotateCcw
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabaseClient';
@@ -198,6 +198,65 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
     const [selectedFilterClass, setSelectedFilterClass] = useState<string>('All Classes');
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list'); // grid = group by class
     const [searchTerm, setSearchTerm] = useState('');
+    const [lastPromotion, setLastPromotion] = useState<any>(null);
+    const [isReverting, setIsReverting] = useState(false);
+
+    useEffect(() => {
+        if (!schoolId) return;
+        try {
+            const raw = localStorage.getItem(`base16_last_promotion_${schoolId}`);
+            setLastPromotion(raw ? JSON.parse(raw) : null);
+        } catch {
+            setLastPromotion(null);
+        }
+    }, [schoolId, isPromotionModalOpen]);
+
+    const handleRevertPromotion = async () => {
+        if (!schoolId || !lastPromotion?.previousStates?.length) return;
+        const confirmed = window.confirm(
+            `Revert last bulk promotion (${lastPromotion.count} students from ${lastPromotion.sourceClass} → ${lastPromotion.targetClass})?`
+        );
+        if (!confirmed) return;
+
+        setIsReverting(true);
+        try {
+            // Group by previous (class, class_id, status) to minimize queries
+            const groups: Record<string, { class: string; class_id: string | null; status: string; ids: string[] }> = {};
+            for (const prev of lastPromotion.previousStates) {
+                const key = `${prev.class}|${prev.class_id || ''}|${prev.status || 'Active'}`;
+                if (!groups[key]) {
+                    groups[key] = {
+                        class: prev.class,
+                        class_id: prev.class_id || null,
+                        status: prev.status || 'Active',
+                        ids: []
+                    };
+                }
+                groups[key].ids.push(prev.id);
+            }
+
+            for (const g of Object.values(groups)) {
+                const { error } = await supabase
+                    .from('students')
+                    .update({ class: g.class, class_id: g.class_id, status: g.status })
+                    .eq('school_id', schoolId)
+                    .in('id', g.ids);
+                if (error) throw error;
+            }
+
+            localStorage.removeItem(`base16_last_promotion_${schoolId}`);
+            setLastPromotion(null);
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['classes'] }),
+                queryClient.invalidateQueries({ queryKey: ['students'] }),
+            ]);
+            alert(`Reverted ${lastPromotion.count} students back to ${lastPromotion.sourceClass}.`);
+        } catch (err: any) {
+            alert(`Failed to revert promotion: ${err.message}`);
+        } finally {
+            setIsReverting(false);
+        }
+    };
 
     // Initialize School ID
     useEffect(() => {
@@ -512,7 +571,18 @@ const Courses: React.FC<CoursesProps> = ({ currentUser }) => {
                         <div className="text-sm font-medium text-slate-600 hidden sm:block">
                             Organize your school's classes and sections.
                         </div>
-                        <div className="flex gap-3 w-full sm:w-auto">
+                        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+                            {lastPromotion && (
+                                <button
+                                    onClick={handleRevertPromotion}
+                                    disabled={isReverting}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100 font-bold text-sm shadow-xs transition-colors disabled:opacity-60"
+                                    title={`Revert ${lastPromotion.count} students from ${lastPromotion.targetClass} back to ${lastPromotion.sourceClass}`}
+                                >
+                                    {isReverting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                                    <span>Undo Promotion ({lastPromotion.sourceClass})</span>
+                                </button>
+                            )}
                             <button
                                 onClick={() => setIsPromotionModalOpen(true)}
                                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-bold text-sm shadow-md transition-colors"
@@ -1126,8 +1196,31 @@ export const BulkPromotionModal = ({ classes, schoolId, onClose, onSuccess }: an
         if (students.length === 0) return;
         setIsSaving(true);
         try {
-            // Group updates by target class mapping for efficiency
+            // Save snapshot for 1-click Undo before applying promotion
             const updates = payloadGen();
+            const affectedIds = new Set(updates.flatMap(u => u.ids));
+            const previousStates = students
+                .filter(s => affectedIds.has(s.id))
+                .map(s => ({
+                    id: s.id,
+                    class: s.class || sourceClass,
+                    class_id: s.class_id || null,
+                    status: s.status || 'Active'
+                }));
+            if (previousStates.length > 0) {
+                localStorage.setItem(
+                    `base16_last_promotion_${schoolId}`,
+                    JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        sourceClass,
+                        targetClass,
+                        count: previousStates.length,
+                        previousStates
+                    })
+                );
+            }
+
+            // Group updates by target class mapping for efficiency
             for (const item of updates) {
                 if (item.newClass === 'Graduated') {
                     await supabase.from('students')
