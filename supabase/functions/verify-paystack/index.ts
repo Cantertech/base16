@@ -156,6 +156,7 @@ serve(async (req) => {
             term: schoolRow.current_term,
             academic_year: schoolRow.academic_year,
             status: "active",
+            expires_at: null,
             updated_at: new Date().toISOString(),
           })
           .eq("school_id", schoolId);
@@ -174,7 +175,6 @@ serve(async (req) => {
       const updatedModules = currentModules.includes(moduleCode)
         ? currentModules
         : [...currentModules, moduleCode];
-      const termExpiry = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString();
 
       if (subData) {
         const { error: upErr } = await supabaseAdmin
@@ -184,7 +184,7 @@ serve(async (req) => {
             status: "active",
             term: schoolRow?.current_term || null,
             academic_year: schoolRow?.academic_year || null,
-            expires_at: termExpiry,
+            expires_at: null,
             updated_at: new Date().toISOString(),
           })
           .eq("school_id", schoolId);
@@ -197,7 +197,7 @@ serve(async (req) => {
           status: "active",
           term: schoolRow?.current_term || null,
           academic_year: schoolRow?.academic_year || null,
-          expires_at: termExpiry,
+          expires_at: null,
         });
         if (insErr) throw insErr;
       }
