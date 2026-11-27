@@ -62,8 +62,16 @@ USING (
 CREATE POLICY "School isolation for profiles insert"
 ON public.profiles FOR INSERT TO authenticated
 WITH CHECK (
-    id = auth.uid()
-    OR (school_id = public.auth_school_id() AND public.auth_user_role() = 'admin')
+    (
+        id = auth.uid()
+        AND role = 'admin'
+        AND school_id IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM public.schools s
+            WHERE s.id = school_id AND s.status = 'pending'
+        )
+    )
+    OR (school_id = public.auth_school_id() AND public.auth_user_role() = 'admin' AND role <> 'super_admin')
     OR public.auth_is_super_admin()
 );
 
@@ -75,8 +83,12 @@ USING (
     OR public.auth_is_super_admin()
 )
 WITH CHECK (
-    id = auth.uid()
-    OR (school_id = public.auth_school_id() AND public.auth_user_role() = 'admin')
+    (
+        id = auth.uid()
+        AND role = public.auth_user_role()
+        AND school_id IS NOT DISTINCT FROM public.auth_school_id()
+    )
+    OR (school_id = public.auth_school_id() AND public.auth_user_role() = 'admin' AND role <> 'super_admin')
     OR public.auth_is_super_admin()
 );
 

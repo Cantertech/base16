@@ -44,17 +44,10 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
     setLoading(true);
 
     try {
-      // 1. Upload Logo if exists
-      let logoUrl = null;
-      if (formData.logoFile) {
-        try {
-          logoUrl = await uploadToCloudinary(formData.logoFile);
-        } catch (uploadError) {
-          console.error("Logo upload failed, proceeding without logo", uploadError);
-        }
-      }
+      const currentYearNum = new Date().getFullYear();
+      const defaultAcademicYear = `${currentYearNum}/${currentYearNum + 1}`;
 
-      // 2. Sign up user with Supabase Auth
+      // 1. Sign up user with Supabase Auth first so R2 upload has a valid JWT
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -79,6 +72,16 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
           });
         }
 
+        // 2. Upload Logo after authentication so /api/r2-upload-url succeeds
+        let logoUrl = null;
+        if (formData.logoFile) {
+          try {
+            logoUrl = await uploadToCloudinary(formData.logoFile);
+          } catch (uploadError) {
+            console.error("Logo upload failed, proceeding without logo", uploadError);
+          }
+        }
+
         // 3. Create School Record with 'pending' status
         const { data: schoolData, error: schoolError } = await supabase
           .from('schools')
@@ -96,7 +99,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
               currency: formData.currency,
               sms_balance: 50,
               current_term: 'First Term',
-              academic_year: '2025/2026',
+              academic_year: defaultAcademicYear,
             },
           ])
           .select()
@@ -126,7 +129,7 @@ const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
           .insert([
             {
               school_id: schoolData.id,
-              academic_year: '2025/2026',
+              academic_year: defaultAcademicYear,
               term: 'First Term',
               is_current: true,
               is_locked: false,

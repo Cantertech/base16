@@ -92,12 +92,22 @@ interface DashboardProps {
     onExitImpersonation?: () => void;
 }
 
-const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices, assignments = [] }: any) => {
+const TeacherDashboardHome = ({ currentUser, setActiveMenu, recentNotices, assignments = [], schoolConfig }: any) => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="relative z-10">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="bg-white/20 backdrop-blur-sm border border-white/25 text-white text-xs font-bold px-3 py-1 rounded-full">
+                            {schoolConfig?.name || currentUser?.schoolName || 'School Portal'}
+                        </span>
+                        {schoolConfig?.current_term && (
+                            <span className="bg-emerald-400/25 border border-emerald-300/40 text-emerald-50 text-xs font-bold px-3 py-1 rounded-full">
+                                {schoolConfig.current_term} • {schoolConfig.academic_year}
+                            </span>
+                        )}
+                    </div>
                     <h1 className="text-3xl font-bold mb-2">Welcome back, {currentUser.name}!</h1>
                     <p className="text-blue-100 mb-6 max-w-xl">Ready to inspire your students today? You have {assignments.length || 0} active class assignments to manage.</p>
                     <div className="flex gap-4">
@@ -1190,16 +1200,54 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
     const renderContent = () => {
         if (currentUser.role === 'teacher') {
             switch (activeMenu) {
-                case 'Dashboard': return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} />;
+                case 'Dashboard': return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} schoolConfig={schoolConfig} />;
                 case 'Timetable': return <Timetable currentUser={currentUser} />;
                 case 'My Students': return <Students currentUser={currentUser} />;
-                case 'Attendance': return <Attendance currentUser={currentUser} theme={theme} />;
+                case 'Attendance':
+                    if (!isModuleUnlocked('daily_operations')) {
+                        return (
+                            <ModuleLockGate
+                                moduleCode="daily_operations"
+                                moduleName="Daily Operations (Attendance)"
+                                price={70}
+                                schoolId={currentUser.school_id}
+                                description="Attendance is currently locked. Please ask your school admin to activate Daily Operations."
+                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                            />
+                        );
+                    }
+                    return <Attendance currentUser={currentUser} theme={theme} />;
                 case 'Feeding': return <Feeding currentUser={currentUser} />;
-                // case 'My Payroll': return <MyPayroll currentUser={currentUser} />;
-                case 'Mark Entry & Reports': return <Exams currentUser={currentUser} activeModules={activeModules} />;
-                case 'Notice Board': return <Communication currentUser={currentUser} />;
+                case 'Mark Entry & Reports':
+                    if (!isModuleUnlocked('academic_engine')) {
+                        return (
+                            <ModuleLockGate
+                                moduleCode="academic_engine"
+                                moduleName="Academic Engine (Exams)"
+                                price={90}
+                                schoolId={currentUser.school_id}
+                                description="Mark Entry & Reports is currently locked. Please ask your school admin to activate Academic Engine."
+                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                            />
+                        );
+                    }
+                    return <Exams currentUser={currentUser} activeModules={activeModules} />;
+                case 'Notice Board':
+                    if (!isModuleUnlocked('parent_portal')) {
+                        return (
+                            <ModuleLockGate
+                                moduleCode="parent_portal"
+                                moduleName="Parent Portal & Notices"
+                                price={80}
+                                schoolId={currentUser.school_id}
+                                description="Notice Board is currently locked. Please ask your school admin to activate Parent Portal."
+                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                            />
+                        );
+                    }
+                    return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
-                default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} />;
+                default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} schoolConfig={schoolConfig} />;
             }
         }
         switch (activeMenu) {
