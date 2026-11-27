@@ -21,10 +21,10 @@ export interface ModuleLockGateProps {
 export const ModuleLockGate: React.FC<ModuleLockGateProps> = ({
     moduleCode,
     moduleName,
-    subtitle,
+    subtitle = '',
     price,
-    badge,
-    features,
+    badge = 'Locked Module',
+    features = [],
     schoolId,
     schoolName = 'Your School',
     schoolEmail = '',

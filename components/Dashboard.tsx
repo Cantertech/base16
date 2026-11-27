@@ -1209,10 +1209,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                             <ModuleLockGate
                                 moduleCode="daily_operations"
                                 moduleName="Daily Operations (Attendance)"
+                                subtitle="Please ask your school admin to activate Daily Operations."
                                 price={70}
+                                badge="Module Locked"
+                                features={['Daily student attendance tracking', 'Class attendance summaries']}
                                 schoolId={currentUser.school_id}
-                                description="Attendance is currently locked. Please ask your school admin to activate Daily Operations."
-                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                                schoolName={schoolConfig?.name}
+                                schoolEmail={schoolConfig?.email}
+                                walletBalance={schoolConfig?.wallet_balance}
+                                onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
                             />
                         );
                     }
@@ -1224,10 +1229,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                             <ModuleLockGate
                                 moduleCode="academic_engine"
                                 moduleName="Academic Engine (Exams)"
+                                subtitle="Please ask your school admin to activate Academic Engine."
                                 price={90}
+                                badge="Module Locked"
+                                features={['Exam mark entry & grading', 'Terminal report card generation']}
                                 schoolId={currentUser.school_id}
-                                description="Mark Entry & Reports is currently locked. Please ask your school admin to activate Academic Engine."
-                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                                schoolName={schoolConfig?.name}
+                                schoolEmail={schoolConfig?.email}
+                                walletBalance={schoolConfig?.wallet_balance}
+                                onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
                             />
                         );
                     }
@@ -1238,10 +1248,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                             <ModuleLockGate
                                 moduleCode="parent_portal"
                                 moduleName="Parent Portal & Notices"
+                                subtitle="Please ask your school admin to activate Parent Portal."
                                 price={80}
+                                badge="Module Locked"
+                                features={['Publish school & parent notices', 'Parent portal sync']}
                                 schoolId={currentUser.school_id}
-                                description="Notice Board is currently locked. Please ask your school admin to activate Parent Portal."
-                                onUnlockSuccess={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
+                                schoolName={schoolConfig?.name}
+                                schoolEmail={schoolConfig?.email}
+                                walletBalance={schoolConfig?.wallet_balance}
+                                onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
                             />
                         );
                     }
