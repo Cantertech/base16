@@ -143,23 +143,50 @@ serve(async (req) => {
         p_description: description || "Orbit Subscription Plan",
       });
       if (error) throw error;
+
+      const { data: schoolRow } = await supabaseAdmin
+        .from("schools")
+        .select("current_term, academic_year")
+        .eq("id", schoolId)
+        .maybeSingle();
+      if (schoolRow) {
+        await supabaseAdmin
+          .from("school_subscriptions")
+          .update({
+            term: schoolRow.current_term,
+            academic_year: schoolRow.academic_year,
+            status: "active",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("school_id", schoolId);
+      }
     } else if (action === "module_unlock") {
       if (!moduleCode) throw new Error("Missing moduleCode.");
-      const { data: subData } = await supabaseAdmin
-        .from("school_subscriptions")
-        .select("*")
-        .eq("school_id", schoolId)
-        .maybeSingle();
+      const [{ data: subData }, { data: schoolRow }] = await Promise.all([
+        supabaseAdmin.from("school_subscriptions").select("*").eq("school_id", schoolId).maybeSingle(),
+        supabaseAdmin.from("schools").select("current_term, academic_year").eq("id", schoolId).maybeSingle(),
+      ]);
 
-      const currentModules: string[] = Array.isArray(subData?.unlocked_modules) ? subData.unlocked_modules : [];
+      const currentModules: string[] =
+        subData?.status === "active" && Array.isArray(subData?.unlocked_modules)
+          ? subData.unlocked_modules
+          : [];
       const updatedModules = currentModules.includes(moduleCode)
         ? currentModules
         : [...currentModules, moduleCode];
+      const termExpiry = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString();
 
       if (subData) {
         const { error: upErr } = await supabaseAdmin
           .from("school_subscriptions")
-          .update({ unlocked_modules: updatedModules, updated_at: new Date().toISOString() })
+          .update({
+            unlocked_modules: updatedModules,
+            status: "active",
+            term: schoolRow?.current_term || null,
+            academic_year: schoolRow?.academic_year || null,
+            expires_at: termExpiry,
+            updated_at: new Date().toISOString(),
+          })
           .eq("school_id", schoolId);
         if (upErr) throw upErr;
       } else {
@@ -168,6 +195,9 @@ serve(async (req) => {
           plan_type: "modular",
           unlocked_modules: updatedModules,
           status: "active",
+          term: schoolRow?.current_term || null,
+          academic_year: schoolRow?.academic_year || null,
+          expires_at: termExpiry,
         });
         if (insErr) throw insErr;
       }

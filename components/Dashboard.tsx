@@ -335,8 +335,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
 
     const isModuleUnlocked = (moduleCode: string) => {
         if (isTrialActive) return true; // All modules unlocked during 7-Day Free Trial!
-        const unlocked: string[] = activeSub?.unlocked_modules || [];
-        return unlocked.includes(moduleCode) || activeSub?.plan_type === 'full_suite' || activeSub?.plan_type === 'all';
+        if (!activeSub || activeSub.status !== 'active') return false;
+        if (activeSub.expires_at && new Date(activeSub.expires_at).getTime() <= Date.now()) return false;
+        if (activeSub.term && schoolConfig?.current_term && activeSub.term !== schoolConfig.current_term) return false;
+        if (activeSub.academic_year && schoolConfig?.academic_year && activeSub.academic_year !== schoolConfig.academic_year) return false;
+        const unlocked: string[] = activeSub.unlocked_modules || [];
+        return unlocked.includes(moduleCode) || activeSub.plan_type === 'full_suite' || activeSub.plan_type === 'all';
     };
 
     // 1.5 Global Search Query
@@ -1065,6 +1069,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             queryClient.invalidateQueries({ queryKey: ['schoolConfig', currentUser.school_id] });
             queryClient.invalidateQueries({ queryKey: ['schoolInfo', currentUser.school_id] });
             queryClient.invalidateQueries({ queryKey: ['examConfig', currentUser.school_id] });
+            queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] });
             queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
             queryClient.invalidateQueries({ queryKey: ['feeStructure'] });
             queryClient.invalidateQueries({ queryKey: ['transactions'] });

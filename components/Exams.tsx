@@ -1748,8 +1748,8 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
 
     const triggerBulkPrint = () => {
         setIsBulkPrinting(true);
-        // Give React time to render the hidden container before react-to-print grabs it
-        setTimeout(() => handleBulkPrintTrigger(), 500);
+        // Give React time to render all report cards & images before react-to-print grabs them
+        setTimeout(() => handleBulkPrintTrigger(), 1000);
     };
 
     // --- Loading State ---
@@ -1994,7 +1994,7 @@ const ExamsInner: React.FC<ExamsProps> = ({ currentUser, activeModules }) => {
                                 }
                             }
                         `}} />
-                        {(students as Student[]).filter(s => s.class === viewingClassList).map((student) => (
+                        {(students as Student[]).filter(s => (s.class || '').trim().toUpperCase() === (viewingClassList || '').trim().toUpperCase()).map((student) => (
                             <div key={student.id} className="print-page-wrapper">
                                 <ReportCard
                                     student={student}
