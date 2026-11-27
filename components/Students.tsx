@@ -284,17 +284,25 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
 
   const editStudentMutation = useMutation({
     mutationFn: async ({ id, data: updatedData }: { id: string, data: any }) => {
-      const updatePayload: any = {
-        name: updatedData.name,
-        class: updatedData.class,
-        gender: updatedData.gender,
-        parent_name: updatedData.parentName || 'Parent',
-        parent_phone: updatedData.parentPhone || '',
-        date_of_birth: updatedData.dob || null,
-        balance: Number(updatedData.balance),
-        admission_no: updatedData.admission_no,
-        pin: updatedData.pin
-      };
+      const updatePayload: any = isTeacher
+        ? {
+            name: updatedData.name,
+            gender: updatedData.gender,
+            parent_name: updatedData.parentName || 'Parent',
+            parent_phone: updatedData.parentPhone || '',
+            date_of_birth: updatedData.dob || null,
+          }
+        : {
+            name: updatedData.name,
+            class: updatedData.class,
+            gender: updatedData.gender,
+            parent_name: updatedData.parentName || 'Parent',
+            parent_phone: updatedData.parentPhone || '',
+            date_of_birth: updatedData.dob || null,
+            balance: Number(updatedData.balance),
+            admission_no: updatedData.admission_no,
+            pin: updatedData.pin
+          };
 
       if (updatedData.photoFile) {
         try {
@@ -957,6 +965,7 @@ const Students: React.FC<StudentsProps> = ({ currentUser }) => {
           classes={classes}
           isSubmitting={editStudentMutation.isPending}
           hasFeesModule={hasFeesModule}
+          isTeacher={isTeacher}
         />
       )}
 
@@ -1562,7 +1571,7 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classes, isSubmitting, hasFe
   );
 };
 
-const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitting, hasFeesModule }: any) => {
+const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitting, hasFeesModule, isTeacher = false }: any) => {
   const [formData, setFormData] = useState({
     name: student.name,
     class: student.class,
@@ -1621,7 +1630,12 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Class</label>
-                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm" value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>
+                  <select
+                    disabled={isTeacher}
+                    className={`w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all text-sm ${isTeacher ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    value={formData.class}
+                    onChange={e => setFormData({ ...formData, class: e.target.value })}
+                  >
                     {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
@@ -1657,25 +1671,27 @@ const EditStudentModal = ({ isOpen, student, onClose, onSave, classes, isSubmitt
           </div>
 
           {/* Admin Data */}
-          <div className="pt-4 border-t border-slate-100 bg-slate-50 p-4 rounded-xl">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2"><Lock className="h-3 w-3" /> System Generated Data</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Admission No.</label>
-                <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.admission_no} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Login PIN</label>
-                <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.pin} />
-              </div>
-              {hasFeesModule && (
+          {!isTeacher && (
+            <div className="pt-4 border-t border-slate-100 bg-slate-50 p-4 rounded-xl">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2"><Lock className="h-3 w-3" /> System Generated Data</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
-                  <input readOnly type="number" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.balance} />
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Admission No.</label>
+                  <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.admission_no} />
                 </div>
-              )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Login PIN</label>
+                  <input readOnly className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.pin} />
+                </div>
+                {hasFeesModule && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Balance</label>
+                    <input readOnly type="number" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg outline-none text-sm font-mono text-slate-500 cursor-not-allowed" value={formData.balance} />
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="pt-4 flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-5 py-2.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 font-medium text-sm transition-colors">Cancel</button>
