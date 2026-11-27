@@ -340,7 +340,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
         if (activeSub.term && schoolConfig?.current_term && activeSub.term !== schoolConfig.current_term) return false;
         if (activeSub.academic_year && schoolConfig?.academic_year && activeSub.academic_year !== schoolConfig.academic_year) return false;
         const unlocked: string[] = activeSub.unlocked_modules || [];
-        return unlocked.includes(moduleCode) || activeSub.plan_type === 'full_suite' || activeSub.plan_type === 'all';
+        return (
+            unlocked.includes(moduleCode) ||
+            unlocked.includes('complete_bundle') ||
+            activeSub.plan_code === 'full_suite' ||
+            activeSub.plan_code === 'all' ||
+            activeSub.plan_type === 'full_suite' ||
+            activeSub.plan_type === 'all'
+        );
     };
 
     // 1.5 Global Search Query
@@ -1248,23 +1255,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
                     }
                     return <Exams currentUser={currentUser} activeModules={activeModules} />;
                 case 'Notice Board':
-                    if (!isModuleUnlocked('parent_portal')) {
-                        return (
-                            <ModuleLockGate
-                                moduleCode="parent_portal"
-                                moduleName="Parent Portal & Notices"
-                                subtitle="Please ask your school admin to activate Parent Portal."
-                                price={80}
-                                badge="Module Locked"
-                                features={['Publish school & parent notices', 'Parent portal sync']}
-                                schoolId={currentUser.school_id}
-                                schoolName={schoolConfig?.name}
-                                schoolEmail={schoolConfig?.email}
-                                walletBalance={schoolConfig?.wallet_balance}
-                                onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription'] })}
-                            />
-                        );
-                    }
                     return <Communication currentUser={currentUser} />;
                 case 'Settings & Profile': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;
                 default: return <TeacherDashboardHome currentUser={currentUser} setActiveMenu={setActiveMenu} recentNotices={recentNotices} assignments={teacherAssignments} schoolConfig={schoolConfig} />;
@@ -1350,28 +1340,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, currentUser, isImperson
             case 'Classes': return <Courses currentUser={currentUser} />;
             case 'Analytics': return <Analytics currentUser={currentUser} />;
             case 'Notice':
-                if (!isModuleUnlocked('parent_portal')) {
-                    return (
-                        <ModuleLockGate
-                            moduleCode="parent_portal"
-                            moduleName="Parent Portal & Notices"
-                            subtitle="Online Parent Access, Reports & Notice Board"
-                            price={80}
-                            badge="Parents"
-                            features={[
-                                'Secure Parent Student Access Link',
-                                'Online Terminal Report Card Viewer',
-                                'Live Student Fee Balance & Payment Status',
-                                'Digital School Notice Board & Announcements'
-                            ]}
-                            schoolId={currentUser.school_id}
-                            schoolName={schoolConfig?.name}
-                            schoolEmail={schoolConfig?.email}
-                            walletBalance={schoolConfig?.wallet_balance || 0}
-                            onUnlocked={() => queryClient.invalidateQueries({ queryKey: ['activeSubscription', currentUser.school_id] })}
-                        />
-                    );
-                }
                 return <Communication currentUser={currentUser} />;
             case 'Help center': return <HelpCenter currentUser={currentUser} />;
             case 'Settings': return <Settings onConfigUpdate={() => queryClient.invalidateQueries({ queryKey: ['schoolConfig'] })} currentUser={currentUser} hiddenMenuItems={hiddenMenuItems} toggleHiddenMenu={toggleHiddenMenu} availableMenus={allowedMenuItems} />;

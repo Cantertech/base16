@@ -59,7 +59,7 @@ BEGIN
     IF v_old_term IS DISTINCT FROM p_new_term OR v_old_year IS DISTINCT FROM p_new_year THEN
         UPDATE public.school_subscriptions
         SET status = 'expired',
-            plan_type = 'modular',
+            plan_code = 'modular',
             unlocked_modules = ARRAY[]::TEXT[],
             term = p_new_term,
             academic_year = p_new_year,

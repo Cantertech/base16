@@ -192,7 +192,7 @@ serve(async (req) => {
       } else {
         const { error: insErr } = await supabaseAdmin.from("school_subscriptions").insert({
           school_id: schoolId,
-          plan_type: "modular",
+          plan_code: "modular",
           unlocked_modules: updatedModules,
           status: "active",
           term: schoolRow?.current_term || null,
